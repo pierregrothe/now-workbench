@@ -1,0 +1,56 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+.venv/
+venv/
+ENV/
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# Node / Web
+web/node_modules/
+web/dist/
+web/.vite/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ServiceNow SDK & Workbench temp workspaces
+.now/
+workspaces/
+*.sn-demo.zip
+*.sn-demo.tar.gz
+
+# OS & IDE
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Environment & Secrets
+.env
+.env.local
+*.pem
+*.key

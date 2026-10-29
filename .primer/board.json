@@ -1,0 +1,84 @@
+{
+  "version": "1.0",
+  "project": "now-workbench",
+  "epics": [
+    {
+      "id": "EPIC-001",
+      "title": "Foundation & Runtime Toolchain",
+      "status": "in_progress",
+      "stories": [
+        {
+          "id": "STORY-001",
+          "title": "Scaffold Python 3.14 project with Poetry, Pydantic v2, and Typer CLI",
+          "status": "in_progress"
+        },
+        {
+          "id": "STORY-002",
+          "title": "Implement NowSdkRunner async subprocess executor with log streaming",
+          "status": "todo"
+        },
+        {
+          "id": "STORY-003",
+          "title": "Create multi-stage Dockerfile bundling Python + Node.js + now-sdk",
+          "status": "todo"
+        }
+      ]
+    },
+    {
+      "id": "EPIC-002",
+      "title": "Demo Bundle Packaging & Seed Engine",
+      "status": "todo",
+      "stories": [
+        {
+          "id": "STORY-004",
+          "title": "Implement DemoBundle packager, unpacker, and manifest validator",
+          "status": "todo"
+        },
+        {
+          "id": "STORY-005",
+          "title": "Implement Table API transactional seed record loader & rollback tracker",
+          "status": "todo"
+        }
+      ]
+    },
+    {
+      "id": "EPIC-003",
+      "title": "ServiceNow Lux Web UI with Lit Components",
+      "status": "todo",
+      "stories": [
+        {
+          "id": "STORY-006",
+          "title": "Scaffold Lit + Vite + TypeScript frontend with Lux design tokens",
+          "status": "todo"
+        },
+        {
+          "id": "STORY-007",
+          "title": "Implement <now-workbench-shell>, <now-nav-rail>, and <now-demo-catalog>",
+          "status": "todo"
+        },
+        {
+          "id": "STORY-008",
+          "title": "Implement <now-console> live WebSocket terminal output viewer",
+          "status": "todo"
+        }
+      ]
+    },
+    {
+      "id": "EPIC-004",
+      "title": "Otto AI Copilot with Claude API",
+      "status": "todo",
+      "stories": [
+        {
+          "id": "STORY-009",
+          "title": "Implement Claude API client with streaming and tool definitions",
+          "status": "todo"
+        },
+        {
+          "id": "STORY-010",
+          "title": "Build <now-otto-drawer> conversational UI with contextual intent chips",
+          "status": "todo"
+        }
+      ]
+    }
+  ]
+}

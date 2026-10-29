@@ -1,0 +1,22 @@
+[
+  {
+    "table": "incident",
+    "fields": {
+      "short_description": "VPN connection drops every 15 minutes during peak hours",
+      "category": "network",
+      "urgency": "2",
+      "impact": "2",
+      "caller_id": "beth.anglin@example.com"
+    }
+  },
+  {
+    "table": "incident",
+    "fields": {
+      "short_description": "SAP ERP batch sync timeout error code 504",
+      "category": "software",
+      "urgency": "1",
+      "impact": "1",
+      "caller_id": "david.loo@example.com"
+    }
+  }
+]

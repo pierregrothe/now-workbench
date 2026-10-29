@@ -1,0 +1,32 @@
+{
+  "id": "sample-ai-assistant",
+  "name": "GenAI Agentic Incident Router",
+  "version": "1.0.0",
+  "description": "Autonomous AI routing and triage application for IT incidents leveraging Now Assist and custom Fluent tables.",
+  "author": "Pierre Grothe",
+  "sn_release": "Xanadu",
+  "required_plugins": [
+    "com.glide.now.assist",
+    "com.snc.itsm"
+  ],
+  "tags": [
+    "ITSM",
+    "GenAI",
+    "Now Assist",
+    "Fluent"
+  ],
+  "personas": [
+    {
+      "name": "Beth Anglin",
+      "role": "IT Service Desk Tier 1",
+      "email": "beth.anglin@example.com",
+      "notes": "Handles incoming escalated tickets and reviews AI recommendations."
+    },
+    {
+      "name": "David Loo",
+      "role": "Lead System Architect",
+      "email": "david.loo@example.com",
+      "notes": "Monitors model routing accuracy and confidence thresholds."
+    }
+  ]
+}

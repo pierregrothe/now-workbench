@@ -1,0 +1,4 @@
+{
+  "glide.now.assist.auto_routing.enabled": "true",
+  "glide.now.assist.confidence_threshold": "85"
+}
