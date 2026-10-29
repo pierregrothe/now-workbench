@@ -3,10 +3,11 @@
 import json
 from collections.abc import AsyncIterator
 from typing import Any
+
 import anthropic
 
-
-OTTO_SYSTEM_PROMPT = """You are Otto, ServiceNow's AI assistant embedded directly inside the now-workbench developer and demonstration environment.
+OTTO_SYSTEM_PROMPT = """You are Otto, ServiceNow's AI assistant embedded directly inside
+the now-workbench developer and demonstration environment.
 
 Your mission is to assist Solution Consultants, Technical Architects, and Developers:
 1. Explain ServiceNow Fluent SDK concepts (@servicenow/sdk, *.now.ts tables, business rules, ACLs).
@@ -46,15 +47,24 @@ class OttoClient:
         # Fallback / simulated Otto response if API key is not configured
         if not self.client:
             yield "Hello! I'm **Otto**, your ServiceNow AI assistant.\n\n"
-            yield "*(Note: `WORKBENCH_ANTHROPIC_API_KEY` is not configured, running in simulation mode.)*\n\n"
+            yield (
+                "*(Note: `WORKBENCH_ANTHROPIC_API_KEY` is not configured, "
+                "running in simulation mode.)*\n\n"
+            )
             last_msg = messages[-1]["content"] if messages else "help"
             if "build" in last_msg.lower() or "error" in last_msg.lower():
-                yield "I noticed you mentioned a build or error. With the Fluent SDK, common issues include:\n"
+                yield (
+                    "I noticed you mentioned a build or error. "
+                    "With the Fluent SDK, common issues include:\n"
+                )
                 yield "1. **Missing table extension definitions** in `*.now.ts`\n"
                 yield "2. **Target instance version mismatch** (e.g. Washington vs Xanadu syntax)\n"
                 yield "3. **Scoped application permission boundaries**\n"
             else:
-                yield f"I received: *\"{last_msg}\"*. Once connected to Claude, I can guide demo execution, synthesize mock data, and fix Fluent SDK syntax!"
+                yield (
+                    f'I received: *"{last_msg}"*. Once connected to Claude, '
+                    "I can guide demo execution, synthesize mock data, and fix Fluent SDK syntax!"
+                )
             return
 
         # Real Claude API streaming

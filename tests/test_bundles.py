@@ -1,6 +1,7 @@
 """Tests for demo bundle manager."""
 
 from pathlib import Path
+
 from now_workbench.bundles.manager import BundleManager
 from now_workbench.bundles.models import DemoManifest
 

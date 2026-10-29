@@ -4,7 +4,6 @@ import json
 import shutil
 import zipfile
 from pathlib import Path
-from typing import Sequence
 
 from now_workbench.bundles.models import DemoBundleInfo, DemoManifest
 

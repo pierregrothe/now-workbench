@@ -1,8 +1,7 @@
 """FastAPI backend server for now-workbench."""
 
-import asyncio
-from pathlib import Path
 from typing import Any
+
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse

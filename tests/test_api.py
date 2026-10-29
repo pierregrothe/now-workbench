@@ -1,6 +1,7 @@
 """Tests for FastAPI endpoints."""
 
 from fastapi.testclient import TestClient
+
 from now_workbench.api.app import create_app
 
 

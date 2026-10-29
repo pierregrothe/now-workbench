@@ -1,7 +1,7 @@
 """CLI entrypoint for now-workbench."""
 
-import asyncio
 from pathlib import Path
+
 import typer
 from rich.console import Console
 from rich.panel import Panel
@@ -129,10 +129,12 @@ def inspect_demo(bundle_id: str) -> None:
         raise typer.Exit(code=1)
 
     info = mgr.inspect_bundle(bundle_path)
+    name = info.manifest.name
+    ver = info.manifest.version
+    header = f"[bold cyan]{name}[/bold cyan] ([green]v{ver}[/green])\n"
     console.print(
         Panel(
-            f"[bold cyan]{info.manifest.name}[/bold cyan] ([green]v{info.manifest.version}[/green])\n"
-            f"[dim]{info.manifest.description}[/dim]\n\n"
+            header + f"[dim]{info.manifest.description}[/dim]\n\n"
             f"• Target Release: {info.manifest.sn_release}\n"
             f"• Required Plugins: {', '.join(info.manifest.required_plugins) or 'None'}\n"
             f"• Fluent Files: {len(info.fluent_files)}\n"

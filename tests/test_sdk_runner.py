@@ -1,7 +1,9 @@
 """Tests for NowSdkRunner."""
 
-import pytest
 from pathlib import Path
+
+import pytest
+
 from now_workbench.sdk.runner import NowSdkRunner
 
 

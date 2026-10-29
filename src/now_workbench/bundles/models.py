@@ -1,7 +1,8 @@
 """Data models for demonstration configuration bundles."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
+
 from pydantic import BaseModel, Field
 
 
@@ -26,10 +27,10 @@ class DemoManifest(BaseModel):
     sn_release: str = Field(default="Xanadu", description="Target ServiceNow release")
     required_plugins: list[str] = Field(default_factory=list, description="Plugin dependency IDs")
     tags: list[str] = Field(default_factory=list, description="Categorization tags")
-    personas: list[DemoPersona] = Field(default_factory=list, description="Key walkthrough personas")
-    created_at: str = Field(
-        default_factory=lambda: datetime.now(timezone.utc).isoformat()
+    personas: list[DemoPersona] = Field(
+        default_factory=list, description="Key walkthrough personas"
     )
+    created_at: str = Field(default_factory=lambda: datetime.now(UTC).isoformat())
 
 
 class DemoBundleInfo(BaseModel):
