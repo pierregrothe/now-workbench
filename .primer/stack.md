@@ -3,16 +3,12 @@
 ## Runtime & Engines
 
 - **Backend**: Python 3.14 (compatible with 3.12+)
+- **Package Manager**: `uv` with `hatchling` backend (PEP 621 `[project]` specification)
 - **ServiceNow SDK Runtime**: Node.js 20+ LTS with `@servicenow/sdk`
 - **Frontend**: Lit 3.x (Web Components / TypeScript + Vite)
-- **Containerization**: Multi-stage Docker image (Node.js build stage -> Python + Node runtime)
+- **Containerization**: Multi-stage Docker image (Node.js build stage -> Python + Node runtime + uv)
 
-## Package Management
-
-- Python: Poetry (`pyproject.toml`) with in-project virtualenv (`.venv`).
-- Frontend: npm / package.json in `web/`.
-
-## Architecture & Layout
+## Layout
 
 ```text
 now-workbench/
@@ -33,10 +29,12 @@ now-workbench/
 │   ├── package.json
 │   └── vite.config.ts
 ├── tests/                     # Unit and integration test suite
-│   ├── fakes/                 # In-memory fakes for SDK runner & ServiceNow Table API
-│   └── ...
+│   ├── test_api.py
+│   ├── test_bundles.py
+│   └── test_sdk_runner.py
 ├── Dockerfile                 # Multi-stage portable container
-└── docker-compose.yml
+├── docker-compose.yml
+└── pyproject.toml             # Standard PEP 621 project table managed by uv
 ```
 
 ## Core Dependencies
@@ -44,7 +42,8 @@ now-workbench/
 ### Python
 - `fastapi >= 0.115` -- High-performance async REST & WebSocket server
 - `uvicorn[standard] >= 0.32` -- ASGI production server
-- `typer[all] >= 0.13` -- Modern CLI framework with Rich formatting
+- `typer >= 0.13` -- Modern CLI framework with Rich formatting
+- `rich >= 13.9` -- Beautiful terminal tables & panels
 - `pydantic >= 2.9` -- Strict schemas (`frozen=True`, `extra="forbid"`)
 - `pydantic-settings >= 2.6` -- Configuration from environment & YAML
 - `httpx >= 0.28` -- Async HTTP client for ServiceNow REST & Claude API
@@ -56,7 +55,7 @@ now-workbench/
 - `typescript >= 5.6` -- Strict TypeScript
 
 ## Dev Tools & Code Quality
-- `pytest >= 9.0` with `pytest-asyncio` and `pytest-cov`
-- `ruff >= 0.15` (linting & formatting, 0 violations)
-- `mypy >= 1.0` (strict mode, 0 errors)
-- `black >= 26.0` (line length 100)
+- `pytest >= 8.3` with `pytest-asyncio` and `pytest-cov`
+- `ruff >= 0.8` (linting & formatting, 0 violations)
+- `mypy >= 1.13` (strict mode, 0 errors)
+- `black >= 24.10` (line length 100)

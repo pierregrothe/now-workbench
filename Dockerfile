@@ -6,7 +6,7 @@ RUN npm install
 COPY web/ ./
 RUN npm run build
 
-# ── Stage 2: Runtime Environment (Python + Node.js + now-sdk) ─────────────────
+# ── Stage 2: Runtime Environment (Python + Node.js + now-sdk + uv) ───────────
 FROM python:3.12-slim-bookworm
 
 # Install Node.js 20 LTS, git, and curl
@@ -22,24 +22,18 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && npm install -g @servicenow/sdk \
     && rm -rf /var/lib/apt/lists/*
 
+# Install uv from official binary image
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+
 WORKDIR /app
 
-# Install Poetry
-ENV POETRY_VERSION=1.8.3 \
-    POETRY_HOME="/opt/poetry" \
-    POETRY_VIRTUALENVS_IN_PROJECT=false \
-    POETRY_NO_INTERACTION=1
-RUN curl -sSL https://install.python-poetry.org | python3 -
-ENV PATH="$POETRY_HOME/bin:$PATH"
+# Copy Python project configuration & sync dependencies
+COPY pyproject.toml uv.lock* README.md ./
+RUN uv sync --frozen --no-dev --no-install-project
 
-# Copy Python dependencies configuration
-COPY pyproject.toml poetry.lock* README.md ./
-RUN poetry config virtualenvs.create false \
-    && poetry install --no-root --no-interaction
-
-# Copy Python source code
+# Copy Python source code and install project
 COPY src/ ./src/
-RUN pip install --no-deps -e .
+RUN uv sync --frozen --no-dev
 
 # Copy pre-built Lit frontend from Stage 1
 COPY --from=frontend-builder /app/web/dist ./web/dist
@@ -55,6 +49,7 @@ ENV WORKBENCH_HOST="0.0.0.0" \
     WORKBENCH_PORT="8080" \
     WORKBENCH_STATIC_DIR="/app/web/dist" \
     WORKBENCH_BUNDLES_DIR="/app/bundles" \
-    WORKBENCH_WORKSPACE_DIR="/app/workspaces"
+    WORKBENCH_WORKSPACE_DIR="/app/workspaces" \
+    PATH="/app/.venv/bin:$PATH"
 
 ENTRYPOINT ["workbench", "serve", "--host", "0.0.0.0", "--port", "8080"]

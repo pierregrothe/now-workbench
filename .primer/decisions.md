@@ -69,3 +69,23 @@ Define a standardized `.sn-demo.zip` bundle specification:
 
 **Consequences:**
 - Demos become version-controlled, shareable, and fully reproducible with one-click teardown.
+
+---
+
+### 2026-10-29 -- ADR-004: Package Management Migration to uv + Hatchling
+
+**Status:** accepted
+
+**Context:**
+Following the architecture pattern from `market-data-services`, Poetry has slower dependency
+resolution and lock-file overhead. `uv` provides sub-second dependency installation, native
+PEP 621 `[project]` / `[dependency-groups]` support, and seamless caching.
+
+**Decision:**
+1. Migrate from Poetry to `uv` with `hatchling` as the build backend.
+2. Use standard `uv.lock` and PEP 621 `[project]` table in `pyproject.toml`.
+3. Support local execution directly via `uv run workbench` and `uv run pytest`.
+
+**Consequences:**
+- Dependency resolution dropped from ~15s to ~700ms.
+- Virtualenv activation is no longer required: commands can be invoked directly with `uv run`.
