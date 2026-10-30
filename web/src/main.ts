@@ -1,3 +1,7 @@
 import './components/now-workbench-shell'
+import { smartTooltip } from './utils/tooltip'
 
-console.log('⚡ now-workbench (ServiceNow Lux + Otto) loaded.')
+smartTooltip.init()
+
+console.log('[!] now-workbench (ServiceNow Lux + Otto) loaded.')
+

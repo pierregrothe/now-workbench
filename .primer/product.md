@@ -1,40 +1,42 @@
-# now-workbench -- Product Vision
+# now-workbench -- Product Vision & Capabilities
 
 ## Target Personas
 
-1. **ServiceNow Solution Consultants (SCs) & Technical Architects**:
-   - Need to rapidly stand up, customize, reset, and tear down customer-tailored
-     demonstrations without polluting shared sub-prod or developer instances.
-   - Require 1-click import/export of demo packages to share with team members.
-2. **Now Platform Developers**:
+1. **ServiceNow Solution Consultants (Advisory & Field SCs)**:
+   - Need to rapidly discover, clone, tailor, deliver, and tear down customer-specific demos.
+   - Deliver high-impact customer meetings with guided persona journeys, stage verification,
+     and backup media recordings.
+2. **Now Platform Developers & Architects**:
    - Building scoped applications with the modern ServiceNow Fluent SDK (`*.now.ts`).
-   - Need rapid build verification, schema diffing, and live diagnostic feedback.
-3. **Coding Agents (Argon / Opus)**:
-   - Pair-program with SCs and developers to generate Fluent schemas, synthesize mock
-     data, troubleshoot build errors, and maintain project code.
+   - Requiring schema diffing, build verification, and clean instance deployment.
+3. **Otto AI Copilot (Claude API)**:
+   - Autonomous use-case synthesizer that generates customer datasets, Fluent tables,
+     and SC narratives on demand.
 
-## Key Product Surfaces
+## Core Workspaces & Surfaces
 
-### 1. Web Dashboard (ServiceNow Lux Experience)
-- **Top Shell**: Instance connection indicator (`dev12345.service-now.com [Xanadu] ●`),
-  workspace selector, global `Cmd+K` command palette.
-- **Nav Rail**: Vertical icon navigation (Demos, Studio, Seed Data, Diagnostics, Settings).
-- **Demo Catalog**: Visual grid of installed & available demo bundles with release tags,
-  active status, and actions: `Deploy to Instance`, `Export Bundle`, `Reset Seed Data`.
-- **Live Terminal / Console**: Real-time streaming output of `now-sdk build` and
-  deployment steps with ANSI colorization.
+### 1. Home & AI Intent Hub
+- Conversational-first entrance with top chat input.
+- Real-time intent classification that automatically transitions to the relevant workspace
+  and docks the chat dock at the bottom of the page.
 
-### 2. Otto AI Copilot
-- Slide-in side drawer featuring ServiceNow's Otto visual persona.
-- Real-time streaming conversational interface via Anthropic Claude API.
-- Deep workspace context injection: active demo bundle, target instance version,
-  compiler output.
-- Interactive action pills: "Diagnose build failure", "Generate seed data", "Export bundle".
+### 2. Solution Consultant Studio (Use-Case Synthesizer)
+- Natural-language use-case synthesis generating multi-table seed data, Fluent `.now.ts` code,
+  and structured Solution Consultant walkthrough playbooks.
 
-### 3. Headless CLI (`workbench`)
-- `workbench doctor`: Checks Node.js, `now-sdk`, Python, and instance connectivity.
-- `workbench demo list`: Displays local demo packages.
-- `workbench demo build <bundle>`: Compiles Fluent TypeScript in a clean workspace.
-- `workbench demo deploy <bundle> [--instance <profile>]`: Full build & push to instance.
-- `workbench demo export <bundle> -o <file.zip>`: Exports self-contained bundle.
-- `workbench serve [--port 8080]`: Starts the FastAPI server and serves the Lux web UI.
+### 3. Artifact Library & Demo Lifecycle (DemoHub Catalog Replacement)
+- Searchable catalog of packaged `.sn-demo` bundles with release tags and persona profiles.
+- 1-click "Clone & Customize for Customer" (duplicate baseline before editing).
+- Transactional seed engine with dynamic Date Wizard and 1-click teardown/rollback.
+
+### 4. Presenter HUD & Execution Console
+- Presenter HUD with persona switching, stage-by-stage talking points, and live instance verification.
+- Integrated Safe Harbor disclaimer banner for store deltas and preview features.
+
+### 5. Media Capture Studio
+- High-resolution screenshot and video capture directly from the workspace.
+
+### 6. Workbench Settings & Security Vault
+- Strict API key lifecycle: requires explicit key deletion before entering a new key.
+- Live API key validation against the Claude API prior to acceptance.
+- Authenticated encryption at rest in local vault with masked key preview.

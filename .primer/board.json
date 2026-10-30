@@ -5,78 +5,311 @@
     {
       "id": "EPIC-001",
       "title": "Foundation & Runtime Toolchain",
-      "status": "in_progress",
+      "status": "done",
       "stories": [
         {
           "id": "STORY-001",
-          "title": "Scaffold Python 3.14 project with Poetry, Pydantic v2, and Typer CLI",
-          "status": "in_progress"
+          "title": "Scaffold Python 3.14 project with uv, Pydantic v2, and Typer CLI",
+          "status": "done"
         },
         {
           "id": "STORY-002",
           "title": "Implement NowSdkRunner async subprocess executor with log streaming",
-          "status": "todo"
+          "status": "done"
         },
         {
           "id": "STORY-003",
           "title": "Create multi-stage Dockerfile bundling Python + Node.js + now-sdk",
-          "status": "todo"
+          "status": "done"
         }
       ]
     },
     {
       "id": "EPIC-002",
       "title": "Demo Bundle Packaging & Seed Engine",
-      "status": "todo",
+      "status": "done",
       "stories": [
         {
           "id": "STORY-004",
           "title": "Implement DemoBundle packager, unpacker, and manifest validator",
-          "status": "todo"
+          "status": "done"
         },
         {
           "id": "STORY-005",
           "title": "Implement Table API transactional seed record loader & rollback tracker",
-          "status": "todo"
+          "status": "done"
         }
       ]
     },
     {
       "id": "EPIC-003",
       "title": "ServiceNow Lux Web UI with Lit Components",
-      "status": "todo",
+      "status": "done",
       "stories": [
         {
           "id": "STORY-006",
           "title": "Scaffold Lit + Vite + TypeScript frontend with Lux design tokens",
-          "status": "todo"
+          "status": "done"
         },
         {
           "id": "STORY-007",
           "title": "Implement <now-workbench-shell>, <now-nav-rail>, and <now-demo-catalog>",
-          "status": "todo"
+          "status": "done"
         },
         {
           "id": "STORY-008",
           "title": "Implement <now-console> live WebSocket terminal output viewer",
-          "status": "todo"
+          "status": "done"
         }
       ]
     },
     {
       "id": "EPIC-004",
       "title": "Otto AI Copilot with Claude API",
-      "status": "todo",
+      "status": "done",
       "stories": [
         {
           "id": "STORY-009",
           "title": "Implement Claude API client with streaming and tool definitions",
-          "status": "todo"
+          "status": "done"
         },
         {
           "id": "STORY-010",
           "title": "Build <now-otto-drawer> conversational UI with contextual intent chips",
-          "status": "todo"
+          "status": "done"
+        }
+      ]
+    },
+    {
+      "id": "EPIC-005",
+      "title": "SQLite Persistence & Multi-Instance Registry",
+      "status": "done",
+      "stories": [
+        {
+          "id": "STORY-011",
+          "title": "Implement SQLite schema migrations and repository layer for instances and threads",
+          "status": "done"
+        },
+        {
+          "id": "STORY-012",
+          "title": "Implement Multi-Instance Registry API and CLI commands",
+          "status": "done"
+        },
+        {
+          "id": "STORY-013",
+          "title": "Route customization tasks and Table API operations to target registry instance",
+          "status": "done"
+        }
+      ]
+    },
+    {
+      "id": "EPIC-006",
+      "title": "Reusable Parameterized Customization Templates",
+      "status": "done",
+      "stories": [
+        {
+          "id": "STORY-014",
+          "title": "Implement template engine with customer brand and theme placeholders",
+          "status": "done"
+        },
+        {
+          "id": "STORY-015",
+          "title": "Parameterize reference demo bundle into a reusable customer template",
+          "status": "done"
+        },
+        {
+          "id": "STORY-016",
+          "title": "Build Template Management API and CLI (workbench template list/generate)",
+          "status": "done"
+        }
+      ]
+    },
+    {
+      "id": "EPIC-007",
+      "title": "Conversational-First UI with Interactive Inline Widgets",
+      "status": "done",
+      "stories": [
+        {
+          "id": "STORY-017",
+          "title": "Simplify top chrome and navigation; remove raw model badges and technical clutter",
+          "status": "done"
+        },
+        {
+          "id": "STORY-018",
+          "title": "Build dedicated Admin & Diagnostics Modal (workbench doctor GUI)",
+          "status": "done"
+        },
+        {
+          "id": "STORY-019",
+          "title": "Build Lit interactive in-chat widgets (InstanceSelector, ThemeForm, BuildRunner, Rollback)",
+          "status": "done"
+        },
+        {
+          "id": "STORY-020",
+          "title": "Refactor primary workspace into conversational threads backed by SQLite",
+          "status": "done"
+        }
+      ]
+    },
+    {
+      "id": "EPIC-008",
+      "title": "Guided Demonstration Runbooks & Persona Presenter Mode",
+      "status": "done",
+      "stories": [
+        {
+          "id": "STORY-021",
+          "title": "Implement Walkthrough Runbook parser, models, and stage extraction engine",
+          "status": "done"
+        },
+        {
+          "id": "STORY-022",
+          "title": "Implement Runbook API endpoints and instance verification",
+          "status": "done"
+        },
+        {
+          "id": "STORY-023",
+          "title": "Build <now-presenter-hud> Lit component with persona switcher and talking points",
+          "status": "done"
+        },
+        {
+          "id": "STORY-024",
+          "title": "Implement CLI runbook inspect/run commands and Otto co-pilot integration",
+          "status": "done"
+        }
+      ]
+    },
+    {
+      "id": "EPIC-009",
+      "title": "System Property Orchestration, Unified Teardown & Global Command Palette",
+      "status": "done",
+      "stories": [
+        {
+          "id": "STORY-025",
+          "title": "Implement System Property transactional snapshot, apply, and restore engine",
+          "status": "done"
+        },
+        {
+          "id": "STORY-026",
+          "title": "Implement Property & Demo Teardown REST API endpoints and CLI commands",
+          "status": "done"
+        },
+        {
+          "id": "STORY-027",
+          "title": "Build <now-command-palette> Lit component with keyboard shortcut and deep action routing",
+          "status": "done"
+        },
+        {
+          "id": "STORY-028",
+          "title": "Integrate 1-click teardown/reset flow across CLI, Web UI, and Otto copilot",
+          "status": "done"
+        }
+      ]
+    },
+    {
+      "id": "EPIC-010",
+      "title": "Fluent SDK Schema Visualizer, AST Inspector & Studio Diff Engine",
+      "status": "done",
+      "stories": [
+        {
+          "id": "STORY-029",
+          "title": "Implement Fluent AST parser, schema extraction, and diff engine",
+          "status": "done"
+        },
+        {
+          "id": "STORY-030",
+          "title": "Implement Fluent Schema REST API endpoints and CLI inspect/diff commands",
+          "status": "done"
+        },
+        {
+          "id": "STORY-031",
+          "title": "Build <now-fluent-explorer> Lit component in Studio nav tab",
+          "status": "done"
+        },
+        {
+          "id": "STORY-032",
+          "title": "Integrate Otto Copilot contextual Fluent schema analysis and explanation",
+          "status": "done"
+        }
+      ]
+    },
+    {
+      "id": "EPIC-011",
+      "title": "Now Workbench Settings, Live Configuration Persistence & Studio Preferences",
+      "status": "done",
+      "stories": [
+        {
+          "id": "STORY-033",
+          "title": "Implement SQLite persistence & strict Pydantic v2 models for Now Workbench Settings",
+          "status": "done"
+        },
+        {
+          "id": "STORY-034",
+          "title": "Implement REST API (/api/settings) and CLI (workbench config show/set/reset)",
+          "status": "done"
+        },
+        {
+          "id": "STORY-035",
+          "title": "Wire PlaywrightCaptureEngine and UseCaseSynthesizer to consume persisted Workbench Settings",
+          "status": "done"
+        },
+        {
+          "id": "STORY-036",
+          "title": "Build <now-workbench-settings> Lit component and wire live preferences into <now-workbench-shell>",
+          "status": "done"
+        }
+      ]
+    },
+    {
+      "id": "EPIC-012",
+      "title": "DemoHub Parity, Dynamic Date Wizard & Secure Key Lifecycle",
+      "status": "done",
+      "stories": [
+        {
+          "id": "STORY-037",
+          "title": "Implement Dynamic Date Wizard relative timestamp evaluator and dataset transformer",
+          "status": "done"
+        },
+        {
+          "id": "STORY-038",
+          "title": "Implement 1-Click Customer Demo Bundle Cloning across Manager, API, and CLI",
+          "status": "done"
+        },
+        {
+          "id": "STORY-039",
+          "title": "Implement strict Delete-Before-Replace API key lifecycle and live Claude API pre-validation",
+          "status": "done"
+        },
+        {
+          "id": "STORY-040",
+          "title": "Add Safe Harbor disclaimer banner in Presenter HUD and Clone Demo workflow in Demo Catalog",
+          "status": "done"
+        }
+      ]
+    },
+    {
+      "id": "EPIC-013",
+      "title": "Generative UI Tile Catalog, Tool-Based Multi-Tile Layouts & Adaptive Conversational Rendering",
+      "status": "in_progress",
+      "stories": [
+        {
+          "id": "STORY-041",
+          "title": "Define Generative UI Tile schemas, Pydantic v2 models, and tool-calling specifications for Claude & Otto",
+          "status": "in_progress"
+        },
+        {
+          "id": "STORY-042",
+          "title": "Implement Web Component Generative UI Tile Catalog (instance-kpi, instance-card, demo-bundle, security-alert, fluent-schema, and rich-text)",
+          "status": "in_progress"
+        },
+        {
+          "id": "STORY-043",
+          "title": "Implement responsive multi-tile layout engine (1-col, 2-col, 3-col) with interactive action triggers",
+          "status": "in_progress"
+        },
+        {
+          "id": "STORY-044",
+          "title": "Wire Otto conversational engine to auto-select optimal multi-tile layouts for instance inquiries, bundle inquiries, and diagnostics",
+          "status": "in_progress"
         }
       ]
     }

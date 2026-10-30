@@ -1,0 +1,32 @@
+{
+  "now-workbench-governance": {
+    "PreToolUse": [
+      {
+        "matcher": "write_file|edit_file",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "env -u PYENV_VERSION /Users/pierre.grothe/Developer/now-workbench/.venv/bin/python /Users/pierre.grothe/Developer/now-workbench/.agents/scripts/pre_tool_guard.py"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "write_file|edit_file",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "env -u PYENV_VERSION /Users/pierre.grothe/Developer/now-workbench/.venv/bin/python /Users/pierre.grothe/Developer/now-workbench/scripts/dev-tools/per_edit_check.py"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "type": "command",
+        "command": "env -u PYENV_VERSION /Users/pierre.grothe/Developer/now-workbench/.venv/bin/python /Users/pierre.grothe/Developer/now-workbench/.ratchet/ratchet_check.py all && env -u PYENV_VERSION /Users/pierre.grothe/Developer/now-workbench/.venv/bin/python /Users/pierre.grothe/Developer/now-workbench/.claude/scripts/primer-reconcile.py || true"
+      }
+    ]
+  }
+}

@@ -3,13 +3,31 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>now-workbench | ServiceNow SDK Demo & Dev Studio</title>
+    <title>Now Workbench</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
     <link rel="stylesheet" href="/src/styles/lux-theme.css" />
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <script>
+      (function() {
+        try {
+          var mode = localStorage.getItem('now-workbench-theme') || 'system';
+          var dark = mode === 'dark' || (mode === 'system' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+          if (dark) {
+            document.documentElement.setAttribute('data-theme', 'dark');
+            if (document.body) document.body.classList.add('now-lux-dark');
+          } else {
+            document.documentElement.setAttribute('data-theme', 'light');
+            if (document.body) document.body.classList.remove('now-lux-dark');
+          }
+        } catch (e) {}
+      })();
+    </script>
   </head>
-  <body class="now-lux-theme">
+  <body>
     <now-workbench-shell></now-workbench-shell>
     <script type="module" src="/src/main.ts"></script>
   </body>

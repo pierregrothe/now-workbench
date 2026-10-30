@@ -1,9 +1,17 @@
 import { LitElement, html, css } from 'lit'
 import { customElement, property, state } from 'lit/decorators.js'
 
+interface UITile {
+  id: string
+  type: string
+  title: string
+  props?: Record<string, any>
+}
+
 interface Message {
   role: 'user' | 'assistant'
   content: string
+  tiles?: UITile[]
 }
 
 @customElement('now-otto-drawer')
@@ -13,12 +21,19 @@ export class NowOttoDrawer extends LitElement {
       display: flex;
       flex-direction: column;
       width: 380px;
-      background-color: var(--now-bg-surface-0);
+      background-color: var(--now-bg-surface-0, #ffffff);
       border-left: 1px solid var(--now-border-subtle);
       height: 100%;
-      box-shadow: -4px 0 24px rgba(0, 0, 0, 0.4);
+      box-shadow: -4px 0 24px rgba(15, 23, 42, 0.08);
       z-index: 50;
       transition: width 0.2s ease;
+    }
+
+    :host(:not([open])) {
+      display: none !important;
+      width: 0 !important;
+      border: none !important;
+      box-shadow: none !important;
     }
 
     .drawer-header {
@@ -26,7 +41,7 @@ export class NowOttoDrawer extends LitElement {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      background: linear-gradient(180deg, rgba(168, 85, 247, 0.08) 0%, transparent 100%);
+      background-color: var(--now-bg-surface-0, #ffffff);
       border-bottom: 1px solid var(--now-border-subtle);
     }
 
@@ -40,39 +55,54 @@ export class NowOttoDrawer extends LitElement {
       width: 28px;
       height: 28px;
       border-radius: 50%;
-      background: linear-gradient(135deg, #a855f7, #3b82f6);
+      background: linear-gradient(135deg, #9333ea, #3b82f6);
       display: flex;
       align-items: center;
       justify-content: center;
-      box-shadow: 0 0 10px var(--now-color-accent-otto-glow);
-      font-size: 14px;
+      box-shadow: 0 0 10px rgba(147, 51, 234, 0.25);
+      font-size: 13px;
+      color: #ffffff;
     }
 
     .otto-title {
-      font-weight: 600;
+      font-weight: 700;
       font-size: 14px;
       color: var(--now-text-primary);
     }
 
     .otto-badge {
-      font-size: 10px;
+      font-size: 10.5px;
       font-weight: 600;
-      background-color: rgba(168, 85, 247, 0.2);
-      color: #c084fc;
-      padding: 1px 6px;
-      border-radius: 8px;
-      border: 1px solid rgba(168, 85, 247, 0.4);
+      background-color: #f3e8ff;
+      color: #7e22ce;
+      padding: 2px 7px;
+      border-radius: 10px;
+      border: 1px solid #e9d5ff;
     }
 
     .close-btn {
+      position: relative;
       background: transparent;
       border: none;
-      color: var(--now-text-secondary);
+      color: var(--now-text-muted);
       cursor: pointer;
-      font-size: 18px;
+      border-radius: 4px;
+      padding: 0;
+      width: 28px;
+      height: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .close-btn svg {
+      width: 16px;
+      height: 16px;
+      fill: currentColor;
     }
 
     .close-btn:hover {
+      background-color: var(--now-bg-surface-1);
       color: var(--now-text-primary);
     }
 
@@ -82,7 +112,8 @@ export class NowOttoDrawer extends LitElement {
       overflow-y: auto;
       display: flex;
       flex-direction: column;
-      gap: 14px;
+      gap: 12px;
+      background-color: var(--now-bg-canvas, #f8fafc);
     }
 
     .message {
@@ -104,81 +135,155 @@ export class NowOttoDrawer extends LitElement {
       padding: 10px 14px;
       border-radius: 12px;
       font-size: 13px;
-      line-height: 1.45;
+      line-height: 1.5;
       white-space: pre-wrap;
       word-break: break-word;
     }
 
     .message.user .bubble {
-      background-color: var(--now-color-accent-teal);
-      color: #0c1218;
+      background-color: var(--now-color-brand-green);
+      color: #ffffff;
       border-bottom-right-radius: 2px;
       font-weight: 500;
     }
 
     .message.assistant .bubble {
-      background-color: var(--now-bg-surface-2);
+      background-color: var(--now-bg-surface-0, #ffffff);
       color: var(--now-text-primary);
       border: 1px solid var(--now-border-subtle);
       border-bottom-left-radius: 2px;
+      box-shadow: var(--now-shadow-sm);
     }
 
     .suggestions-row {
       display: flex;
       flex-wrap: wrap;
       gap: 6px;
-      padding: 8px 16px;
+      padding: 10px 16px;
       border-top: 1px solid var(--now-border-subtle);
+      background-color: var(--now-bg-surface-0, #ffffff);
     }
 
     .suggestion-chip {
-      background-color: var(--now-bg-surface-1);
-      border: 1px solid var(--now-border-medium);
+      background-color: var(--now-bg-surface-1, #f8fafc);
+      border: 1px solid var(--now-border-subtle);
       color: var(--now-text-secondary);
-      font-size: 11px;
-      padding: 4px 10px;
-      border-radius: 12px;
+      font-size: 11.5px;
+      font-weight: 500;
+      padding: 5px 10px;
+      border-radius: var(--now-radius-pill);
       cursor: pointer;
       transition: all 0.15s ease;
     }
 
     .suggestion-chip:hover {
-      color: var(--now-text-primary);
-      border-color: #a855f7;
-      background-color: rgba(168, 85, 247, 0.1);
+      color: #7e22ce;
+      border-color: #c084fc;
+      background-color: #faf5ff;
     }
 
     .input-bar {
       padding: 12px 16px;
       display: flex;
       gap: 8px;
-      background-color: var(--now-bg-surface-0);
+      background-color: var(--now-bg-surface-0, #ffffff);
       border-top: 1px solid var(--now-border-subtle);
     }
 
     .input-bar input {
       flex: 1;
-      background-color: var(--now-bg-surface-1);
+      background-color: var(--now-bg-surface-0, #ffffff);
       border: 1px solid var(--now-border-medium);
       border-radius: var(--now-radius-sm);
       padding: 8px 12px;
       color: var(--now-text-primary);
       font-size: 13px;
       outline: none;
+      transition: border-color 0.15s ease;
     }
 
     .input-bar input:focus {
-      border-color: #a855f7;
+      border-color: var(--now-color-brand-green);
     }
 
     .send-btn {
-      background: linear-gradient(135deg, #a855f7, #3b82f6);
+      position: relative;
+      background-color: var(--now-color-brand-green);
       color: white;
       border: none;
       border-radius: var(--now-radius-sm);
-      padding: 0 14px;
-      font-weight: 600;
+      width: 36px;
+      height: 36px;
+      padding: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
       cursor: pointer;
+      transition: background-color 0.15s ease;
+      flex-shrink: 0;
+    }
+
+    .send-btn svg {
+      width: 17px;
+      height: 17px;
+      fill: currentColor;
+    }
+
+    .send-btn:hover {
+      background-color: var(--now-color-brand-green-hover);
+    }
+
+    .otto-tiles-container {
+      margin-top: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .drawer-media-tile {
+      background: var(--now-bg-surface-1, #f8fafc);
+      border: 1px solid var(--now-border-subtle, #e2e8f0);
+      border-radius: var(--now-radius-sm, 6px);
+      padding: 10px;
+      overflow: hidden;
+    }
+
+    .drawer-media-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 6px;
+    }
+
+    .drawer-media-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--now-text-primary, #0f172a);
+    }
+
+    .drawer-badge {
+      font-size: 10px;
+      font-weight: 700;
+      background: var(--now-color-brand-green, #23a17e);
+      color: white;
+      padding: 2px 6px;
+      border-radius: 4px;
+      text-transform: uppercase;
+    }
+
+    .drawer-media-label {
+      font-size: 11px;
+      color: var(--now-text-secondary, #64748b);
+      margin-bottom: 6px;
+    }
+
+    .drawer-media-frame video,
+    .drawer-media-frame img {
+      width: 100%;
+      max-height: 220px;
+      border-radius: 4px;
+      display: block;
+      background: #000;
     }
   `
 
@@ -186,7 +291,7 @@ export class NowOttoDrawer extends LitElement {
   @state() private messages: Message[] = [
     {
       role: 'assistant',
-      content: "Hi Pierre! I'm Otto, your ServiceNow AI copilot. I can help navigate demos, diagnose now-sdk build logs, and synthesize mock data."
+      content: "Hello! I'm Otto, your ServiceNow AI assistant. How can I help with your Fluent tables, seed datasets, or demo bundles today?"
     }
   ]
   @state() private inputValue = ''
@@ -212,39 +317,93 @@ export class NowOttoDrawer extends LitElement {
         if (data.type === 'chunk') {
           const last = this.messages[this.messages.length - 1]
           if (last && last.role === 'assistant') {
-            last.content += data.text
+            if (last.content === 'Thinking and executing with Claude...') {
+              last.content = data.text
+            } else {
+              last.content += data.text
+            }
+            this.requestUpdate()
+          }
+        } else if (data.type === 'tiles') {
+          const last = this.messages[this.messages.length - 1]
+          if (last && last.role === 'assistant') {
+            last.tiles = data.tiles
             this.requestUpdate()
           }
         }
       }
     } catch {
-      // WS fallback handled gracefully
+      // Offline fallback
     }
   }
 
-  public sendMessage(text: string) {
+  public async sendMessage(text: string) {
     if (!text.trim()) return
 
     this.messages = [
       ...this.messages,
       { role: 'user', content: text },
-      { role: 'assistant', content: '' }
+      { role: 'assistant', content: 'Thinking and executing with Claude...' }
     ]
     this.inputValue = ''
+    this.requestUpdate()
+
+    try {
+      const res = await fetch('/api/threads/thread-default/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role: 'user', content: text })
+      })
+      if (res.ok) {
+        const data = await res.json()
+        const last = this.messages[this.messages.length - 1]
+        if (last) {
+          last.content = data.content || data.widget_data?.summary || 'Execution completed.'
+          last.tiles = data.widget_data?.tiles || []
+          this.requestUpdate()
+        }
+        return
+      }
+    } catch {
+      // Fallback below
+    }
 
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify({
         messages: this.messages.slice(0, -1),
-        context: { activeWorkspace: 'sample-ai-assistant', release: 'Xanadu' }
+        context: { activeWorkspace: 'sample-ai-assistant', release: 'Zurich' }
       }))
-    } else {
-      // Offline fallback
-      setTimeout(() => {
-        const last = this.messages[this.messages.length - 1]
-        last.content = `I received your request: "${text}". Connect the backend server and configure WORKBENCH_ANTHROPIC_API_KEY for real-time Claude streaming.`
-        this.requestUpdate()
-      }, 400)
     }
+  }
+
+  private renderDrawerTile(tile: UITile) {
+    const p = tile.props || {}
+    const url = p.url || ''
+    if (!url) {
+      return html`
+        <div class="drawer-media-tile">
+          <div class="drawer-media-header">
+            <span class="drawer-media-title">${tile.title || 'Result'}</span>
+          </div>
+          <div class="drawer-media-label">${p.body || tile.props?.summary || ''}</div>
+        </div>
+      `
+    }
+    const isVideo = p.media_type === 'video' || url.endsWith('.webm') || url.endsWith('.mp4')
+    return html`
+      <div class="drawer-media-tile">
+        <div class="drawer-media-header">
+          <span class="drawer-media-title">${tile.title || 'Demonstration Proof'}</span>
+          <span class="drawer-badge">${isVideo ? 'VIDEO' : 'SCREENSHOT'}</span>
+        </div>
+        ${p.label ? html`<div class="drawer-media-label">${p.label}</div>` : ''}
+        <div class="drawer-media-frame">
+          ${isVideo
+            ? html`<video src=${url} controls playsinline preload="metadata"></video>`
+            : html`<img src=${url} alt=${tile.title || 'Proof Artifact'} />`}
+        </div>
+      </div>
+    `
   }
 
   private handleKeyDown(e: KeyboardEvent) {
@@ -259,42 +418,51 @@ export class NowOttoDrawer extends LitElement {
     return html`
       <div class="drawer-header">
         <div class="otto-brand">
-          <div class="otto-avatar">✨</div>
-          <span class="otto-title">Otto</span>
-          <span class="otto-badge">Now Assist</span>
+          <div class="otto-avatar">*</div>
         </div>
-        <button class="close-btn" @click=${() => this.dispatchEvent(new CustomEvent('close-otto'))}>×</button>
+        <button class="close-btn" title="Close" data-tooltip="Close" @click=${() => this.dispatchEvent(new CustomEvent('close-otto'))}>
+          <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
       </div>
 
       <div class="chat-body">
         ${this.messages.map((m) => html`
           <div class="message ${m.role}">
             <div class="bubble">${m.content}</div>
+            ${m.tiles && m.tiles.length
+              ? html`
+                  <div class="otto-tiles-container">
+                    ${m.tiles.map((t) => this.renderDrawerTile(t))}
+                  </div>
+                `
+              : ''}
           </div>
         `)}
       </div>
 
       <div class="suggestions-row">
         <button class="suggestion-chip" @click=${() => this.sendMessage('Explain how Fluent SDK compiles Table schemas')}>
-          💡 Fluent SDK Schema
+          [TIP] Fluent Table Schema
         </button>
-        <button class="suggestion-chip" @click=${() => this.sendMessage('Check demo bundle compatibility with Xanadu release')}>
-          🔍 Check Xanadu Compatibility
+        <button class="suggestion-chip" @click=${() => this.sendMessage('Check demo bundle compatibility with Xanadu & Zurich')}>
+          [FIND] Check Compatibility
         </button>
         <button class="suggestion-chip" @click=${() => this.sendMessage('Generate 5 mock incident seed records in JSON')}>
-          🧪 Generate Seed Data
+           Generate Incident Seeds
         </button>
       </div>
 
       <div class="input-bar">
         <input
           type="text"
-          placeholder="Ask Otto anything about this demo..."
+          placeholder="Ask Otto about Fluent or demos..."
           .value=${this.inputValue}
           @input=${(e: Event) => this.inputValue = (e.target as HTMLInputElement).value}
           @keydown=${this.handleKeyDown}
         />
-        <button class="send-btn" @click=${() => this.sendMessage(this.inputValue)}>Send</button>
+        <button class="send-btn" title="Send message to Otto" data-tooltip="Send" @click=${() => this.sendMessage(this.inputValue)}>
+          <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+        </button>
       </div>
     `
   }

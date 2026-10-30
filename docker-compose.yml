@@ -13,8 +13,9 @@ services:
       - WORKBENCH_SN_USERNAME=${WORKBENCH_SN_USERNAME:-}
       - WORKBENCH_SN_PASSWORD=${WORKBENCH_SN_PASSWORD:-}
       - WORKBENCH_ANTHROPIC_API_KEY=${WORKBENCH_ANTHROPIC_API_KEY:-${ANTHROPIC_API_KEY:-}}
-      - WORKBENCH_CLAUDE_MODEL=claude-3-7-sonnet-20250219
+      - WORKBENCH_CLAUDE_MODEL=claude-sonnet-5-5
     volumes:
       - ./bundles:/app/bundles
       - ./workspaces:/app/workspaces
+      - ./data:/app/data
     restart: unless-stopped

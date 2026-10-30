@@ -1,0 +1,165 @@
+# Policy registry -- source of truth for enforcement governance.
+# Schema: see the primer skill's reference/registry-schema.md.
+# Slugs are immutable; checks/status are managed by /primer reconcile.
+generated: 2026-10-29
+known_gaps: []
+baselines: .ratchet/baselines.json
+
+policies:
+  - slug: commit-conventions
+    name: Conventional Commits format
+    category: process
+    constitutional: true
+    justifying_adrs: [ADR-005]
+    checks:
+      - kind: pre-commit-hook
+        id: conventional-pre-commit
+        stage: commit
+    status: enforced
+
+  - slug: lint-standards
+    name: Strict ruff linting
+    category: quality
+    constitutional: true
+    justifying_adrs: [ADR-005]
+    checks:
+      - kind: pre-commit-hook
+        id: ruff
+        stage: commit
+    status: enforced
+
+  - slug: code-formatting
+    name: Consistent code formatting
+    category: quality
+    constitutional: true
+    justifying_adrs: [ADR-005]
+    checks:
+      - kind: pre-commit-hook
+        id: ruff-format
+        stage: commit
+    status: enforced
+
+  - slug: type-safety
+    name: Strict mypy type checking
+    category: quality
+    constitutional: true
+    justifying_adrs: [ADR-005]
+    checks:
+      - kind: pre-commit-hook
+        id: mypy
+        stage: commit
+    status: enforced
+
+  - slug: file-size-limits
+    name: File size limits (src 800, tests 1000)
+    category: quality
+    constitutional: false
+    justifying_adrs: [ADR-005]
+    checks:
+      - kind: pre-commit-hook
+        id: file-size
+        stage: commit
+      - kind: ratchet
+        id: file-size
+        stage: commit
+    status: enforced
+
+  - slug: testing-standards
+    name: In-memory test suite with pure fakes
+    category: testing
+    constitutional: true
+    justifying_adrs: [ADR-005]
+    checks:
+      - kind: pre-commit-hook
+        id: pytest-pre-push
+        stage: push
+      - kind: ratchet
+        id: no-mocks
+        stage: commit
+    status: enforced
+
+  - slug: ratchet-enforcement
+    name: Metric ratchets parallel pool
+    category: quality
+    constitutional: true
+    justifying_adrs: [ADR-005]
+    checks:
+      - kind: pre-commit-hook
+        id: ratchet-all
+        stage: commit
+      - kind: ratchet
+        id: complexity
+        stage: commit
+      - kind: ratchet
+        id: type-ignores
+        stage: commit
+      - kind: ratchet
+        id: absolute-imports
+        stage: commit
+      - kind: ratchet
+        id: ascii-only
+        stage: commit
+      - kind: ratchet
+        id: pydantic-strict
+        stage: commit
+      - kind: ratchet
+        id: async-subprocess
+        stage: commit
+    status: enforced
+
+  - slug: governance-reconciliation
+    name: Governance registry drift gate
+    category: process
+    constitutional: true
+    justifying_adrs: [ADR-005]
+    checks:
+      - kind: pre-commit-hook
+        id: primer-reconcile
+        stage: commit
+    status: enforced
+
+  - slug: claude-code-hooks
+    name: Claude Code per-edit rule enforcement
+    category: quality
+    constitutional: true
+    justifying_adrs: [ADR-005]
+    checks:
+      - kind: cc-hook
+        id: scripts/dev-tools/per_edit_check.py
+        stage: per-edit
+    status: enforced
+
+  - slug: runtime-toolchain
+    name: Hybrid Python 3.14 & Lit Web Components runtime
+    category: architecture
+    constitutional: true
+    justifying_adrs: [ADR-001, ADR-004]
+    checks:
+      - kind: pre-commit-hook
+        id: web-typecheck
+        stage: commit
+    status: enforced
+
+  - slug: otto-copilot
+    name: Otto AI Copilot with Claude API streaming
+    category: architecture
+    constitutional: false
+    justifying_adrs: [ADR-002]
+    checks: []
+    status: enforced
+
+  - slug: demo-bundles
+    name: Declarative demo bundle specification (.sn-demo.zip)
+    category: architecture
+    constitutional: false
+    justifying_adrs: [ADR-003, ADR-007, ADR-008]
+    checks: []
+    status: enforced
+
+  - slug: sqlite-persistence
+    name: Scoped SQLite WAL persistence and repository pattern
+    category: architecture
+    constitutional: true
+    justifying_adrs: [ADR-006]
+    checks: []
+    status: enforced

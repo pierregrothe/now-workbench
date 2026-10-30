@@ -1,4 +1,4 @@
-# ── Stage 1: Build Lit Web Components Frontend ──────────────────────────────
+# -- Stage 1: Build Lit Web Components Frontend -------------------------------
 FROM node:20-alpine AS frontend-builder
 WORKDIR /app/web
 COPY web/package*.json ./
@@ -6,8 +6,8 @@ RUN npm install
 COPY web/ ./
 RUN npm run build
 
-# ── Stage 2: Runtime Environment (Python + Node.js + now-sdk + uv) ───────────
-FROM python:3.12-slim-bookworm
+# -- Stage 2: Runtime Environment (Python + Node.js + now-sdk + uv) ------------
+FROM python:3.14-slim-bookworm
 
 # Install Node.js 20 LTS, git, and curl
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -40,7 +40,7 @@ COPY --from=frontend-builder /app/web/dist ./web/dist
 
 # Default demonstration bundles & workspace storage
 COPY bundles/ ./bundles/
-RUN mkdir -p /app/workspaces
+RUN mkdir -p /app/workspaces /app/data
 
 EXPOSE 8080
 
@@ -50,6 +50,7 @@ ENV WORKBENCH_HOST="0.0.0.0" \
     WORKBENCH_STATIC_DIR="/app/web/dist" \
     WORKBENCH_BUNDLES_DIR="/app/bundles" \
     WORKBENCH_WORKSPACE_DIR="/app/workspaces" \
+    WORKBENCH_CLAUDE_MODEL="claude-sonnet-5-5" \
     PATH="/app/.venv/bin:$PATH"
 
 ENTRYPOINT ["workbench", "serve", "--host", "0.0.0.0", "--port", "8080"]

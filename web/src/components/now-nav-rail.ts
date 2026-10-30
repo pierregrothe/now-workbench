@@ -1,126 +1,864 @@
-import { LitElement, html, css } from 'lit'
-import { customElement, property } from 'lit/decorators.js'
+import { LitElement, html, css } from 'lit';
+import { customElement, property, state } from 'lit/decorators.js';
+
+export interface NavThreadItem {
+  id: string;
+  title: string;
+  targetTab: string;
+  archived?: boolean;
+  messageCount?: number;
+  maxMessages?: number;
+  prompt?: string;
+}
 
 @customElement('now-nav-rail')
 export class NowNavRail extends LitElement {
   static styles = css`
     :host {
+      display: block;
+      height: 100%;
+      background-color: var(--now-bg-surface-0, #fbfbfa);
+      border-right: 1px solid var(--now-border-subtle, #ececeb);
+      user-select: none;
+      font-family: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      color: var(--now-text-primary, #16181d);
+      flex-shrink: 0;
+      transition: width 0.18s ease;
+    }
+
+    .rail-container {
+      width: 248px;
+      height: 100%;
       display: flex;
       flex-direction: column;
-      align-items: center;
-      width: 56px;
-      background-color: var(--now-bg-surface-0);
-      border-right: 1px solid var(--now-border-subtle);
-      padding: 12px 0;
-      gap: 16px;
-      user-select: none;
+      padding: 12px 12px 18px 12px;
+      box-sizing: border-box;
+      overflow-y: auto;
+      transition: width 0.18s ease;
     }
 
-    .brand-mark {
-      width: 34px;
-      height: 34px;
-      border-radius: var(--now-radius-sm);
-      background: linear-gradient(135deg, var(--now-color-accent-teal), #0284c7);
-      display: flex;
+    .rail-container.collapsed {
+      width: 64px;
+      padding: 12px 8px;
       align-items: center;
-      justify-content: center;
-      font-weight: 700;
-      font-size: 16px;
-      color: #0b1219;
-      margin-bottom: 8px;
     }
 
-    .nav-btn {
-      width: 40px;
-      height: 40px;
-      border-radius: var(--now-radius-sm);
+    .top-chrome {
       display: flex;
       align-items: center;
+      justify-content: flex-end;
+      min-height: 28px;
+      margin-bottom: 4px;
+      width: 100%;
+    }
+
+    .rail-container.collapsed .top-chrome {
       justify-content: center;
-      background: transparent;
-      border: none;
-      color: var(--now-text-secondary);
-      cursor: pointer;
-      transition: all 0.15s ease;
+    }
+
+    .collapse-btn {
       position: relative;
+      appearance: none;
+      border: none;
+      background: transparent;
+      color: #4a4e58;
+      width: 28px;
+      height: 28px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
     }
 
-    .nav-btn:hover {
-      color: var(--now-text-primary);
-      background-color: var(--now-bg-surface-1);
+    .collapse-btn:hover {
+      background: #ededeb;
+      color: #16181d;
     }
 
-    .nav-btn.active {
-      color: var(--now-color-accent-teal);
-      background-color: var(--now-bg-surface-2);
+    .collapse-btn svg {
+      width: 16px;
+      height: 16px;
+      stroke: currentColor;
+      stroke-width: 1.75;
+      fill: none;
     }
 
-    .nav-btn.active::before {
-      content: '';
-      position: absolute;
-      left: 0;
-      top: 8px;
-      bottom: 8px;
-      width: 3px;
-      border-radius: 0 2px 2px 0;
-      background-color: var(--now-color-accent-teal);
+    .brand-header {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      padding: 6px 8px 18px 8px;
+      cursor: pointer;
+    }
+
+    .rail-container.collapsed .brand-header {
+      padding: 6px 0 18px 0;
+      justify-content: center;
+    }
+
+    .sn-glyph {
+      width: 22px;
+      height: 22px;
+      flex-shrink: 0;
+    }
+
+    .brand-title {
+      font-size: 16px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: var(--now-text-primary, #0b0f19);
+      line-height: 1.2;
+      white-space: nowrap;
+    }
+
+    .primary-list {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      margin-bottom: 18px;
+      width: 100%;
+    }
+
+    .nav-row {
+      appearance: none;
+      border: none;
+      background: transparent;
+      width: 100%;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 10px;
+      border-radius: 999px;
+      font-size: 13.5px;
+      font-weight: 400;
+      color: var(--now-text-secondary, #2c2e33);
+      cursor: pointer;
+      text-align: left;
+      transition: background-color 0.12s ease, color 0.12s ease;
+      font-family: inherit;
+    }
+
+    .rail-container.collapsed .nav-row {
+      justify-content: center;
+      padding: 9px;
+    }
+
+    .nav-row:hover {
+      background-color: var(--now-bg-surface-1, #f1f1ef);
+      color: var(--now-text-primary, #0b0f19);
+    }
+
+    .nav-row.active {
+      background-color: var(--now-bg-surface-1, #ececea);
+      color: var(--now-text-primary, #0b0f19);
+      font-weight: 600;
+    }
+
+    .nav-row.active .nav-icon {
+      color: var(--now-color-brand-green, #032d42);
+    }
+
+    .nav-icon {
+      width: 17px;
+      height: 17px;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: currentColor;
+    }
+
+    .nav-icon svg {
+      width: 16px;
+      height: 16px;
+      stroke: currentColor;
+      stroke-width: 1.8;
+      fill: none;
+    }
+
+    .section-block {
+      display: flex;
+      flex-direction: column;
+      margin-bottom: 18px;
+      width: 100%;
+    }
+
+    .section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 4px 10px 6px 10px;
+    }
+
+    .section-label {
+      font-size: 12px;
+      font-weight: 500;
+      color: #686b73;
+      letter-spacing: -0.005em;
+    }
+
+    .compose-btn {
+      position: relative;
+      appearance: none;
+      border: 1px solid #d4d5d2;
+      background: #ffffff;
+      color: #2c2e33;
+      width: 24px;
+      height: 24px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: background 0.12s ease, border-color 0.12s ease;
+    }
+
+    .compose-btn:hover {
+      background: #f3f3f1;
+      border-color: #b8b9b4;
+    }
+
+    .compose-btn svg {
+      width: 13px;
+      height: 13px;
+      stroke: currentColor;
+      stroke-width: 1.8;
+      fill: none;
+    }
+
+    .thread-title {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      flex: 1;
+    }
+
+    @keyframes session-pulse {
+      0%, 100% {
+        opacity: 1;
+        transform: scale(1);
+      }
+      50% {
+        opacity: 0.4;
+        transform: scale(1.25);
+      }
+    }
+
+    .pulse-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--now-color-brand-green, #62d84e);
+      box-shadow: 0 0 6px var(--now-color-brand-green, #62d84e);
+      animation: session-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+      flex-shrink: 0;
+    }
+
+    .new-session-btn {
+      appearance: none;
+      border: 1px dashed var(--now-border-medium, #cbd5e1);
+      background: var(--now-bg-surface-0, #ffffff);
+      color: var(--now-text-primary, #0f172a);
+      width: 100%;
+      padding: 7px 10px;
+      border-radius: var(--now-radius-sm, 6px);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12.5px;
+      font-weight: 600;
+      cursor: pointer;
+      margin-bottom: 10px;
+      transition: all 0.15s ease;
+      font-family: inherit;
+    }
+
+    .new-session-btn:hover {
+      border-color: var(--now-color-brand-green, #62d84e);
+      background: var(--now-color-brand-green-subtle, rgba(98, 216, 78, 0.1));
+      color: var(--now-color-brand-green, #62d84e);
+    }
+
+    .new-session-icon {
+      width: 14px;
+      height: 14px;
+      stroke: currentColor;
+      stroke-width: 2;
+      fill: none;
+    }
+
+    .session-category-label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--now-text-muted, #64748b);
+      padding: 6px 10px 4px 10px;
+    }
+
+    .session-icon {
+      width: 15px;
+      height: 15px;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--now-text-muted, #64748b);
+    }
+
+    .session-icon svg {
+      width: 14px;
+      height: 14px;
+      stroke: currentColor;
+      stroke-width: 1.8;
+      fill: none;
+    }
+
+    .thread-row-wrap {
+      display: flex;
+      align-items: center;
+      gap: 2px;
+      width: 100%;
+      border-radius: 10px;
+      padding-right: 4px;
+      transition: background-color 0.12s ease;
+    }
+
+    .thread-row-wrap:hover {
+      background-color: var(--now-bg-surface-1, #f1f1ef);
+    }
+
+    .thread-row-wrap.active {
+      background-color: var(--now-bg-surface-1, #ececea);
+    }
+
+    .thread-row-wrap .nav-row {
+      flex: 1;
+      min-width: 0;
+      padding: 7px 8px;
+      background: transparent !important;
+    }
+
+    .thread-count-badge {
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--now-text-muted, #64748b);
+      background: var(--now-bg-surface-2, #e2e8f0);
+      padding: 1px 5px;
+      border-radius: 999px;
+      flex-shrink: 0;
+    }
+
+    .thread-actions {
+      display: flex;
+      align-items: center;
+      gap: 2px;
+      flex-shrink: 0;
+      opacity: 0.75;
+      transition: opacity 0.12s ease;
+    }
+
+    .thread-row-wrap:hover .thread-actions {
+      opacity: 1;
+    }
+
+    .thread-action-btn {
+      appearance: none;
+      border: none;
+      background: transparent;
+      color: var(--now-text-muted, #64748b);
+      width: 22px;
+      height: 22px;
+      border-radius: 5px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      padding: 0;
+      transition: all 0.12s ease;
+    }
+
+    .thread-action-btn:hover {
+      background: rgba(15, 23, 42, 0.08);
+      color: var(--now-text-primary, #0f172a);
+    }
+
+    .thread-action-btn.delete:hover {
+      background: #fee2e2;
+      color: #dc2626;
+    }
+
+    .thread-action-btn svg {
+      width: 13px;
+      height: 13px;
+      stroke: currentColor;
+      stroke-width: 1.8;
+      fill: none;
+    }
+
+    .archived-toggle-btn {
+      appearance: none;
+      border: none;
+      background: transparent;
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--now-text-muted, #64748b);
+      padding: 8px 10px 4px 10px;
+      cursor: pointer;
+      font-family: inherit;
+    }
+
+    .archived-toggle-btn:hover {
+      color: var(--now-text-primary, #0f172a);
     }
 
     .spacer {
       flex: 1;
     }
 
-    .icon {
-      width: 20px;
-      height: 20px;
+    .bottom-utilities {
+      padding-top: 8px;
+      border-top: 1px solid #ececeb;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      width: 100%;
+    }
+
+    .user-profile-row {
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid var(--now-border-subtle, #ececea);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+    }
+
+    .user-profile-row.collapsed {
+      justify-content: center;
+      padding-top: 8px;
+    }
+
+    .user-avatar-pill {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: var(--now-color-brand-green, #62d84e);
+      color: #032d42;
+      font-size: 11px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .user-info-text {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .user-name {
+      font-size: 12.5px;
+      font-weight: 700;
+      color: var(--now-text-primary, #0f172a);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .user-role {
+      font-size: 11px;
+      color: var(--now-text-muted, #64748b);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .user-more-btn {
+      appearance: none;
+      border: none;
+      background: transparent;
+      color: var(--now-text-muted, #64748b);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 4px;
+      border-radius: 4px;
+    }
+
+    .user-more-btn svg {
+      width: 14px;
+      height: 14px;
       fill: currentColor;
     }
-  `
+  `;
 
-  @property({ type: String }) activeTab = 'demos'
+  @property({ type: String }) activeTab = 'home';
+  @property({ type: String }) activeThreadId = '';
+  @property({ type: Array }) threads: NavThreadItem[] = [];
+  @property({ type: Boolean }) collapsed = false;
 
-  private selectTab(tab: string) {
-    this.activeTab = tab
-    this.dispatchEvent(new CustomEvent('tab-change', { detail: { tab }, bubbles: true, composed: true }))
+  @state() private showArchived = false;
+
+  private selectTab(tab: string): void {
+    this.dispatchEvent(
+      new CustomEvent('nav-change', {
+        detail: { tab },
+        bubbles: true,
+        composed: true,
+      })
+    );
+  }
+
+  private selectThread(thread: NavThreadItem): void {
+    this.dispatchEvent(
+      new CustomEvent('thread-select', {
+        detail: { thread },
+        bubbles: true,
+        composed: true,
+      })
+    );
+  }
+
+  private archiveThread(e: Event, thread: NavThreadItem): void {
+    e.stopPropagation();
+    this.dispatchEvent(
+      new CustomEvent('thread-archive', {
+        detail: { threadId: thread.id, archived: !thread.archived },
+        bubbles: true,
+        composed: true,
+      })
+    );
+  }
+
+  private deleteThread(e: Event, thread: NavThreadItem): void {
+    e.stopPropagation();
+    this.dispatchEvent(
+      new CustomEvent('thread-delete', {
+        detail: { threadId: thread.id },
+        bubbles: true,
+        composed: true,
+      })
+    );
+  }
+
+  private startNewSession(): void {
+    this.dispatchEvent(
+      new CustomEvent('new-session', {
+        bubbles: true,
+        composed: true,
+      })
+    );
+  }
+
+  private renderThreadItem(thread: NavThreadItem, isActive: boolean) {
+    const countLabel =
+      typeof thread.messageCount === 'number'
+        ? `${thread.messageCount}/${thread.maxMessages ?? 20}`
+        : '';
+    return html`
+      <div class="thread-row-wrap ${isActive ? 'active' : ''}">
+        <button
+          class="nav-row ${isActive ? 'active' : ''}"
+          title="${thread.title}${countLabel ? ` (${countLabel} messages)` : ''}"
+          @click=${() => this.selectThread(thread)}
+        >
+          <span class="session-icon">
+            <svg viewBox="0 0 24 24">
+              <path
+                d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"
+              ></path>
+            </svg>
+          </span>
+          <span class="thread-title">${thread.title}</span>
+          ${countLabel ? html`<span class="thread-count-badge">${countLabel}</span>` : ''}
+        </button>
+        <div class="thread-actions">
+          <button
+            class="thread-action-btn"
+            title=${thread.archived ? 'Unarchive conversation' : 'Archive conversation'}
+            aria-label=${thread.archived ? 'Unarchive conversation' : 'Archive conversation'}
+            @click=${(e: Event) => this.archiveThread(e, thread)}
+          >
+            <svg viewBox="0 0 24 24">
+              <polyline points="21 8 21 21 3 21 3 8"></polyline>
+              <rect x="1" y="3" width="22" height="5"></rect>
+              <line x1="10" y1="12" x2="14" y2="12"></line>
+            </svg>
+          </button>
+          <button
+            class="thread-action-btn delete"
+            title="Delete conversation"
+            aria-label="Delete conversation"
+            @click=${(e: Event) => this.deleteThread(e, thread)}
+          >
+            <svg viewBox="0 0 24 24">
+              <polyline points="3 6 5 6 21 6"></polyline>
+              <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path>
+              <path d="M10 11v6"></path>
+              <path d="M14 11v6"></path>
+            </svg>
+          </button>
+        </div>
+      </div>
+    `;
   }
 
   render() {
     return html`
-      <div class="brand-mark" title="ServiceNow Fluent SDK">⚡</div>
+      <nav class="rail-container ${this.collapsed ? 'collapsed' : ''}" aria-label="Now Workbench Navigation">
+        <div class="top-chrome">
+          <button
+            class="collapse-btn"
+            title=${this.collapsed ? 'Expand navigation' : 'Collapse navigation'}
+            data-tooltip=${this.collapsed ? 'Expand' : 'Collapse'}
+            @click=${() => {
+              this.collapsed = !this.collapsed;
+            }}
+          >
+            <svg viewBox="0 0 24 24">
+              <rect x="3" y="4" width="18" height="16" rx="2"></rect>
+              <line x1="9" y1="4" x2="9" y2="20"></line>
+              ${this.collapsed
+                ? html`<polyline points="13 9 16 12 13 15"></polyline>`
+                : html`<polyline points="15 9 12 12 15 15"></polyline>`}
+            </svg>
+          </button>
+        </div>
 
-      <button
-        class="nav-btn ${this.activeTab === 'demos' ? 'active' : ''}"
-        title="Demonstration Packages"
-        @click=${() => this.selectTab('demos')}
-      >
-        <svg class="icon" viewBox="0 0 24 24"><path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z"/></svg>
-      </button>
+        <div class="brand-header" @click=${() => this.selectTab('home')} title="Now Workbench Home">
+          <svg class="sn-glyph" viewBox="0 0 32 32" fill="none">
+            <path
+              d="M16 3C8.82 3 3 8.82 3 16C3 20.88 5.69 25.13 9.68 27.35C10.95 25.43 13.31 24.15 16 24.15C18.69 24.15 21.05 25.43 22.32 27.35C26.31 25.13 29 20.88 29 16C29 8.82 23.18 3 16 3ZM16 21.2C12.58 21.2 9.8 18.42 9.8 15C9.8 11.58 12.58 8.8 16 8.8C19.42 8.8 22.2 11.58 22.2 15C22.2 18.42 19.42 21.2 16 21.2Z"
+              fill="#62d84e"
+            />
+          </svg>
+          ${!this.collapsed ? html`<span class="brand-title">Now Workbench</span>` : ''}
+        </div>
 
-      <button
-        class="nav-btn ${this.activeTab === 'fluent' ? 'active' : ''}"
-        title="Fluent SDK Studio"
-        @click=${() => this.selectTab('fluent')}
-      >
-        <svg class="icon" viewBox="0 0 24 24"><path d="M9.4 16.6L4.8 12l4.6-4.6L8 6l-6 6 6 6 1.4-1.4zm5.2 0l4.6-4.6-4.6-4.6L16 6l6 6-6 6-1.4-1.4z"/></svg>
-      </button>
+        <div class="primary-list">
+          <button
+            class="nav-row ${this.activeTab === 'home' ? 'active' : ''}"
+            title="Home (Conversational Hub)"
+            @click=${() => this.selectTab('home')}
+          >
+            <span class="nav-icon">
+              <svg viewBox="0 0 24 24">
+                <path d="M3 10.5L12 3l9 7.5"></path>
+                <path d="M5 9.5V19a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9.5"></path>
+              </svg>
+            </span>
+            ${!this.collapsed ? html`<span>Home</span>` : ''}
+          </button>
 
-      <button
-        class="nav-btn ${this.activeTab === 'diagnostics' ? 'active' : ''}"
-        title="Instance Health & Diagnostics"
-        @click=${() => this.selectTab('diagnostics')}
-      >
-        <svg class="icon" viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-2 10h-4v4h-2v-4H7v-2h4V7h2v4h4v2z"/></svg>
-      </button>
+          <button
+            class="nav-row ${this.activeTab === 'synthesizer' ? 'active' : ''}"
+            title="Use-Case Synthesizer"
+            @click=${() => this.selectTab('synthesizer')}
+          >
+            <span class="nav-icon">
+              <svg viewBox="0 0 24 24">
+                <path d="M12 2L14.5 8.5L21 11L14.5 13.5L12 20L9.5 13.5L3 11L9.5 8.5L12 2Z"></path>
+              </svg>
+            </span>
+            ${!this.collapsed ? html`<span>Use-Case Synthesizer</span>` : ''}
+          </button>
 
-      <div class="spacer"></div>
+          <button
+            class="nav-row ${this.activeTab === 'capture' ? 'active' : ''}"
+            title="Media Capture"
+            @click=${() => this.selectTab('capture')}
+          >
+            <span class="nav-icon">
+              <svg viewBox="0 0 24 24">
+                <rect x="3" y="5" width="18" height="14" rx="2"></rect>
+                <circle cx="12" cy="12" r="3.2"></circle>
+              </svg>
+            </span>
+            ${!this.collapsed ? html`<span>Media Capture</span>` : ''}
+          </button>
 
-      <button
-        class="nav-btn ${this.activeTab === 'settings' ? 'active' : ''}"
-        title="Settings & Credentials"
-        @click=${() => this.selectTab('settings')}
-      >
-        <svg class="icon" viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
-      </button>
-    `
+          <button
+            class="nav-row ${this.activeTab === 'artifacts' ? 'active' : ''}"
+            title="Artifact Library"
+            @click=${() => this.selectTab('artifacts')}
+          >
+            <span class="nav-icon">
+              <svg viewBox="0 0 24 24">
+                <path d="M12 2L2 7l10 5 10-5-10-5z"></path>
+                <path d="M2 12l10 5 10-5"></path>
+                <path d="M2 17l10 5 10-5"></path>
+              </svg>
+            </span>
+            ${!this.collapsed ? html`<span>Artifact library</span>` : ''}
+          </button>
+
+          <button
+            class="nav-row ${this.activeTab === 'fluent' ? 'active' : ''}"
+            title="Fluent SDK Explorer"
+            @click=${() => this.selectTab('fluent')}
+          >
+            <span class="nav-icon">
+              <svg viewBox="0 0 24 24">
+                <polyline points="16 18 22 12 16 6"></polyline>
+                <polyline points="8 6 2 12 8 18"></polyline>
+              </svg>
+            </span>
+            ${!this.collapsed ? html`<span>Fluent SDK Explorer</span>` : ''}
+          </button>
+        </div>
+
+        ${!this.collapsed
+          ? (() => {
+              const unarchived = this.threads.filter((t) => !t.archived);
+              const archived = this.threads.filter((t) => t.archived);
+              const activeThread = this.activeThreadId
+                ? this.threads.find((t) => t.id === this.activeThreadId)
+                : undefined;
+              const pastThreads = unarchived.filter((t) => t.id !== activeThread?.id);
+              return html`
+                <div class="section-block">
+                  <button
+                    class="new-session-btn"
+                    title="Start a new Otto AI conversation"
+                    data-tooltip="New Conversation"
+                    @click=${this.startNewSession}
+                  >
+                    <svg viewBox="0 0 24 24" class="new-session-icon">
+                      <line x1="12" y1="5" x2="12" y2="19"></line>
+                      <line x1="5" y1="12" x2="19" y2="12"></line>
+                    </svg>
+                    <span>New Conversation</span>
+                  </button>
+
+                  ${activeThread
+                    ? html`
+                        <div class="session-category-label">
+                          <span class="pulse-dot"></span>
+                          <span>Active Conversation</span>
+                        </div>
+                        ${this.renderThreadItem(activeThread, true)}
+                      `
+                    : ''}
+                  ${pastThreads.length > 0
+                    ? html`
+                        <div class="session-category-label" style="margin-top: 8px;">
+                          <span>Past Conversations (${pastThreads.length})</span>
+                        </div>
+                        ${pastThreads.map((thread) =>
+                          this.renderThreadItem(thread, this.activeThreadId === thread.id)
+                        )}
+                      `
+                    : !activeThread
+                      ? html`
+                          <div style="font-size: 11.5px; color: var(--now-text-muted, #64748b); padding: 4px 10px;">
+                            No active conversations. Click "New Conversation" to begin.
+                          </div>
+                        `
+                      : ''}
+                  ${archived.length > 0
+                    ? html`
+                        <button
+                          class="archived-toggle-btn"
+                          @click=${() => {
+                            this.showArchived = !this.showArchived;
+                          }}
+                        >
+                          <span>Archived (${archived.length})</span>
+                          <span>${this.showArchived ? 'v' : '>'}</span>
+                        </button>
+                        ${this.showArchived
+                          ? archived.map((thread) =>
+                              this.renderThreadItem(thread, this.activeThreadId === thread.id)
+                            )
+                          : ''}
+                      `
+                    : ''}
+                </div>
+              `;
+            })()
+          : html`
+              <button
+                class="nav-row"
+                title="New Conversation"
+                @click=${this.startNewSession}
+              >
+                <span class="nav-icon">
+                  <svg viewBox="0 0 24 24">
+                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                  </svg>
+                </span>
+              </button>
+            `}
+
+        <div class="spacer"></div>
+
+        <div class="bottom-utilities">
+          <button
+            class="nav-row"
+            title="Welcome to Now Workbench"
+            @click=${() => this.selectTab('help')}
+          >
+            <span class="nav-icon">
+              <svg viewBox="0 0 24 24">
+                <circle cx="12" cy="12" r="9"></circle>
+                <path d="M9.5 9a2.5 2.5 0 0 1 5 0c0 1.5-2.5 2-2.5 3.5"></path>
+                <circle cx="12" cy="16.5" r="0.8" fill="currentColor"></circle>
+              </svg>
+            </span>
+            ${!this.collapsed ? html`<span>Welcome Guide</span>` : ''}
+          </button>
+
+          <button
+            class="nav-row ${this.activeTab === 'admin' ? 'active' : ''}"
+            title="Workbench Settings"
+            @click=${() => this.selectTab('admin')}
+          >
+            <span class="nav-icon">
+              <svg viewBox="0 0 24 24">
+                <circle cx="12" cy="12" r="3"></circle>
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+              </svg>
+            </span>
+            ${!this.collapsed ? html`<span>Workbench Settings</span>` : ''}
+          </button>
+
+          <div class="user-profile-row ${this.collapsed ? 'collapsed' : ''}">
+            <div class="user-avatar-pill">PG</div>
+            ${!this.collapsed
+              ? html`
+                  <div class="user-info-text">
+                    <span class="user-name">Pierre Grothe</span>
+                    <span class="user-role">Solution Consultant</span>
+                  </div>
+                  <button class="user-more-btn" title="Account profile" aria-label="Account profile">
+                    <svg viewBox="0 0 24 24">
+                      <circle cx="12" cy="12" r="1.5"></circle>
+                      <circle cx="12" cy="5" r="1.5"></circle>
+                      <circle cx="12" cy="19" r="1.5"></circle>
+                    </svg>
+                  </button>
+                `
+              : ''}
+          </div>
+        </div>
+      </nav>
+    `;
   }
 }

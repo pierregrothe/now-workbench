@@ -1,0 +1,22 @@
+[
+  {
+    "table": "incident",
+    "fields": {
+      "short_description": "{{customer_name}} VPN gateway authentication timeout",
+      "category": "network",
+      "urgency": "2",
+      "impact": "2",
+      "assignment_group": "{{assignment_group}}"
+    }
+  },
+  {
+    "table": "incident",
+    "fields": {
+      "short_description": "{{customer_name}} ERP batch payroll synchronization warning",
+      "category": "software",
+      "urgency": "1",
+      "impact": "1",
+      "assignment_group": "{{assignment_group}}"
+    }
+  }
+]

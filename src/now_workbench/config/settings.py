@@ -1,5 +1,6 @@
 """Configuration settings for now-workbench."""
 
+import os
 from pathlib import Path
 
 from pydantic import Field
@@ -24,6 +25,7 @@ class Settings(BaseSettings):
     workspace_dir: Path = Field(default_factory=lambda: Path("./workspaces").resolve())
     bundles_dir: Path = Field(default_factory=lambda: Path("./bundles").resolve())
     static_dir: Path = Field(default_factory=lambda: Path("./web/dist").resolve())
+    data_dir: Path = Field(default_factory=lambda: Path("./data").resolve())
 
     # ServiceNow Instance Profile
     sn_instance_url: str = Field(default="", description="ServiceNow instance URL")
@@ -33,11 +35,18 @@ class Settings(BaseSettings):
 
     # Claude / Otto AI
     anthropic_api_key: str = Field(default="", description="Anthropic Claude API key")
-    claude_model: str = Field(default="claude-3-7-sonnet-20250219", description="Claude model")
+    claude_model: str = Field(default="claude-sonnet-5-5", description="Claude model")
 
     # Now SDK
     now_sdk_bin: str = Field(default="now-sdk", description="Path or command for now-sdk")
     node_bin: str = Field(default="node", description="Path or command for node")
+
+    def get_bundles_dir(self) -> Path:
+        """Return resolved bundles directory respecting WORKBENCH_BUNDLES_DIR env override."""
+        env_dir = os.environ.get("WORKBENCH_BUNDLES_DIR")
+        if env_dir:
+            return Path(env_dir).resolve()
+        return self.bundles_dir
 
 
 settings = Settings()

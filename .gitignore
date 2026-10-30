@@ -54,3 +54,7 @@ workspaces/
 .env.local
 *.pem
 *.key
+data/
+*.db
+*.db-shm
+*.db-wal

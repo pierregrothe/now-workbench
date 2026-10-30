@@ -1,0 +1,282 @@
+"""Async Playwright runner for capturing ServiceNow screenshots and videos."""
+
+import asyncio
+import base64
+import json
+import shutil
+import struct
+import uuid
+import zlib
+from datetime import UTC, datetime
+from pathlib import Path
+from typing import Any
+
+from now_workbench.capture.models import CaptureArtifact, CaptureRequest
+
+_HEADER = [3, 45, 66]  # ServiceNow header (#032d42)
+_NAV = [11, 31, 48]  # Nav rail (#0b1f30)
+_TOOLBAR = [248, 250, 252]  # Toolbar (#f8fafc)
+_DIVIDER = [226, 232, 240]  # Divider (#e2e8f0)
+_PILL = [98, 216, 78]  # Green pill badge (#62d84e)
+_PRIMARY_TEXT = [71, 85, 105]  # Primary text (#475569)
+_SECONDARY_TEXT = [148, 163, 184]  # Secondary text (#94a3b8)
+_WHITE = [255, 255, 255]  # Canvas background
+
+
+def _grid_element_pixel(x: int, row_y: int) -> list[int]:
+    """Return color for elements inside a table grid row."""
+    if row_y >= 18:
+        return _WHITE
+    if x < 150:
+        return _PILL
+    if 170 < x < 350:
+        return _PRIMARY_TEXT
+    if 380 < x < 550:
+        return _SECONDARY_TEXT
+    return _WHITE
+
+
+def _simulated_pixel(x: int, y: int) -> list[int]:
+    """Return RGB color for simulated ServiceNow preview pixel."""
+    if y < 40:
+        return _HEADER
+    if x < 50:
+        return _NAV
+    if y < 80:
+        return _TOOLBAR
+    if (y - 80) % 36 < 2:
+        return _DIVIDER
+    if 90 < y < 400:
+        return _grid_element_pixel(x, (y - 90) % 36)
+    return _WHITE
+
+
+def _generate_simulated_png(width: int = 800, height: int = 450) -> bytes:
+    """Generate a clean, high-resolution simulated ServiceNow UI preview image."""
+    raw = bytearray()
+    for y in range(height):
+        raw.append(0)
+        for x in range(width):
+            raw.extend(_simulated_pixel(x, y))
+    compressed = zlib.compress(bytes(raw), level=6)
+
+    def chunk(tag: bytes, data: bytes) -> bytes:
+        return (
+            struct.pack(">I", len(data))
+            + tag
+            + data
+            + struct.pack(">I", zlib.crc32(tag + data) & 0xFFFFFFFF)
+        )
+
+    return (
+        b"\x89PNG\r\n\x1a\n"
+        + chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0))
+        + chunk(b"IDAT", compressed)
+        + chunk(b"IEND", b"")
+    )
+
+
+# Minimal valid 1-second VP8 WebM video for playable offline/simulated video captures
+_PLACEHOLDER_WEBM = base64.b64decode(
+    "GkXfo59ChoEBQveBAULygQRC84EIQoKEd2VibUKHgQJChYECGFOAZ+4VSalmjyrXsYQAD0JARImERHoAABZU"
+    "rmudrpvXgQFzxYEBg4EBhoVWX1ZQOOCIsIIAQLqCAEAfQ7Z1s+eBAKOugQAAgBACAJ0BKkAAQAAAAAAAAAAA"
+    "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+)
+
+
+async def _run_chrome_capture(
+    full_url: str,
+    output_file: Path,
+    media_type: str,
+    width: int,
+    height: int,
+    username: str = "",
+    password: str = "",
+    duration: float = 3.0,
+) -> bool:
+    """Execute live Chrome / Puppeteer screenshot or WebM video capture."""
+    script_path = (
+        Path(__file__).resolve().parents[3] / "scripts" / "dev-tools" / "chrome_capture.mjs"
+    )
+    if not script_path.exists():
+        return False
+    node_bin = shutil.which("node")
+    if not node_bin:
+        return False
+    cmd = [
+        node_bin,
+        str(script_path),
+        "--url",
+        full_url,
+        "--output",
+        str(output_file),
+        "--mode",
+        media_type,
+        "--width",
+        str(width),
+        "--height",
+        str(height),
+        "--duration",
+        str(duration),
+    ]
+    if username and password:
+        cmd.extend(["--username", username, "--password", password])
+
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        await proc.communicate()
+        return proc.returncode == 0 and output_file.exists() and output_file.stat().st_size > 500
+    except Exception:
+        return False
+
+
+async def _run_playwright_cli(
+    full_url: str, output_file: Path, width: int, height: int, wait_timeout_ms: int = 1500
+) -> bool:
+    """Execute Playwright screenshot capture via async subprocess."""
+    npx_bin = shutil.which("npx")
+    if not npx_bin:
+        return False
+    cmd = [
+        npx_bin,
+        "playwright",
+        "screenshot",
+        f"--viewport-size={width},{height}",
+        f"--wait-for-timeout={wait_timeout_ms}",
+        full_url,
+        str(output_file),
+    ]
+    proc = await asyncio.create_subprocess_exec(
+        *cmd,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    await proc.communicate()
+    return proc.returncode == 0 and output_file.exists()
+
+
+class PlaywrightCaptureEngine:
+    """Captures screenshots and videos from a ServiceNow instance into a demo bundle."""
+
+    def __init__(self, bundles_dir: Path) -> None:
+        self.bundles_dir = bundles_dir
+
+    def _media_dir(self, bundle_id: str) -> Path:
+        media_dir = self.bundles_dir / bundle_id / "media"
+        media_dir.mkdir(parents=True, exist_ok=True)
+        return media_dir
+
+    def list_captures(self, bundle_id: str) -> list[CaptureArtifact]:
+        """Return all recorded screenshot and video captures for a bundle."""
+        index_file = self._media_dir(bundle_id) / "captures.json"
+        if not index_file.exists():
+            return []
+        raw = json.loads(index_file.read_text(encoding="utf-8"))
+        return [CaptureArtifact(**item) for item in raw]
+
+    def _save_capture_metadata(self, artifact: CaptureArtifact) -> None:
+        existing = self.list_captures(artifact.bundle_id)
+        updated = [artifact.model_dump(), *[a.model_dump() for a in existing]]
+        index_file = self._media_dir(artifact.bundle_id) / "captures.json"
+        index_file.write_text(json.dumps(updated, indent=2), encoding="utf-8")
+
+    def delete_capture(self, bundle_id: str, filename: str) -> bool:
+        """Delete a recorded screenshot or video capture and remove it from captures.json."""
+        if not filename or "/" in filename or "\\" in filename or ".." in filename:
+            raise ValueError(f"Invalid capture filename: {filename}")
+        media_dir = self._media_dir(bundle_id)
+        target_file = media_dir / filename
+        existing = self.list_captures(bundle_id)
+        remaining = [a for a in existing if a.filename != filename]
+        found = len(remaining) < len(existing) or target_file.exists()
+        if not found:
+            raise FileNotFoundError(f"Capture file '{filename}' not found in '{bundle_id}'.")
+        if target_file.exists():
+            target_file.unlink()
+        index_file = media_dir / "captures.json"
+        index_file.write_text(
+            json.dumps([a.model_dump() for a in remaining], indent=2), encoding="utf-8"
+        )
+        return True
+
+    def update_capture(self, bundle_id: str, filename: str, label: str) -> CaptureArtifact:
+        """Update label/caption of an existing capture artifact in captures.json."""
+        if not filename or "/" in filename or "\\" in filename or ".." in filename:
+            raise ValueError(f"Invalid capture filename: {filename}")
+        existing = self.list_captures(bundle_id)
+        target: CaptureArtifact | None = None
+        updated_list: list[dict[str, Any]] = []
+        for art in existing:
+            if art.filename == filename:
+                target = art.model_copy(update={"label": label.strip()})
+                updated_list.append(target.model_dump())
+            else:
+                updated_list.append(art.model_dump())
+        if not target:
+            raise FileNotFoundError(f"Capture artifact '{filename}' not found in '{bundle_id}'.")
+        index_file = self._media_dir(bundle_id) / "captures.json"
+        index_file.write_text(json.dumps(updated_list, indent=2), encoding="utf-8")
+        return target
+
+    async def capture(
+        self,
+        req: CaptureRequest,
+        instance_url: str,
+        wait_timeout_ms: int = 1500,
+        username: str = "",
+        password: str = "",
+    ) -> CaptureArtifact:
+        """Capture a screenshot or video of the target ServiceNow instance."""
+        capture_id = f"cap-{uuid.uuid4().hex[:8]}"
+        ext = "webm" if req.media_type == "video" else "png"
+        filename = f"{capture_id}.{ext}"
+        media_dir = self._media_dir(req.bundle_id)
+        output_file = media_dir / filename
+
+        base_url = instance_url.rstrip("/")
+        path_part = req.target_path if req.target_path.startswith("/") else f"/{req.target_path}"
+        full_url = f"{base_url}{path_part}"
+
+        used_engine = "playwright-simulated"
+        if not req.fake_mode:
+            chrome_ok = await _run_chrome_capture(
+                full_url,
+                output_file,
+                req.media_type,
+                req.viewport_width,
+                req.viewport_height,
+                username=username,
+                password=password,
+            )
+            if chrome_ok:
+                used_engine = "google-chrome-native"
+            elif req.media_type == "screenshot":
+                ok = await _run_playwright_cli(
+                    full_url, output_file, req.viewport_width, req.viewport_height, wait_timeout_ms
+                )
+                if ok:
+                    used_engine = "playwright-chromium"
+
+        if not output_file.exists():
+            payload = _PLACEHOLDER_WEBM if ext == "webm" else _generate_simulated_png()
+            output_file.write_bytes(payload)
+
+        artifact = CaptureArtifact(
+            id=capture_id,
+            bundle_id=req.bundle_id,
+            instance_url=base_url,
+            target_path=path_part,
+            media_type=req.media_type,
+            label=req.label,
+            filename=filename,
+            file_path=str(output_file),
+            url=f"/api/demos/{req.bundle_id}/captures/{filename}",
+            engine=used_engine,
+            created_at=datetime.now(UTC).isoformat(),
+        )
+        self._save_capture_metadata(artifact)
+        return artifact

@@ -1,0 +1,13 @@
+{
+  "updated": "2026-10-30T00:05:43+00:00",
+  "counts": {
+    "no-mocks": 0,
+    "complexity": 0,
+    "file-size": 0,
+    "type-ignores": 0,
+    "absolute-imports": 0,
+    "ascii-only": 0,
+    "pydantic-strict": 0,
+    "async-subprocess": 0
+  }
+}

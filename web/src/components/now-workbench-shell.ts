@@ -1,302 +1,793 @@
-import { LitElement, html, css } from 'lit'
-import { customElement, state } from 'lit/decorators.js'
-import './now-nav-rail'
-import './now-demo-catalog'
-import './now-console'
-import './now-otto-drawer'
-import type { DemoBundle } from './now-demo-catalog'
-import type { NowOttoDrawer } from './now-otto-drawer'
+import { LitElement, html, css } from 'lit';
+import { customElement, state } from 'lit/decorators.js';
+import './now-nav-rail.js';
+import type { NavThreadItem } from './now-nav-rail.js';
+import './now-conversational-workspace.js';
+import './now-demo-catalog.js';
+import './now-fluent-explorer.js';
+import './now-workbench-settings.js';
+import type { WorkbenchPreferences } from './now-workbench-settings.js';
+import { applyTheme, getStoredTheme } from '../utils/theme.js';
+import './now-presenter-hud.js';
+import './now-welcome-modal.js';
+import './now-command-palette.js';
+import { smartTooltip } from '../utils/tooltip.js';
+
+interface DetectedIntent {
+  tab: string;
+  menuLabel: string;
+  explanation: string;
+  isQuestion?: boolean;
+}
+
+const VALID_SHELL_TABS = new Set([
+  'home',
+  'artifacts',
+  'synthesizer',
+  'capture',
+  'fluent',
+  'admin',
+]);
+
+function resolveInitialTab(): string {
+  if (typeof window !== 'undefined') {
+    const rawHash = window.location.hash.replace(/^#\/?/, '').trim();
+    if (VALID_SHELL_TABS.has(rawHash)) {
+      return rawHash;
+    }
+    try {
+      const stored = localStorage.getItem('now-workbench-active-tab');
+      if (stored && VALID_SHELL_TABS.has(stored)) {
+        return stored;
+      }
+    } catch {}
+  }
+  return 'home';
+}
 
 @customElement('now-workbench-shell')
 export class NowWorkbenchShell extends LitElement {
   static styles = css`
     :host {
       display: flex;
-      flex-direction: column;
-      width: 100vw;
       height: 100vh;
+      width: 100vw;
       overflow: hidden;
-      background-color: var(--now-bg-canvas);
-    }
-
-    /* Top Chrome Banner */
-    .top-chrome {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      height: 48px;
-      padding: 0 16px;
-      background-color: var(--now-bg-surface-0);
-      border-bottom: 1px solid var(--now-border-subtle);
-      user-select: none;
-    }
-
-    .brand-section {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-
-    .app-title {
-      font-weight: 700;
-      font-size: 14px;
-      color: var(--now-text-primary);
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-
-    .app-badge {
-      font-size: 11px;
-      padding: 1px 6px;
-      background-color: var(--now-bg-surface-2);
-      border-radius: var(--now-radius-sm);
-      color: var(--now-text-secondary);
-      font-weight: 500;
-    }
-
-    .center-section {
-      display: flex;
-      align-items: center;
-      gap: 16px;
-    }
-
-    .search-input {
-      background-color: var(--now-bg-surface-1);
-      border: 1px solid var(--now-border-subtle);
-      border-radius: var(--now-radius-sm);
-      padding: 4px 12px;
-      color: var(--now-text-primary);
-      font-size: 12px;
-      width: 280px;
-      outline: none;
-    }
-
-    .search-input:focus {
-      border-color: var(--now-color-accent-teal);
-    }
-
-    .right-section {
-      display: flex;
-      align-items: center;
-      gap: 14px;
-    }
-
-    .instance-pill {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      background-color: var(--now-bg-surface-1);
-      border: 1px solid var(--now-border-subtle);
-      padding: 4px 10px;
-      border-radius: 14px;
-      font-size: 11px;
-      color: var(--now-text-secondary);
-    }
-
-    .instance-dot {
-      width: 6px;
-      height: 6px;
-      border-radius: 50%;
-      background-color: var(--now-status-online);
-      box-shadow: 0 0 6px var(--now-status-online);
-    }
-
-    .otto-toggle-btn {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      background: linear-gradient(135deg, rgba(168, 85, 247, 0.2), rgba(59, 130, 246, 0.2));
-      border: 1px solid rgba(168, 85, 247, 0.4);
-      color: #e9d5ff;
-      padding: 4px 10px;
-      border-radius: 14px;
-      cursor: pointer;
-      font-size: 12px;
-      font-weight: 600;
-      transition: all 0.15s ease;
-    }
-
-    .otto-toggle-btn:hover {
-      box-shadow: 0 0 10px var(--now-color-accent-otto-glow);
-    }
-
-    /* Main Workspace Layout */
-    .workspace-body {
-      display: flex;
-      flex: 1;
-      height: calc(100vh - 48px);
-      overflow: hidden;
+      background-color: var(--now-bg-surface-0, #ffffff);
+      color: var(--now-text-primary, #16181d);
+      font-family: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     }
 
     .content-area {
+      flex: 1;
+      height: 100vh;
+      overflow: hidden;
+      position: relative;
       display: flex;
       flex-direction: column;
-      flex: 1;
-      overflow: hidden;
-      background-color: var(--now-bg-canvas);
+      background: var(--now-bg-canvas, #ffffff);
     }
 
-    .catalog-viewport {
+    .active-view-stage {
       flex: 1;
-      overflow: hidden;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
     }
-  `
 
-  @state() private activeTab = 'demos'
-  @state() private ottoOpen = true
-  @state() private demos: DemoBundle[] = []
-  @state() private logs: string[] = [
-    '[now-workbench] Initialized in Docker workspace.',
-    '[now-workbench] Connected to local storage: 1 demonstration package detected.',
-  ]
-  @state() private instanceUrl = 'dev12345.service-now.com'
-  @state() private instanceRelease = 'Xanadu'
+    /* Docked Bottom Chat Bar (shown whenever activeTab !== 'home') */
+    .bottom-chat-dock {
+      flex-shrink: 0;
+      padding: 12px 36px 18px 36px;
+      background: var(--now-bg-surface-0, #ffffff);
+      border-top: 1px solid var(--now-border-subtle, #ececeb);
+      box-shadow: 0 -6px 24px rgba(0, 0, 0, 0.03);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      z-index: 20;
+    }
 
-  connectedCallback() {
-    super.connectedCallback()
-    this.fetchDemos()
-    this.fetchHealth()
+    .intent-route-banner {
+      width: 100%;
+      max-width: 1020px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 12px;
+      color: var(--now-text-secondary, #374151);
+      background: var(--now-bg-surface-1, #f4faf3);
+      border: 1px solid var(--now-border-subtle, #d5ecd0);
+      padding: 6px 14px;
+      border-radius: 999px;
+      box-sizing: border-box;
+    }
+
+    .intent-route-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-weight: 700;
+      color: var(--now-color-brand-green, #032d42);
+    }
+
+    .intent-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #62d84e;
+    }
+
+    .bottom-prompt-box {
+      width: 100%;
+      max-width: 1020px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: var(--now-bg-surface-1, #f7f7f5);
+      border: 1.5px solid var(--now-border-medium, #d8dad4);
+      border-radius: 999px;
+      padding: 6px 8px 6px 20px;
+      box-sizing: border-box;
+      transition: border-color 0.14s ease, background 0.14s ease;
+    }
+
+    .bottom-prompt-box:focus-within {
+      background: var(--now-bg-surface-0, #ffffff);
+      border-color: var(--now-border-highlight, #032d42);
+    }
+
+    .bottom-prompt-box input {
+      flex: 1;
+      border: none;
+      background: transparent;
+      font-family: inherit;
+      font-size: 14px;
+      color: var(--now-text-primary, #16181d);
+      outline: none;
+    }
+
+    .bottom-send-btn {
+      position: relative;
+      appearance: none;
+      border: 1px solid var(--now-color-brand-green, #62d84e);
+      background: var(--now-color-brand-green, #62d84e);
+      color: #032d42;
+      width: 36px;
+      height: 36px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 50%;
+      cursor: pointer;
+      transition: background 0.12s ease, transform 0.1s ease;
+    }
+
+    .bottom-send-btn:hover {
+      opacity: 0.9;
+      transform: scale(1.05);
+    }
+
+    .bottom-send-btn svg {
+      width: 16px;
+      height: 16px;
+      fill: currentColor;
+    }
+  `;
+
+  @state() private activeTab = resolveInitialTab();
+  @state() private activeThreadId = '';
+  @state() private selectedBundleId = 'sample-ai-assistant';
+  @state() private welcomeModalOpen =
+    typeof localStorage !== 'undefined'
+      ? localStorage.getItem('now-workbench-show-welcome') !== 'false'
+      : true;
+  @state() private autoRouteIntent = true;
+  @state() private railCollapsed = false;
+
+  private setActiveTab(tab: string): void {
+    const target = VALID_SHELL_TABS.has(tab) ? tab : 'home';
+    this.activeTab = target;
+    if (typeof window !== 'undefined') {
+      if (window.location.hash !== `#${target}`) {
+        window.location.hash = `#${target}`;
+      }
+      try {
+        localStorage.setItem('now-workbench-active-tab', target);
+      } catch {}
+    }
   }
 
-  private async fetchHealth() {
+  private handleWindowHashChange = (): void => {
+    const rawHash = window.location.hash.replace(/^#\/?/, '').trim();
+    if (VALID_SHELL_TABS.has(rawHash) && rawHash !== this.activeTab) {
+      this.activeTab = rawHash;
+      try {
+        localStorage.setItem('now-workbench-active-tab', rawHash);
+      } catch {}
+    }
+  };
+
+  connectedCallback(): void {
+    super.connectedCallback();
+    smartTooltip.init();
+    if (typeof window !== 'undefined') {
+      window.addEventListener('hashchange', this.handleWindowHashChange);
+      if (!window.location.hash && this.activeTab) {
+        window.location.hash = `#${this.activeTab}`;
+      }
+    }
+    void this.loadInitialPreferences();
+    void this.loadThreads();
+  }
+
+  disconnectedCallback(): void {
+    super.disconnectedCallback();
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('hashchange', this.handleWindowHashChange);
+    }
+  }
+
+  private async loadThreads(): Promise<void> {
     try {
-      const res = await fetch('/api/health')
+      const res = await fetch('/api/threads?include_archived=true');
       if (res.ok) {
-        const data = await res.json()
-        if (data.instance?.url) {
-          this.instanceUrl = data.instance.url
+        const list = (await res.json()) as Array<{
+          id: string;
+          title: string;
+          archived?: boolean;
+          target_tab?: string;
+          message_count?: number;
+          max_messages?: number;
+        }>;
+        this.recentThreads = list.map((t) => ({
+          id: t.id,
+          title: t.title,
+          targetTab: t.target_tab || 'home',
+          archived: Boolean(t.archived),
+          messageCount: t.message_count ?? 0,
+          maxMessages: t.max_messages ?? 20,
+        }));
+      }
+    } catch {
+      // Offline preview keeps existing threads
+    }
+  }
+
+  private async loadInitialPreferences(): Promise<void> {
+    applyTheme(getStoredTheme());
+    try {
+      const res = await fetch('/api/settings');
+      if (res.ok) {
+        const prefs = (await res.json()) as WorkbenchPreferences;
+        const storedShowWelcome = localStorage.getItem('now-workbench-show-welcome');
+        if (storedShowWelcome !== null) {
+          this.welcomeModalOpen = storedShowWelcome !== 'false';
+        } else {
+          this.welcomeModalOpen = prefs.show_welcome_on_startup;
+        }
+        this.autoRouteIntent = prefs.auto_route_intent;
+        if (prefs.theme_mode) {
+          applyTheme(prefs.theme_mode);
         }
       }
     } catch {
-      // Offline fallback
+      // Offline preview keeps stored theme
     }
   }
+  @state() private presenterHudVisible = false;
+  @state() private bottomChatInput = '';
+  @state() private routedPrompt = '';
+  @state() private lastIntentExplanation =
+    'AI Intent Router active. Describe an action below to switch menus or update the current workspace.';
 
-  private async fetchDemos() {
-    try {
-      const res = await fetch('/api/demos')
-      if (res.ok) {
-        this.demos = await res.json()
+  @state() private recentThreads: NavThreadItem[] = [];
+
+  private detectIntentFromPrompt(prompt: string): DetectedIntent {
+    const lower = prompt.toLowerCase().trim();
+
+    // 1. Informational Questions & Conversational Otto Sessions
+    const isQuestion =
+      lower.endsWith('?') ||
+      lower.startsWith('what') ||
+      lower.startsWith('how') ||
+      lower.startsWith('why') ||
+      lower.startsWith('where') ||
+      lower.startsWith('who') ||
+      lower.startsWith('when') ||
+      lower.startsWith('which') ||
+      lower.startsWith('can ') ||
+      lower.startsWith('could ') ||
+      lower.startsWith('would ') ||
+      lower.startsWith('tell me') ||
+      lower.startsWith('explain') ||
+      lower.startsWith('describe') ||
+      lower.startsWith('help') ||
+      lower.startsWith('is ') ||
+      lower.startsWith('are ') ||
+      lower.startsWith('does ') ||
+      lower.startsWith('do ') ||
+      lower.startsWith('show ') ||
+      lower.startsWith('review ') ||
+      lower.startsWith('investigate') ||
+      lower.includes('what is') ||
+      lower.includes('what are') ||
+      lower.includes('how do') ||
+      lower.includes('how can') ||
+      lower.includes('how to') ||
+      lower.includes('tell me about') ||
+      lower.includes('instande') ||
+      lower.includes('recipe') ||
+      lower.includes('update set') ||
+      lower.includes('demohub');
+
+    if (isQuestion) {
+      return {
+        tab: 'home',
+        menuLabel: 'Otto AI Copilot',
+        explanation: 'Conversational question -> Answered by Otto AI Copilot',
+        isQuestion: true,
+      };
+    }
+
+    // 2. Explicit Navigation Commands to Settings
+    const isExplicitSettings =
+      (lower.startsWith('go to') ||
+        lower.startsWith('open') ||
+        lower.startsWith('navigate to') ||
+        lower === 'settings' ||
+        lower === 'admin') &&
+      (lower.includes('setting') ||
+        lower.includes('admin') ||
+        lower.includes('config') ||
+        lower.includes('instance') ||
+        lower.includes('preference'));
+
+    if (isExplicitSettings) {
+      return {
+        tab: 'admin',
+        menuLabel: 'Instance Settings',
+        explanation: 'Explicit navigation -> Opening Workbench Settings',
+      };
+    }
+
+    // 3. Media Capture Intent
+    if (
+      lower.includes('screenshot') ||
+      lower.includes('video') ||
+      lower.includes('capture') ||
+      lower.includes('.webm') ||
+      lower.includes('.png') ||
+      lower.includes('record')
+    ) {
+      return {
+        tab: 'capture',
+        menuLabel: 'Media Capture',
+        explanation: `Detected media capture intent -> Routed to Media Capture for "${prompt.slice(0, 64)}"`,
+      };
+    }
+
+    // 4. Fluent SDK Schema Intent
+    if (
+      lower.includes('fluent') ||
+      lower.includes('schema') ||
+      lower.includes('.now.ts') ||
+      lower.includes('diff') ||
+      lower.includes('column')
+    ) {
+      return {
+        tab: 'fluent',
+        menuLabel: 'Fluent SDK Explorer',
+        explanation: 'Detected Fluent schema intent -> Routed to Fluent SDK Explorer',
+      };
+    }
+
+    // 5. Artifact Library / Demo Catalog Intent
+    if (
+      lower.includes('catalog') ||
+      lower.includes('artifact') ||
+      lower.includes('library') ||
+      lower.includes('rollback') ||
+      lower.includes('unseed')
+    ) {
+      return {
+        tab: 'artifacts',
+        menuLabel: 'Artifact Library',
+        explanation: 'Detected bundle catalog intent -> Routed to Artifact Library',
+      };
+    }
+
+    // 6. Default to Use-Case Synthesis
+    return {
+      tab: 'synthesizer',
+      menuLabel: 'Use-Case Synthesizer',
+      explanation: 'Detected use-case demo synthesis intent -> Routed to Use-Case Synthesizer & SC Narrative Studio',
+    };
+  }
+
+  private async handleIntentPrompt(prompt: string, stayInOtto = false): Promise<void> {
+    const clean = prompt.trim();
+    if (!clean) {
+      return;
+    }
+    const detected = this.detectIntentFromPrompt(clean);
+    const targetTab = stayInOtto || detected.isQuestion ? 'home' : detected.tab;
+    const shortTitle = clean.length > 38 ? `${clean.slice(0, 38)}...` : clean;
+
+    this.lastIntentExplanation = detected.explanation;
+
+    if (stayInOtto || detected.isQuestion) {
+      try {
+        const createRes = await fetch('/api/threads', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title: shortTitle, target_tab: 'home' }),
+        });
+        if (createRes.ok) {
+          const created = (await createRes.json()) as { id: string; title: string };
+          await fetch(`/api/threads/${created.id}/messages`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ content: clean, role: 'user' }),
+          });
+          await this.loadThreads();
+          this.activeThreadId = created.id;
+          this.setActiveTab('home');
+          return;
+        }
+      } catch {
+        // Offline preview fallback
       }
-    } catch {
-      // Default sample fallback
-      this.demos = [
+      const fallbackId = `thread-${Date.now()}`;
+      this.recentThreads = [
         {
-          manifest: {
-            id: 'sample-ai-assistant',
-            name: 'GenAI Agentic Incident Router',
-            version: '1.0.0',
-            description: 'Autonomous AI routing and triage application for IT incidents leveraging Now Assist and custom Fluent tables.',
-            sn_release: 'Xanadu',
-            required_plugins: ['com.glide.now.assist', 'com.snc.itsm'],
-            tags: ['ITSM', 'GenAI', 'Now Assist', 'Fluent'],
-          },
-          bundle_path: '/workspaces/sample-ai-assistant',
-          fluent_files: ['app.now.ts'],
-          seed_files: ['01_sample_incidents.json'],
-          has_walkthrough: true,
-        }
-      ]
+          id: fallbackId,
+          title: shortTitle,
+          targetTab: 'home',
+          archived: false,
+          messageCount: 2,
+          maxMessages: 20,
+          prompt: clean,
+        },
+        ...this.recentThreads,
+      ];
+      this.activeThreadId = fallbackId;
+      this.routedPrompt = clean;
+      this.setActiveTab('home');
+      return;
+    }
+
+    this.routedPrompt = clean;
+    if (this.autoRouteIntent) {
+      this.setActiveTab(targetTab);
     }
   }
 
-  private async handleDeploy(e: CustomEvent<{ bundleId: string }>) {
-    const bundleId = e.detail.bundleId
-    this.appendLog(`[deploy] Starting deployment pipeline for bundle: ${bundleId}...`)
-    this.appendLog(`[deploy] Invoking now-sdk build on Fluent sources...`)
+  private handleBottomChatSubmit(): void {
+    if (!this.bottomChatInput.trim()) {
+      return;
+    }
+    const text = this.bottomChatInput;
+    this.bottomChatInput = '';
+    void this.handleIntentPrompt(text);
+  }
 
+  private handleNavChange(e: CustomEvent<{ tab: string }>): void {
+    const tab = e.detail.tab;
+    if (tab === 'help') {
+      this.welcomeModalOpen = true;
+      return;
+    }
+    this.setActiveTab(tab);
+    if (tab === 'home') {
+      this.activeThreadId = '';
+      this.routedPrompt = '';
+      this.railCollapsed = false;
+    }
+  }
+
+  private handleThreadSelect(e: CustomEvent<{ thread: NavThreadItem }>): void {
+    const thread = e.detail.thread;
+    this.activeThreadId = thread.id;
+    this.setActiveTab('home');
+    this.routedPrompt = thread.prompt ?? '';
+    this.lastIntentExplanation = `Opened conversation "${thread.title}"`;
+  }
+
+  private async handleNewSession(): Promise<void> {
+    this.routedPrompt = '';
+    this.setActiveTab('home');
+    this.railCollapsed = false;
     try {
-      const res = await fetch(`/api/demos/${bundleId}/build`, {
+      const res = await fetch('/api/threads', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ stream_logs: true })
-      })
-      const data = await res.json()
-      if (data.success) {
-        this.appendLog(`[build:success] now-sdk compiled Fluent schema into scoped update set.`)
-        this.appendLog(`[deploy:push] Synchronizing 2 seed records to Table API (incident)...`)
-        this.appendLog(`[deploy:done] Deployment completed successfully!`)
-      } else {
-        this.appendLog(`[build:error] ${data.output || 'Compilation failed.'}`)
+        body: JSON.stringify({
+          title: 'New Otto Conversation',
+          target_tab: 'home',
+        }),
+      });
+      if (res.ok) {
+        const created = (await res.json()) as { id: string; title: string };
+        await this.loadThreads();
+        this.activeThreadId = created.id;
+        return;
       }
-    } catch (err) {
-      this.appendLog(`[deploy:mock] Simulated build success for '${bundleId}'.`)
-      this.appendLog(`[deploy:mock] 2 seed records staged for demonstration.`)
+    } catch {
+      // Offline preview fallback
+    }
+    const fallbackId = `thread-${Date.now()}`;
+    this.recentThreads = [
+      {
+        id: fallbackId,
+        title: 'New Otto Conversation',
+        targetTab: 'home',
+        archived: false,
+        messageCount: 0,
+        maxMessages: 20,
+      },
+      ...this.recentThreads,
+    ];
+    this.activeThreadId = fallbackId;
+  }
+
+  private async handleThreadArchive(
+    e: CustomEvent<{ threadId: string; archived: boolean }>
+  ): Promise<void> {
+    const { threadId, archived } = e.detail;
+    try {
+      await fetch(`/api/threads/${threadId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ archived }),
+      });
+    } catch {
+      // Offline preview fallback
+    }
+    this.recentThreads = this.recentThreads.map((t) =>
+      t.id === threadId ? { ...t, archived } : t
+    );
+    await this.loadThreads();
+  }
+
+  private async handleThreadDelete(e: CustomEvent<{ threadId: string }>): Promise<void> {
+    const { threadId } = e.detail;
+    try {
+      await fetch(`/api/threads/${threadId}`, {
+        method: 'DELETE',
+      });
+    } catch {
+      // Offline preview fallback
+    }
+    this.recentThreads = this.recentThreads.filter((t) => t.id !== threadId);
+    if (this.activeThreadId === threadId) {
+      this.activeThreadId = '';
+      this.routedPrompt = '';
+    }
+    await this.loadThreads();
+  }
+
+  private handleOpenWalkthrough(e: CustomEvent<{ bundleId: string }>): void {
+    this.selectedBundleId = e.detail.bundleId;
+    this.presenterHudVisible = true;
+  }
+
+  private handlePaletteCommand(e: CustomEvent<{ command: string; title: string }>): void {
+    const cmd = e.detail.command;
+    switch (cmd) {
+      case 'presenter-mode':
+        this.presenterHudVisible = true;
+        break;
+      case 'open-studio':
+        this.setActiveTab('fluent');
+        break;
+      case 'inspect-properties':
+      case 'export-demo':
+      case 'view-artifacts':
+      case 'reset-demo':
+        this.setActiveTab('artifacts');
+        break;
+      case 'open-admin':
+        this.setActiveTab('admin');
+        break;
+      case 'open-synthesizer':
+        this.setActiveTab('synthesizer');
+        break;
+      case 'open-capture':
+        this.setActiveTab('capture');
+        break;
+      case 'open-otto':
+        this.setActiveTab('home');
+        break;
     }
   }
 
-  private handleOttoPrompt(e: CustomEvent<{ text: string }>) {
-    this.ottoOpen = true
-    const drawer = this.shadowRoot?.querySelector('now-otto-drawer') as NowOttoDrawer | null
-    if (drawer) {
-      drawer.sendMessage(e.detail.text)
+  private renderActiveView() {
+    switch (this.activeTab) {
+      case 'artifacts':
+        return html`
+          <now-demo-catalog
+            @otto-prompt=${(e: CustomEvent<{ text: string }>) =>
+              this.handleIntentPrompt(e.detail.text, true)}
+            @demo-deploy=${(e: CustomEvent<{ bundleId: string }>) => {
+              this.selectedBundleId = e.detail.bundleId;
+            }}
+          ></now-demo-catalog>
+        `;
+      case 'fluent':
+        return html`<now-fluent-explorer .bundleId=${this.selectedBundleId}></now-fluent-explorer>`;
+      case 'admin':
+      case 'settings':
+        return html`
+          <now-workbench-settings
+            @settings-updated=${(e: CustomEvent<{ prefs: WorkbenchPreferences }>) => {
+              this.welcomeModalOpen = false;
+              this.autoRouteIntent = e.detail.prefs.auto_route_intent;
+            }}
+          ></now-workbench-settings>
+        `;
+      case 'synthesizer':
+        return html`
+          <now-conversational-workspace
+            .viewMode=${'synthesizer'}
+            .incomingPrompt=${this.routedPrompt}
+            @nav-change=${this.handleNavChange}
+            @open-welcome=${() => {
+              this.welcomeModalOpen = true;
+            }}
+            @open-walkthrough=${this.handleOpenWalkthrough}
+            @open-otto=${this.handleOpenOtto}
+          ></now-conversational-workspace>
+        `;
+      case 'capture':
+        return html`
+          <now-conversational-workspace
+            .viewMode=${'capture'}
+            .incomingPrompt=${this.routedPrompt}
+            @nav-change=${this.handleNavChange}
+            @open-welcome=${() => {
+              this.welcomeModalOpen = true;
+            }}
+            @open-walkthrough=${this.handleOpenWalkthrough}
+            @open-otto=${this.handleOpenOtto}
+          ></now-conversational-workspace>
+        `;
+      case 'home':
+      default:
+        return html`
+          <now-conversational-workspace
+            .viewMode=${'home'}
+            .activeThreadId=${this.activeThreadId}
+            .incomingPrompt=${this.routedPrompt}
+            @intent-submit=${(e: CustomEvent<{ prompt: string; stayInOtto?: boolean }>) =>
+              this.handleIntentPrompt(e.detail.prompt, e.detail.stayInOtto ?? true)}
+            @thread-created=${async (e: CustomEvent<{ threadId: string }>) => {
+              await this.loadThreads();
+              this.activeThreadId = e.detail.threadId;
+            }}
+            @threads-refresh=${async () => {
+              await this.loadThreads();
+            }}
+            @new-session=${() => this.handleNewSession()}
+            @thread-archive=${(e: CustomEvent<{ threadId: string; archived: boolean }>) =>
+              this.handleThreadArchive(e)}
+            @thread-delete=${(e: CustomEvent<{ threadId: string }>) =>
+              this.handleThreadDelete(e)}
+            @session-close=${() => {
+              this.routedPrompt = '';
+              this.activeThreadId = '';
+            }}
+            @nav-change=${this.handleNavChange}
+            @open-welcome=${() => {
+              this.welcomeModalOpen = true;
+            }}
+            @open-walkthrough=${this.handleOpenWalkthrough}
+            @open-otto=${this.handleOpenOtto}
+            @collapse-rail=${(e: CustomEvent<{ collapsed: boolean }>) => {
+              this.railCollapsed = e.detail.collapsed;
+            }}
+          ></now-conversational-workspace>
+        `;
     }
   }
 
-  private appendLog(text: string) {
-    this.logs = [...this.logs, text]
+  private handleToggleOtto(): void {
+    this.setActiveTab('home');
+  }
+
+  private handleOpenOtto(): void {
+    this.setActiveTab('home');
   }
 
   render() {
     return html`
-      <!-- Top Chrome -->
-      <header class="top-chrome">
-        <div class="brand-section">
-          <span class="app-title">
-            now-workbench
-            <span class="app-badge">SDK Studio</span>
-          </span>
+      <now-nav-rail
+        .activeTab=${this.activeTab}
+        .activeThreadId=${this.activeThreadId}
+        .threads=${this.recentThreads}
+        .collapsed=${this.railCollapsed}
+        @nav-change=${this.handleNavChange}
+        @thread-select=${this.handleThreadSelect}
+        @thread-archive=${this.handleThreadArchive}
+        @thread-delete=${this.handleThreadDelete}
+        @new-session=${this.handleNewSession}
+        @toggle-otto=${this.handleToggleOtto}
+      ></now-nav-rail>
+
+      <main class="content-area">
+        <div class="active-view-stage">
+          ${this.renderActiveView()}
         </div>
 
-        <div class="center-section">
-          <input
-            type="text"
-            class="search-input"
-            placeholder="Search demos, Fluent tables, seed records (Cmd+K)"
-          />
-        </div>
+        ${this.activeTab !== 'home'
+          ? html`
+              <div class="bottom-chat-dock">
+                <div class="intent-route-banner">
+                  <span class="intent-route-badge">
+                    <span class="intent-dot"></span>
+                    <span>Now Workbench AI</span>
+                  </span>
+                  <span>${this.lastIntentExplanation}</span>
+                </div>
+                <div class="bottom-prompt-box">
+                  <input
+                    type="text"
+                    placeholder="Ask Now Workbench to refine this workspace, synthesize another use case, or capture screenshots/videos..."
+                    .value=${this.bottomChatInput}
+                    @input=${(e: Event) => {
+                      this.bottomChatInput = (e.target as HTMLInputElement).value;
+                    }}
+                    @keydown=${(e: KeyboardEvent) => {
+                      if (e.key === 'Enter') {
+                        this.handleBottomChatSubmit();
+                      }
+                    }}
+                  />
+                  <button
+                    class="bottom-send-btn"
+                    @click=${this.handleBottomChatSubmit}
+                    title="Send prompt to Now Workbench"
+                    aria-label="Send prompt"
+                    data-tooltip="Send"
+                  >
+                    <svg viewBox="0 0 24 24">
+                      <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            `
+          : ''}
+      </main>
 
-        <div class="right-section">
-          <div class="instance-pill">
-            <span class="instance-dot"></span>
-            <span>${this.instanceUrl}</span>
-            <span style="color: var(--now-color-accent-teal); font-weight: 600;">[${this.instanceRelease}]</span>
-          </div>
+      <now-welcome-modal
+        .open=${this.welcomeModalOpen}
+        @modal-close=${() => {
+          this.welcomeModalOpen = false;
+        }}
+        @modal-navigate=${(e: CustomEvent<{ tab: string }>) => {
+          this.welcomeModalOpen = false;
+          this.setActiveTab(e.detail.tab);
+        }}
+        @show-welcome-change=${(e: CustomEvent<{ showOnStartup: boolean }>) => {
+          if (!e.detail.showOnStartup) {
+            this.welcomeModalOpen = false;
+          }
+        }}
+      ></now-welcome-modal>
 
-          <button class="otto-toggle-btn" @click=${() => this.ottoOpen = !this.ottoOpen}>
-            ✨ Otto Copilot
-          </button>
-        </div>
-      </header>
+      <now-presenter-hud
+        .bundleId=${this.selectedBundleId}
+        .visible=${this.presenterHudVisible}
+        @hud-close=${() => {
+          this.presenterHudVisible = false;
+        }}
+      ></now-presenter-hud>
 
-      <!-- Workspace Body -->
-      <div class="workspace-body">
-        <now-nav-rail
-          .activeTab=${this.activeTab}
-          @tab-change=${(e: CustomEvent) => this.activeTab = e.detail.tab}
-        ></now-nav-rail>
-
-        <main class="content-area">
-          <div class="catalog-viewport">
-            <now-demo-catalog
-              .demos=${this.demos}
-              @demo-deploy=${this.handleDeploy}
-              @otto-prompt=${this.handleOttoPrompt}
-            ></now-demo-catalog>
-          </div>
-
-          <now-console
-            .logs=${this.logs}
-            @clear-logs=${() => this.logs = []}
-          ></now-console>
-        </main>
-
-        <now-otto-drawer
-          .open=${this.ottoOpen}
-          @close-otto=${() => this.ottoOpen = false}
-        ></now-otto-drawer>
-      </div>
-    `
+      <now-command-palette
+        @command-selected=${this.handlePaletteCommand}
+      ></now-command-palette>
+    `;
   }
 }

@@ -1,0 +1,36 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"$CLAUDE_PROJECT_DIR/scripts/dev-tools/per_edit_check.py\"",
+            "if": "Edit(*.py)|Write(*.py)",
+            "statusMessage": "Per-edit rule check...",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"$CLAUDE_PROJECT_DIR/.ratchet/ratchet_check.py\" all",
+            "statusMessage": "Checking metric ratchets...",
+            "timeout": 30
+          },
+          {
+            "type": "command",
+            "command": "python \"$CLAUDE_PROJECT_DIR/.claude/scripts/primer-reconcile.py\"",
+            "statusMessage": "Checking governance registry drift...",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -39,3 +39,12 @@
   - `seed/`: Sequenced JSON files for Table API insertion.
   - `properties/`: Key-value system property overrides.
   - `walkthrough/`: Presenter script (`guide.md`) and persona details.
+
+## 4. Governance & 3-Tier Enforcement (ADR-005)
+
+- **Tier 1 (Blocking)**: `ruff`, `ruff-format`, `mypy`, `pytest`, `file-size`, `conventional-pre-commit`, and `primer-reconcile`.
+- **Tier 2 (Ratchets in `.ratchet/`)**: Baselines in `baselines.json` can only improve, never regress (`no-mocks`, `complexity`, `file-size`, `type-ignores`, `absolute-imports`).
+- **Tier 3 (Soft)**: Advisory walkthrough and bundle documentation reminders.
+- **ASCII-Only**: Inviolable requirement across code, tests, docs, and git commit messages.
+- **Domain Boundaries**: No unrelated domain rules (financial, trading) allowed.
+

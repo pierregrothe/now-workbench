@@ -1,23 +1,27 @@
 # now-workbench -- Charter
 
-## 1. Vision
-`now-workbench` is an AI-native, containerized developer & demonstration workbench
-for the ServiceNow Fluent SDK (`@servicenow/sdk`). It brings together:
-1. A portable execution engine for `now-sdk` operations (build, validate, deploy, teardown).
-2. A declarative demonstration packaging system (`.sn-demo.zip`) for instant demo staging.
-3. An open-standards Web UI built with Lit Web Components faithful to ServiceNow Lux.
-4. An embedded **Otto** AI copilot powered by the Anthropic Claude API.
-5. A lightweight, powerful CLI for headless automation, CI/CD, and troubleshooting.
+## 1. Vision & Purpose
+`now-workbench` is an AI-native developer and demonstration workbench designed as the
+next-generation evolution and replacement for ServiceNow's internal DemoHub. It empowers
+Solution Consultants (SCs), Advisory SCs, and Platform Developers to:
+1. Declaratively build, stage, customize, and tear down full-stack ServiceNow demonstrations.
+2. Compile and package ServiceNow Fluent SDK (`@servicenow/sdk`, `*.now.ts`) applications.
+3. Automatically synthesize customer demo narratives, multi-table seed datasets, and branding
+   from natural language using Claude AI (Otto Copilot).
+4. Deliver compelling customer demonstrations with an interactive Presenter HUD, dynamic date
+   wizard, and automated instance screenshot/video media capture.
+5. Provide 1-click transactional teardown and rollback, restoring demo instances to baseline
+   clean states or instantly swapping configurations between prospective customer meetings.
 
-## 2. Must-Have Capabilities
-- **Docker-First Portability**: Self-contained multi-stage container bundling Python 3.14,
-  Node.js LTS, `@servicenow/sdk`, and static Lit web assets.
-- **ServiceNow Lux Parity**: Visual design tokens, elevated card surfaces, status pills,
-  and responsive navigation mirroring the modern ServiceNow Next Experience / Lux theme.
-- **Otto AI Copilot**: Streaming conversational assistant with contextual awareness of
-  connected instance, active demo bundle, and `now-sdk` build diagnostics.
-- **Demo Bundle Lifecycle**: One-click import, export, inspection, and deployment of
-  reproducible bundles containing Fluent `.now.ts` source, Table API seed records,
-  system properties, and persona walkthrough guides.
-- **Strict Typing & Testability**: 100% type-annotated Python codebase (Pydantic v2,
-  strict mypy/pyright) and test suite backed by in-memory fakes (zero brittle mocks).
+## 2. Core Architectural Pillars (DemoHub Parity & Beyond)
+- **Declarative Demo Packages**: Self-contained `.sn-demo.zip` bundles containing Fluent
+  TypeScript schemas, relational Table API seed data, system property snapshots, and walkthroughs.
+- **Dynamic Date Wizard**: Automatic resolution of relative dates (`{{TODAY - 2h}}`, `{{TODAY - 3d}}`)
+  at seed time so demo incidents, telemetry, and approvals always reflect current timestamps.
+- **Duplicate-Before-Customizing**: 1-click bundle cloning allowing SCs to branch baseline packages
+  into customer-specific variants without mutating reference content.
+- **Safe Harbor & Content Governance**: Integrated Safe Harbor disclaimers and release family
+  compliance gates within the Presenter HUD and runbook generators.
+- **Secure Encrypted Storage**: Authenticated encryption at rest (PBKDF2-HMAC-SHA256) for
+  credentials and API keys, strictly masked validation previews, and live verification gates.
+- **Zero-Mocks Enforcement**: 100% test suite reliability backed by deterministic in-memory fakes.

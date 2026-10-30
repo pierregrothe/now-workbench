@@ -1,0 +1,9 @@
+{
+  "id": "template-customer-service-ai",
+  "name": "{{customer_name}} AI Service Desk",
+  "version": "1.0.0",
+  "description": "Enterprise customer service and incident triage tailored for {{customer_name}} with brand primary color {{primary_color}}.",
+  "sn_release": "Zurich",
+  "tags": ["AI", "Enterprise", "Customer Tailored"],
+  "required_plugins": ["sn_csm", "sn_csm_ai"]
+}

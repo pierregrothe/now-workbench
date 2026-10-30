@@ -1,0 +1,28 @@
+[
+  {
+    "id": "cap-8f279c05",
+    "bundle_id": "sample-ai-assistant",
+    "instance_url": "https://demoalectriallwfau164179.service-now.com",
+    "target_path": "/incident_list.do",
+    "media_type": "video",
+    "label": "Live AI Incident Triage Walkthrough",
+    "filename": "cap-8f279c05.webm",
+    "file_path": "/Users/pierre.grothe/Developer/now-workbench/bundles/sample-ai-assistant/media/cap-8f279c05.webm",
+    "url": "/api/demos/sample-ai-assistant/captures/cap-8f279c05.webm",
+    "engine": "google-chrome-native",
+    "created_at": "2026-10-30T19:12:02.385681+00:00"
+  },
+  {
+    "id": "cap-f7ebe233",
+    "bundle_id": "sample-ai-assistant",
+    "instance_url": "https://demoalectriallwfau164179.service-now.com",
+    "target_path": "/incident_list.do",
+    "media_type": "screenshot",
+    "label": "Live AI Incident Routing Queue",
+    "filename": "cap-f7ebe233.png",
+    "file_path": "/Users/pierre.grothe/Developer/now-workbench/bundles/sample-ai-assistant/media/cap-f7ebe233.png",
+    "url": "/api/demos/sample-ai-assistant/captures/cap-f7ebe233.png",
+    "engine": "google-chrome-native",
+    "created_at": "2026-10-30T19:11:52.195486+00:00"
+  }
+]

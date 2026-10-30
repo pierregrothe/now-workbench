@@ -3,7 +3,9 @@
 import json
 import shutil
 import zipfile
+from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 from now_workbench.bundles.models import DemoBundleInfo, DemoManifest
 
@@ -37,6 +39,10 @@ class BundleManager:
             raise FileNotFoundError(f"Manifest missing in {bundle_dir}")
 
         manifest_data = json.loads(manifest_path.read_text(encoding="utf-8"))
+        if not manifest_data.get("created_at"):
+            manifest_data["created_at"] = datetime.fromtimestamp(
+                manifest_path.stat().st_mtime, tz=UTC
+            ).isoformat()
         manifest = DemoManifest.model_validate(manifest_data)
 
         fluent_files: list[str] = []
@@ -59,6 +65,14 @@ class BundleManager:
             except Exception:
                 pass
 
+        media_captures: list[dict[str, Any]] = []
+        caps_path = bundle_dir / "media" / "captures.json"
+        if caps_path.exists():
+            try:
+                media_captures = json.loads(caps_path.read_text(encoding="utf-8"))
+            except Exception:
+                pass
+
         return DemoBundleInfo(
             manifest=manifest,
             bundle_path=str(bundle_dir.resolve()),
@@ -66,6 +80,7 @@ class BundleManager:
             seed_files=seed_files,
             has_walkthrough=has_walkthrough,
             sys_properties=sys_props,
+            media_captures=media_captures,
         )
 
     def export_bundle(self, bundle_id: str, output_archive: Path) -> Path:
@@ -102,4 +117,74 @@ class BundleManager:
 
             zf.extractall(target_dir)
 
+        return self.inspect_bundle(target_dir)
+
+    def clone_bundle(
+        self,
+        source_id: str,
+        target_id: str,
+        target_name: str | None = None,
+    ) -> DemoBundleInfo:
+        """Clone an existing bundle to customize for a customer without mutating baseline."""
+        clean_target_id = target_id.strip().lower()
+        if not clean_target_id:
+            raise ValueError("Target bundle ID cannot be empty.")
+
+        src_dir = self.storage_dir / source_id
+        if not src_dir.exists() or not (src_dir / "manifest.json").exists():
+            raise FileNotFoundError(f"Source bundle '{source_id}' does not exist.")
+
+        target_dir = self.storage_dir / clean_target_id
+        if target_dir.exists():
+            raise FileExistsError(f"Target bundle '{clean_target_id}' already exists.")
+
+        shutil.copytree(src_dir, target_dir)
+
+        manifest_path = target_dir / "manifest.json"
+        manifest_data = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest_data["id"] = clean_target_id
+        if target_name and target_name.strip():
+            manifest_data["name"] = target_name.strip()
+        else:
+            manifest_data["name"] = f"{manifest_data.get('name', source_id)} (Cloned)"
+
+        manifest_path.write_text(json.dumps(manifest_data, indent=2), encoding="utf-8")
+        return self.inspect_bundle(target_dir)
+
+    def delete_bundle(self, bundle_id: str) -> bool:
+        """Delete a demonstration bundle artifact directory."""
+        clean_id = bundle_id.strip()
+        if not clean_id:
+            raise ValueError("Bundle ID cannot be empty.")
+
+        target_dir = self.storage_dir / clean_id
+        if not target_dir.exists() or not target_dir.is_dir():
+            raise FileNotFoundError(f"Demo bundle '{clean_id}' does not exist.")
+
+        shutil.rmtree(target_dir)
+        return True
+
+    def update_bundle_manifest(
+        self,
+        bundle_id: str,
+        name: str | None = None,
+        description: str | None = None,
+        tags: list[str] | None = None,
+    ) -> DemoBundleInfo:
+        """Update metadata fields in a bundle's manifest.json."""
+        clean_id = bundle_id.strip()
+        target_dir = self.storage_dir / clean_id
+        if not target_dir.is_dir():
+            raise FileNotFoundError(f"Demo bundle '{clean_id}' does not exist.")
+        manifest_path = target_dir / "manifest.json"
+        if not manifest_path.exists():
+            raise FileNotFoundError(f"manifest.json missing in '{clean_id}'.")
+        data = json.loads(manifest_path.read_text(encoding="utf-8"))
+        if name is not None:
+            data["name"] = name.strip()
+        if description is not None:
+            data["description"] = description.strip()
+        if tags is not None:
+            data["tags"] = [t.strip() for t in tags if t.strip()]
+        manifest_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
         return self.inspect_bundle(target_dir)

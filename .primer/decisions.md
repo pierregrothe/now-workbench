@@ -89,3 +89,29 @@ PEP 621 `[project]` / `[dependency-groups]` support, and seamless caching.
 **Consequences:**
 - Dependency resolution dropped from ~15s to ~700ms.
 - Virtualenv activation is no longer required: commands can be invoked directly with `uv run`.
+
+---
+
+### 2026-10-29 -- ADR-005: Constitutional Governance and 3-Tier Enforcement Model
+
+**Status:** accepted
+
+**Context:**
+`now-workbench` is developed collaboratively by human developers and AI coding agents.
+To prevent regressions, maintain high agent velocity, and prevent architectural drift,
+a comprehensive governance system is needed. A single-tier "block or ignore" model is
+brittle; a graduated model provides clear boundaries.
+
+**Decision:**
+1. Adopt Primer's 3-Tier Enforcement Model:
+   - Tier 1: Deterministic blocking pre-commit gates (Ruff, Mypy, Pytest fakes, file-size, primer-reconcile).
+   - Tier 2: Non-decreasing metric ratchets in `.ratchet/` (coverage, complexity, file sizes, type-ignores, relative imports).
+   - Tier 3: Soft / advisory notices.
+2. Establish non-negotiable constitutional invariants: Python 3.14.10, uv package manager,
+   no mocks in tests (in-memory fakes only), Pydantic v2 strict models, async subprocess streaming,
+   absolute imports, Lit Web Components with ServiceNow Lux CSS tokens, and ASCII-only characters.
+3. Exclude unrelated domain rules (e.g. financial market rules) to keep governance lean and focused.
+
+**Consequences:**
+- Local commits and automated PRs are continuously validated against strict architectural contracts.
+- Code quality and safety baselines can only improve over time.

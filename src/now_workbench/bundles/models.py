@@ -3,11 +3,13 @@
 from datetime import UTC, datetime
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class DemoPersona(BaseModel):
     """Demo user persona for walkthrough and impersonation."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
 
     name: str
     role: str
@@ -18,6 +20,8 @@ class DemoPersona(BaseModel):
 
 class DemoManifest(BaseModel):
     """Manifest describing a demonstration package."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
 
     id: str = Field(..., description="Unique alphanumeric identifier (e.g. customer-service-ai)")
     name: str = Field(..., description="Display title for the demonstration")
@@ -36,9 +40,12 @@ class DemoManifest(BaseModel):
 class DemoBundleInfo(BaseModel):
     """Runtime metadata describing an extracted or discovered bundle."""
 
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
     manifest: DemoManifest
     bundle_path: str
     fluent_files: list[str] = Field(default_factory=list)
     seed_files: list[str] = Field(default_factory=list)
     has_walkthrough: bool = False
     sys_properties: dict[str, Any] = Field(default_factory=dict)
+    media_captures: list[dict[str, Any]] = Field(default_factory=list)

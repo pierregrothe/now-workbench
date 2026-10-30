@@ -6,17 +6,36 @@ import shutil
 from collections.abc import Awaitable, Callable
 from pathlib import Path
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
 class SdkExecutionResult(BaseModel):
     """Result of an SDK execution command."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
 
     command: str
     exit_code: int
     output: str
     success: bool
     duration_ms: int = 0
+
+
+async def _stream_lines(
+    stream: asyncio.StreamReader,
+    callback: Callable[[str], Awaitable[None]] | None,
+) -> list[str]:
+    """Read lines from async stream and invoke callback."""
+    lines: list[str] = []
+    while True:
+        line_bytes = await stream.readline()
+        if not line_bytes:
+            break
+        line = line_bytes.decode("utf-8", errors="replace")
+        lines.append(line)
+        if callback:
+            await callback(line)
+    return lines
 
 
 class NowSdkRunner:
@@ -27,15 +46,36 @@ class NowSdkRunner:
         now_sdk_bin: str = "now-sdk",
         node_bin: str = "node",
         fake_mode: bool = False,
+        sdk_candidates: tuple[str, ...] = ("snc", "now-sdk"),
+        user_local_dir: Path | None = None,
     ) -> None:
         self.now_sdk_bin = now_sdk_bin
         self.node_bin = node_bin
         self.fake_mode = fake_mode
+        self.sdk_candidates = sdk_candidates
+        self.user_local_dir = (
+            user_local_dir
+            if user_local_dir is not None
+            else (Path.home() / ".now-workbench" / "sdk" / "node_modules" / ".bin")
+        )
+
+    def resolve_sdk_bin(self) -> str | None:
+        """Resolve executable path for now-sdk."""
+        if shutil.which(self.now_sdk_bin):
+            return shutil.which(self.now_sdk_bin)
+        user_local = self.user_local_dir / self.now_sdk_bin
+        if user_local.is_file() and os.access(user_local, os.X_OK):
+            return str(user_local)
+        for candidate in self.sdk_candidates:
+            found = shutil.which(candidate)
+            if found:
+                return found
+        return None
 
     def probe_environment(self) -> dict[str, str | bool]:
         """Check availability of Node.js and now-sdk."""
         node_path = shutil.which(self.node_bin)
-        sdk_path = shutil.which(self.now_sdk_bin)
+        sdk_path = self.resolve_sdk_bin()
         return {
             "node_available": node_path is not None or self.fake_mode,
             "node_path": node_path or ("fake_node" if self.fake_mode else ""),
@@ -48,12 +88,19 @@ class NowSdkRunner:
         args: list[str],
         cwd: Path,
         stream_callback: Callable[[str], Awaitable[None]] | None = None,
+        extra_env: dict[str, str] | None = None,
     ) -> SdkExecutionResult:
         """Execute a now-sdk subcommand and stream stdout/stderr lines."""
-        cmd_str = " ".join([self.now_sdk_bin] + args)
+        resolved_bin = self.resolve_sdk_bin() or self.now_sdk_bin
+        cmd_str = " ".join([resolved_bin] + args)
 
         if self.fake_mode:
-            fake_log = f"[fake-sdk] Executed: {cmd_str} in {cwd}\n"
+            target_info = (
+                f" (target: {extra_env.get('NOW_INSTANCE_URL')})"
+                if extra_env and "NOW_INSTANCE_URL" in extra_env
+                else ""
+            )
+            fake_log = f"[fake-sdk] Executed: {cmd_str} in {cwd}{target_info}\n"
             if stream_callback:
                 await stream_callback(fake_log)
             return SdkExecutionResult(
@@ -64,10 +111,10 @@ class NowSdkRunner:
             )
 
         # Check binary existence
-        if not shutil.which(self.now_sdk_bin):
+        if not self.resolve_sdk_bin():
             err_msg = (
-                f"Error: '{self.now_sdk_bin}' not found in PATH. "
-                "Ensure @servicenow/sdk is installed via npm."
+                f"Error: '{self.now_sdk_bin}' not found in PATH or ~/.now-workbench/sdk. "
+                "Run 'workbench doctor --fix' or 'npm install -g @servicenow/sdk'."
             )
             if stream_callback:
                 await stream_callback(f"[error] {err_msg}\n")
@@ -78,25 +125,19 @@ class NowSdkRunner:
                 success=False,
             )
 
+        proc_env = {**os.environ, "CI": "1", **(extra_env or {})}
         proc = await asyncio.create_subprocess_exec(
-            self.now_sdk_bin,
+            resolved_bin,
             *args,
             cwd=str(cwd),
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.STDOUT,
-            env={**os.environ, "CI": "1"},
+            env=proc_env,
         )
 
         output_lines: list[str] = []
         if proc.stdout:
-            while True:
-                line_bytes = await proc.stdout.readline()
-                if not line_bytes:
-                    break
-                line = line_bytes.decode("utf-8", errors="replace")
-                output_lines.append(line)
-                if stream_callback:
-                    await stream_callback(line)
+            output_lines = await _stream_lines(proc.stdout, stream_callback)
 
         await proc.wait()
         exit_code = proc.returncode or 0
@@ -121,6 +162,22 @@ class NowSdkRunner:
         self,
         project_dir: Path,
         stream_callback: Callable[[str], Awaitable[None]] | None = None,
+        instance_url: str | None = None,
+        username: str | None = None,
+        password: str | None = None,
     ) -> SdkExecutionResult:
         """Deploy compiled application metadata to the target ServiceNow instance."""
-        return await self.run_command(["deploy"], cwd=project_dir, stream_callback=stream_callback)
+        extra_env: dict[str, str] = {}
+        if instance_url:
+            extra_env["NOW_INSTANCE_URL"] = instance_url
+        if username:
+            extra_env["NOW_AUTH_USER"] = username
+        if password:
+            extra_env["NOW_AUTH_PASSWORD"] = password
+
+        return await self.run_command(
+            ["deploy"],
+            cwd=project_dir,
+            stream_callback=stream_callback,
+            extra_env=extra_env,
+        )

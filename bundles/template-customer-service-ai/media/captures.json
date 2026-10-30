@@ -1,0 +1,80 @@
+[
+  {
+    "id": "cap-840c25ac",
+    "bundle_id": "template-customer-service-ai",
+    "instance_url": "https://demoalectriallwfau164179.service-now.com",
+    "target_path": "/incident_list.do",
+    "media_type": "video",
+    "label": "AI Service Desk Walkthrough Proof",
+    "filename": "cap-840c25ac.webm",
+    "file_path": "/Users/pierre.grothe/Developer/now-workbench/bundles/template-customer-service-ai/media/cap-840c25ac.webm",
+    "url": "/api/demos/template-customer-service-ai/captures/cap-840c25ac.webm",
+    "engine": "google-chrome-native",
+    "created_at": "2026-10-30T18:40:14.411412+00:00"
+  },
+  {
+    "id": "cap-6a5aeee7",
+    "bundle_id": "template-customer-service-ai",
+    "instance_url": "https://demoalectriallwfau164179.service-now.com",
+    "target_path": "/incident_list.do",
+    "media_type": "screenshot",
+    "label": "Live AI Customer Service Incident Queue",
+    "filename": "cap-6a5aeee7.png",
+    "file_path": "/Users/pierre.grothe/Developer/now-workbench/bundles/template-customer-service-ai/media/cap-6a5aeee7.png",
+    "url": "/api/demos/template-customer-service-ai/captures/cap-6a5aeee7.png",
+    "engine": "google-chrome-native",
+    "created_at": "2026-10-30T18:40:04.357762+00:00"
+  },
+  {
+    "id": "cap-5f49f301",
+    "bundle_id": "template-customer-service-ai",
+    "instance_url": "https://demoalectriallwfau164179.service-now.com",
+    "target_path": "/csm?id=csm_cases",
+    "media_type": "video",
+    "label": "Case Resolution Runbook Proof",
+    "filename": "cap-5f49f301.webm",
+    "file_path": "/Users/pierre.grothe/Developer/now-workbench/bundles/template-customer-service-ai/media/cap-5f49f301.webm",
+    "url": "/api/demos/template-customer-service-ai/captures/cap-5f49f301.webm",
+    "engine": "playwright-simulated",
+    "created_at": "2026-10-30T16:08:57.661906+00:00"
+  },
+  {
+    "id": "cap-c20f17f2",
+    "bundle_id": "template-customer-service-ai",
+    "instance_url": "https://demoalectriallwfau164179.service-now.com",
+    "target_path": "/csm",
+    "media_type": "screenshot",
+    "label": "Customer Service Portal Dashboard",
+    "filename": "cap-c20f17f2.png",
+    "file_path": "/Users/pierre.grothe/Developer/now-workbench/bundles/template-customer-service-ai/media/cap-c20f17f2.png",
+    "url": "/api/demos/template-customer-service-ai/captures/cap-c20f17f2.png",
+    "engine": "playwright-simulated",
+    "created_at": "2026-10-30T16:08:57.032018+00:00"
+  },
+  {
+    "id": "cap-d28627bb",
+    "bundle_id": "template-customer-service-ai",
+    "instance_url": "https://demoalectriallwfau164179.service-now.com",
+    "target_path": "/csm?id=csm_cases",
+    "media_type": "video",
+    "label": "Case Resolution Runbook Proof",
+    "filename": "cap-d28627bb.webm",
+    "file_path": "/Users/pierre.grothe/Developer/now-workbench/bundles/template-customer-service-ai/media/cap-d28627bb.webm",
+    "url": "/api/demos/template-customer-service-ai/captures/cap-d28627bb.webm",
+    "engine": "playwright-simulated",
+    "created_at": "2026-10-30T15:33:23.477157+00:00"
+  },
+  {
+    "id": "cap-7c6c73ec",
+    "bundle_id": "template-customer-service-ai",
+    "instance_url": "https://demoalectriallwfau164179.service-now.com",
+    "target_path": "/csm",
+    "media_type": "screenshot",
+    "label": "Customer Service Portal Dashboard",
+    "filename": "cap-7c6c73ec.png",
+    "file_path": "/Users/pierre.grothe/Developer/now-workbench/bundles/template-customer-service-ai/media/cap-7c6c73ec.png",
+    "url": "/api/demos/template-customer-service-ai/captures/cap-7c6c73ec.png",
+    "engine": "playwright-simulated",
+    "created_at": "2026-10-30T15:33:22.903380+00:00"
+  }
+]

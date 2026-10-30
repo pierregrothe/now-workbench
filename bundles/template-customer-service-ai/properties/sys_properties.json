@@ -1,0 +1,6 @@
+{
+  "glide.brand.name": "{{customer_name}}",
+  "glide.brand.primary_color": "{{primary_color}}",
+  "glide.brand.secondary_color": "{{secondary_color}}",
+  "glide.assignment.default_group": "{{assignment_group}}"
+}
