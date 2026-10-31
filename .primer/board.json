@@ -343,39 +343,39 @@
     {
       "id": "EPIC-015",
       "title": "Lit 3 Reactive Controllers, Lit Context & Modular Web Component Hierarchy",
-      "status": "in_progress",
+      "status": "done",
       "stories": [
         {
           "id": "STORY-049",
           "title": "Implement @lit/context WorkbenchContext and provider in now-workbench-shell",
-          "status": "in_progress"
+          "status": "done"
         },
         {
           "id": "STORY-050",
           "title": "Extract Reactive Controllers (ThreadController, CaptureGalleryController, DemoPipelineController)",
-          "status": "todo"
+          "status": "done"
         },
         {
           "id": "STORY-051",
           "title": "Decompose now-conversational-workspace into dedicated sub-500 LOC views (Chat, Synthesizer, Capture Studio)",
-          "status": "todo"
+          "status": "done"
         },
         {
           "id": "STORY-052",
           "title": "Implement reusable Tile Renderers, Lightbox Modal, and TypeScript file-size ratchet",
-          "status": "todo"
+          "status": "done"
         }
       ]
     },
     {
       "id": "EPIC-016",
       "title": "Unified Async Claude Agent Loop & Real-Time Event Streaming",
-      "status": "todo",
+      "status": "in_progress",
       "stories": [
         {
           "id": "STORY-053",
           "title": "Implement AsyncAnthropic ClaudeAgentRunner with prompt caching on system, tools, and history",
-          "status": "todo"
+          "status": "in_progress"
         },
         {
           "id": "STORY-054",

@@ -6,12 +6,12 @@ Python Version: `3.14.10`
 
 ## Current Focus
 
-**Epic**: `EPIC-014` (Declarative Demo Playbooks & Native Playwright Proof Driver).
-**Active Story**: `STORY-045` (Define Playbook schema, Pydantic v2 models, and portable walkthrough/playbook.json specification).
+**Epic**: `EPIC-016` (Unified Async Claude Agent Loop & Real-Time Event Streaming).
+**Active Story**: `STORY-053` (Implement AsyncAnthropic ClaudeAgentRunner with prompt caching on system, tools, and history).
 **Sprint Roadmap**:
-- **Sprint 1 (EPIC-014)**: Declarative Demo Playbooks & Native Playwright Proof Driver (ADR-009).
-- **Sprint 2 (EPIC-015)**: Lit 3 Reactive Controllers, Lit Context & Modular Web Component Hierarchy (ADR-010).
-- **Sprint 3 (EPIC-016)**: Unified Async Claude Agent Loop & Real-Time Event Streaming (ADR-011).
+- **Sprint 1 (EPIC-014)**: Declarative Demo Playbooks & Native Playwright Proof Driver (ADR-009) -- DONE.
+- **Sprint 2 (EPIC-015)**: Lit 3 Reactive Controllers, Lit Context & Modular Web Component Hierarchy (ADR-010) -- DONE.
+- **Sprint 3 (EPIC-016)**: Unified Async Claude Agent Loop & Real-Time Event Streaming (ADR-011) -- IN PROGRESS.
 
 ### Completed Foundation:
 1. Python 3.14.10 environment configured with `uv` and `hatchling` backend (`EPIC-001`).

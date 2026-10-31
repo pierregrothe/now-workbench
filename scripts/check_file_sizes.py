@@ -35,6 +35,9 @@ BASELINE_PATH = REPO_ROOT / ".file-size-baseline.json"
 
 SRC_LIMIT = 800
 TEST_LIMIT = 1000
+WEB_LIMIT = 500
+WEB_ROOT = REPO_ROOT / "web" / "src"
+WEB_MODULAR_DIRS = ("views", "controllers", "tiles", "modals", "context")
 
 
 def _load_baseline() -> dict[str, int]:
@@ -104,6 +107,25 @@ def _check(root: Path, limit: int, baseline: dict[str, int]) -> list[str]:
     return violations
 
 
+def _check_web(limit: int) -> list[str]:
+    """Check that modular TypeScript files in web/src stay within limit (ADR-010)."""
+    violations: list[str] = []
+    if not WEB_ROOT.exists():
+        return violations
+    for d in WEB_MODULAR_DIRS:
+        sub_dir = WEB_ROOT / d
+        if not sub_dir.exists():
+            continue
+        for path in sub_dir.glob("*.ts"):
+            rel = path.relative_to(REPO_ROOT).as_posix()
+            lines = _count_lines(path)
+            if lines > limit:
+                violations.append(
+                    f"{rel}: {lines} lines exceeds limit of {limit} (ADR-010). Split component."
+                )
+    return violations
+
+
 def main() -> int:
     """Entry point; prints violations and returns a process exit code."""
     try:
@@ -112,10 +134,14 @@ def main() -> int:
         print(f"baseline error: {exc}", file=sys.stderr)
         return 2
 
-    violations = _check(SRC_ROOT, SRC_LIMIT, baseline) + _check(TESTS_ROOT, TEST_LIMIT, baseline)
+    violations = (
+        _check(SRC_ROOT, SRC_LIMIT, baseline)
+        + _check(TESTS_ROOT, TEST_LIMIT, baseline)
+        + _check_web(WEB_LIMIT)
+    )
     if not violations:
         return 0
-    print("File-size violations (ADR-005):", file=sys.stderr)
+    print("File-size violations (ADR-005 / ADR-010):", file=sys.stderr)
     for v in violations:
         print(f"  {v}", file=sys.stderr)
     return 1

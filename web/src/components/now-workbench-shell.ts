@@ -12,6 +12,7 @@ import './now-presenter-hud.js';
 import './now-welcome-modal.js';
 import './now-command-palette.js';
 import { smartTooltip } from '../utils/tooltip.js';
+import { workbenchStore } from '../context/workbench-context.js';
 
 interface DetectedIntent {
   tab: string;
@@ -189,6 +190,7 @@ export class NowWorkbenchShell extends LitElement {
   private setActiveTab(tab: string): void {
     const target = VALID_SHELL_TABS.has(tab) ? tab : 'home';
     this.activeTab = target;
+    workbenchStore.setState({ activeTab: target });
     if (typeof window !== 'undefined') {
       if (window.location.hash !== `#${target}`) {
         window.location.hash = `#${target}`;
