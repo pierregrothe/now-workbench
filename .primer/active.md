@@ -1,13 +1,17 @@
 # now-workbench -- Active Work
 
-Last updated: 2026-10-29
+Last updated: 2026-10-31
 Branch: `main`
 Python Version: `3.14.10`
 
 ## Current Focus
 
-**Epic**: `EPIC-013` (Generative UI Tile Catalog, Tool-Based Multi-Tile Layouts & Adaptive Conversational Rendering).
-**Active Milestone**: Implement structured Generative UI tile catalog, tool-based tile calling, and responsive multi-tile layout engine to eliminate raw markdown text dumps in conversational responses.
+**Epic**: `EPIC-014` (Declarative Demo Playbooks & Native Playwright Proof Driver).
+**Active Story**: `STORY-045` (Define Playbook schema, Pydantic v2 models, and portable walkthrough/playbook.json specification).
+**Sprint Roadmap**:
+- **Sprint 1 (EPIC-014)**: Declarative Demo Playbooks & Native Playwright Proof Driver (ADR-009).
+- **Sprint 2 (EPIC-015)**: Lit 3 Reactive Controllers, Lit Context & Modular Web Component Hierarchy (ADR-010).
+- **Sprint 3 (EPIC-016)**: Unified Async Claude Agent Loop & Real-Time Event Streaming (ADR-011).
 
 ### Completed Foundation:
 1. Python 3.14.10 environment configured with `uv` and `hatchling` backend (`EPIC-001`).

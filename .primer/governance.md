@@ -65,7 +65,7 @@ local git hooks and harness hooks are the primary gates.
 
 ## ADR Catalog
 
-<!-- govtable:adr-catalog:start (count=8) -->
+<!-- govtable:adr-catalog:start (count=11) -->
 | ADR | Title | Enforcement | Status |
 |-----|-------|-------------|--------|
 | 001 | Hybrid Runtime with Python Core & Lit Web Components | hook | accepted |
@@ -76,6 +76,9 @@ local git hooks and harness hooks are the primary gates.
 | 006 | Local SQLite WAL Persistence and Scoped Repository Pattern | architecture | accepted |
 | 007 | Transactional Seed Engine, Snapshot Property Orchestration, and Unified Teardown | architecture | accepted |
 | 008 | Balanced-Brace Fluent SDK Schema Parser and Diff Engine | architecture | accepted |
+| 009 | Declarative Demo Playbooks, Native Shadow-DOM Automation, and Storage State Session Persistence | architecture | accepted |
+| 010 | Lit 3 Reactive Controllers, Lit Context, and Modular Web Component Hierarchy | hook | accepted |
+| 011 | Unified Async Claude Agent Loop with Streaming Tool Events and Diagnostic Transparency | architecture | accepted |
 <!-- govtable:adr-catalog:end -->
 
 Full ADR files: `.primer/adr/`

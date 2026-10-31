@@ -115,3 +115,112 @@ brittle; a graduated model provides clear boundaries.
 **Consequences:**
 - Local commits and automated PRs are continuously validated against strict architectural contracts.
 - Code quality and safety baselines can only improve over time.
+
+---
+
+### 2026-10-29 -- ADR-006: Local SQLite WAL Persistence and Scoped Repository Pattern
+
+**Status:** accepted
+
+**Context:**
+`now-workbench` manages stateful local resources across CLI and API processes: instances, templates,
+threads, and seed audit logs. Ad-hoc connections risked lock contention and unclosed warnings.
+
+**Decision:**
+1. Use embedded SQLite in WAL mode (`PRAGMA journal_mode=WAL;`) with foreign keys enabled.
+2. Use scoped `db_session()` context manager for all DB operations.
+3. Encapsulate queries inside `DatabaseRepository` returning frozen Pydantic v2 records.
+
+**Consequences:**
+- Safe concurrent read access between CLI and API processes.
+- Zero unclosed resource warnings and deterministic in-memory testing.
+
+---
+
+### 2026-10-29 -- ADR-007: Transactional Seed Engine, Snapshot Property Orchestration, and Unified Teardown
+
+**Status:** accepted
+
+**Context:**
+Demonstrations mutate live instance state (Table API seed records and sys_properties). Repeated runs
+leave orphaned records and configuration drift.
+
+**Decision:**
+1. Track every created record in `seed_operations` and support reverse-order rollback.
+2. Snapshot existing system properties before overrides and restore them on demand.
+3. Provide unified `workbench demo reset` combining seed deletion and property restoration.
+
+**Consequences:**
+- Zero pollution on target developer instances after demo completions.
+
+---
+
+### 2026-10-29 -- ADR-008: Balanced-Brace Fluent SDK Schema Parser and Diff Engine
+
+**Status:** accepted
+
+**Context:**
+Visualizing and diffing Fluent `*.now.ts` schema definitions required spawning slow Node.js compiler processes.
+
+**Decision:**
+Implement a deterministic zero-subprocess balanced-brace scanner in Python to extract table definitions,
+columns, and calculate structural diffs in sub-milliseconds.
+
+**Consequences:**
+- Instant schema exploration and diffing without Node runtime overhead.
+
+---
+
+### 2026-10-30 -- ADR-009: Declarative Demo Playbooks, Native Shadow-DOM Automation, and Storage State Session Persistence
+
+**Status:** accepted
+
+**Context:**
+Demonstrations require verifiable proof of user interaction (connecting, cursor movement, clicking, typing)
+on ServiceNow Next Experience (Polaris), which heavily utilizes nested Shadow DOM structures.
+
+**Decision:**
+1. Define executable `walkthrough/playbook.json` playbooks per bundle.
+2. Utilize native Shadow-DOM piercing locators for web components and form iframes.
+3. Persist authenticated session cookies (`storage_state`) to eliminate repetitive logins.
+4. Record multi-step execution into native VP8 WebM video proofs with step execution logs.
+
+**Consequences:**
+- Verifiable, non-simulated demo execution videos showing realistic cursor paths and actions.
+
+---
+
+### 2026-10-30 -- ADR-010: Lit 3 Reactive Controllers, Lit Context, and Modular Web Component Hierarchy
+
+**Status:** accepted
+
+**Context:**
+The frontend grew into a 4,738-line monolith (`now-conversational-workspace.ts`) mixing CSS, routing,
+thread fetching, media capture, and tile rendering.
+
+**Decision:**
+1. Adopt `@lit/context` for root workbench state injection, eliminating prop-drilling.
+2. Encapsulate async logic into Lit `ReactiveController` classes.
+3. Decompose monolithic components into modular views, tile renderers, and modals under `web/src/`.
+4. Enforce a strict 500-line cap on TypeScript frontend files via metric ratchets.
+
+**Consequences:**
+- High maintainability, sub-500 LOC files, clean Shadow DOM style encapsulation, and modular testing.
+
+---
+
+### 2026-10-30 -- ADR-011: Unified Async Claude Agent Loop with Streaming Tool Events and Diagnostic Transparency
+
+**Status:** accepted
+
+**Context:**
+Dual AI execution pathways (synchronous REST messages vs text-only WebSocket) caused fragmented state,
+and unhandled errors silently fell back to fake static templates in live mode.
+
+**Decision:**
+1. Consolidate into a unified `AsyncAnthropic` streaming agent engine with prompt caching.
+2. Stream tool execution lifecycle events (`TOOL_CALL_START`, `TOOL_CALL_RESULT`, `TILE_RENDER`) to the UI.
+3. Eliminate silent fake fallbacks in live mode (`fake_mode=False`), surfacing actionable diagnostic tiles on error.
+
+**Consequences:**
+- Sub-second streaming perceived latency, unified message history, and transparent error reporting.

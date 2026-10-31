@@ -1,0 +1,48 @@
+{
+  "bundle_id": "template-customer-service-ai",
+  "title": "Customer Service AI Operations Walkthrough",
+  "start_path": "/incident_list.do",
+  "persona": "admin",
+  "steps": [
+    {
+      "id": "step-1",
+      "action": "authenticate",
+      "description": "Authenticate user session against target instance",
+      "wait_ms": 500,
+      "timeout_ms": 12000
+    },
+    {
+      "id": "step-2",
+      "action": "navigate",
+      "description": "Navigate to the customer incident queue",
+      "path": "/incident_list.do",
+      "wait_ms": 600,
+      "timeout_ms": 10000
+    },
+    {
+      "id": "step-3",
+      "action": "move_and_click",
+      "description": "Open customer support case record",
+      "selector": "#row-target-incident, tr.incident-row, a.formlink",
+      "wait_ms": 600,
+      "timeout_ms": 8000
+    },
+    {
+      "id": "step-4",
+      "action": "type",
+      "description": "Log customer service automation note",
+      "selector": "#work-notes-input, #activity-stream-textarea, textarea[name='work_notes']",
+      "text": "[Customer AI Assist] Automated customer priority escalation applied.",
+      "wait_ms": 500,
+      "timeout_ms": 6000
+    },
+    {
+      "id": "step-5",
+      "action": "move_and_click",
+      "description": "Save updated customer record",
+      "selector": "#btn-save-incident, button#sysverb_update",
+      "wait_ms": 700,
+      "timeout_ms": 8000
+    }
+  ]
+}

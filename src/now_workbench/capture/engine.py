@@ -11,7 +11,9 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from now_workbench.capture.driver import PlaywrightPlaybookDriver, load_playbook
 from now_workbench.capture.models import CaptureArtifact, CaptureRequest
+from now_workbench.db.models import InstanceRecord
 
 _HEADER = [3, 45, 66]  # ServiceNow header (#032d42)
 _NAV = [11, 31, 48]  # Nav rail (#0b1f30)
@@ -159,6 +161,47 @@ async def _run_playwright_cli(
     return proc.returncode == 0 and output_file.exists()
 
 
+async def _execute_video_playbook(
+    bundle_path: Path,
+    bundle_id: str,
+    instance_id: str | None,
+    base_url: str,
+    username: str,
+    password: str,
+    output_file: Path,
+    thumb_file: Path,
+    width: int,
+    height: int,
+    fake_mode: bool,
+) -> tuple[bool, bool, list[dict[str, Any]]]:
+    """Execute declarative demo playbook for video proof recording."""
+    driver = PlaywrightPlaybookDriver()
+    playbook = load_playbook(bundle_path, bundle_id)
+    inst_record = InstanceRecord(
+        id=instance_id or "default-instance",
+        name="Target Instance",
+        url=base_url,
+        username=username or "admin",
+        password=password,
+        auth_type="basic",
+        release="Xanadu",
+        is_default=True,
+        status="active",
+    )
+    exec_res = await driver.execute_playbook(
+        playbook,
+        inst_record,
+        output_video=output_file,
+        output_image=thumb_file,
+        viewport_width=width,
+        viewport_height=height,
+        fake_mode=fake_mode,
+    )
+    ok = output_file.exists() and output_file.stat().st_size > 500
+    steps = [s.model_dump() for s in exec_res.step_results]
+    return ok, exec_res.live_authenticated, steps
+
+
 class PlaywrightCaptureEngine:
     """Captures screenshots and videos from a ServiceNow instance into a demo bundle."""
 
@@ -242,24 +285,48 @@ class PlaywrightCaptureEngine:
         full_url = f"{base_url}{path_part}"
 
         used_engine = "playwright-simulated"
+        step_results: list[dict[str, Any]] = []
+        live_auth = False
+
         if not req.fake_mode:
-            chrome_ok = await _run_chrome_capture(
-                full_url,
-                output_file,
-                req.media_type,
-                req.viewport_width,
-                req.viewport_height,
-                username=username,
-                password=password,
-            )
-            if chrome_ok:
-                used_engine = "google-chrome-native"
-            elif req.media_type == "screenshot":
-                ok = await _run_playwright_cli(
-                    full_url, output_file, req.viewport_width, req.viewport_height, wait_timeout_ms
+            if req.media_type == "video":
+                ok, live_auth, step_results = await _execute_video_playbook(
+                    self.bundles_dir / req.bundle_id,
+                    req.bundle_id,
+                    req.instance_id,
+                    base_url,
+                    username,
+                    password,
+                    output_file,
+                    media_dir / f"{capture_id}.png",
+                    req.viewport_width,
+                    req.viewport_height,
+                    fake_mode=False,
                 )
                 if ok:
-                    used_engine = "playwright-chromium"
+                    used_engine = "google-chrome-native"
+            else:
+                chrome_ok = await _run_chrome_capture(
+                    full_url,
+                    output_file,
+                    req.media_type,
+                    req.viewport_width,
+                    req.viewport_height,
+                    username=username,
+                    password=password,
+                )
+                if chrome_ok:
+                    used_engine = "google-chrome-native"
+                else:
+                    ok = await _run_playwright_cli(
+                        full_url,
+                        output_file,
+                        req.viewport_width,
+                        req.viewport_height,
+                        wait_timeout_ms,
+                    )
+                    if ok:
+                        used_engine = "playwright-chromium"
 
         if not output_file.exists():
             payload = _PLACEHOLDER_WEBM if ext == "webm" else _generate_simulated_png()
@@ -277,6 +344,8 @@ class PlaywrightCaptureEngine:
             url=f"/api/demos/{req.bundle_id}/captures/{filename}",
             engine=used_engine,
             created_at=datetime.now(UTC).isoformat(),
+            live_authenticated=live_auth,
+            step_results=step_results,
         )
         self._save_capture_metadata(artifact)
         return artifact

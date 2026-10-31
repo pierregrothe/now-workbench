@@ -1,6 +1,7 @@
 """Pydantic models for Playwright instance screenshot and video capture."""
 
 from datetime import UTC, datetime
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -48,3 +49,5 @@ class CaptureArtifact(BaseModel):
     url: str
     engine: str = "playwright"
     created_at: str = Field(default_factory=lambda: datetime.now(UTC).isoformat())
+    live_authenticated: bool = False
+    step_results: list[dict[str, Any]] = Field(default_factory=list)

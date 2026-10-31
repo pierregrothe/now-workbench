@@ -133,7 +133,7 @@ policies:
     name: Hybrid Python 3.14 & Lit Web Components runtime
     category: architecture
     constitutional: true
-    justifying_adrs: [ADR-001, ADR-004]
+    justifying_adrs: [ADR-001, ADR-004, ADR-010]
     checks:
       - kind: pre-commit-hook
         id: web-typecheck
@@ -144,7 +144,7 @@ policies:
     name: Otto AI Copilot with Claude API streaming
     category: architecture
     constitutional: false
-    justifying_adrs: [ADR-002]
+    justifying_adrs: [ADR-002, ADR-011]
     checks: []
     status: enforced
 
@@ -152,7 +152,7 @@ policies:
     name: Declarative demo bundle specification (.sn-demo.zip)
     category: architecture
     constitutional: false
-    justifying_adrs: [ADR-003, ADR-007, ADR-008]
+    justifying_adrs: [ADR-003, ADR-007, ADR-008, ADR-009]
     checks: []
     status: enforced
 

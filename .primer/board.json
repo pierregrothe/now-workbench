@@ -289,27 +289,108 @@
     {
       "id": "EPIC-013",
       "title": "Generative UI Tile Catalog, Tool-Based Multi-Tile Layouts & Adaptive Conversational Rendering",
-      "status": "in_progress",
+      "status": "done",
       "stories": [
         {
           "id": "STORY-041",
           "title": "Define Generative UI Tile schemas, Pydantic v2 models, and tool-calling specifications for Claude & Otto",
-          "status": "in_progress"
+          "status": "done"
         },
         {
           "id": "STORY-042",
           "title": "Implement Web Component Generative UI Tile Catalog (instance-kpi, instance-card, demo-bundle, security-alert, fluent-schema, and rich-text)",
-          "status": "in_progress"
+          "status": "done"
         },
         {
           "id": "STORY-043",
           "title": "Implement responsive multi-tile layout engine (1-col, 2-col, 3-col) with interactive action triggers",
-          "status": "in_progress"
+          "status": "done"
         },
         {
           "id": "STORY-044",
           "title": "Wire Otto conversational engine to auto-select optimal multi-tile layouts for instance inquiries, bundle inquiries, and diagnostics",
+          "status": "done"
+        }
+      ]
+    },
+    {
+      "id": "EPIC-014",
+      "title": "Declarative Demo Playbooks & Native Playwright Proof Driver",
+      "status": "done",
+      "stories": [
+        {
+          "id": "STORY-045",
+          "title": "Define Playbook schema, Pydantic v2 models, and portable walkthrough/playbook.json specification",
+          "status": "done"
+        },
+        {
+          "id": "STORY-046",
+          "title": "Implement Playwright Playbook Driver with Shadow-DOM piercing locators and persistent storage_state authentication",
+          "status": "done"
+        },
+        {
+          "id": "STORY-047",
+          "title": "Record native WebM context video proofs and execution audit log with step verification",
+          "status": "done"
+        },
+        {
+          "id": "STORY-048",
+          "title": "Wire DemoPipelineEngine and CLI demo capture to execute declarative playbooks",
+          "status": "done"
+        }
+      ]
+    },
+    {
+      "id": "EPIC-015",
+      "title": "Lit 3 Reactive Controllers, Lit Context & Modular Web Component Hierarchy",
+      "status": "in_progress",
+      "stories": [
+        {
+          "id": "STORY-049",
+          "title": "Implement @lit/context WorkbenchContext and provider in now-workbench-shell",
           "status": "in_progress"
+        },
+        {
+          "id": "STORY-050",
+          "title": "Extract Reactive Controllers (ThreadController, CaptureGalleryController, DemoPipelineController)",
+          "status": "todo"
+        },
+        {
+          "id": "STORY-051",
+          "title": "Decompose now-conversational-workspace into dedicated sub-500 LOC views (Chat, Synthesizer, Capture Studio)",
+          "status": "todo"
+        },
+        {
+          "id": "STORY-052",
+          "title": "Implement reusable Tile Renderers, Lightbox Modal, and TypeScript file-size ratchet",
+          "status": "todo"
+        }
+      ]
+    },
+    {
+      "id": "EPIC-016",
+      "title": "Unified Async Claude Agent Loop & Real-Time Event Streaming",
+      "status": "todo",
+      "stories": [
+        {
+          "id": "STORY-053",
+          "title": "Implement AsyncAnthropic ClaudeAgentRunner with prompt caching on system, tools, and history",
+          "status": "todo"
+        },
+        {
+          "id": "STORY-054",
+          "title": "Unify REST and WebSocket endpoints to stream AG-UI lifecycle events",
+          "status": "todo"
+        },
+        {
+          "id": "STORY-055",
+          "title": "Remove silent mock fallbacks in live mode and return diagnostic warning tiles",
+          "status": "todo"
+        },
+        {
+          "id": "STORY-056",
+          "title": "Modularize DatabaseRepository and Workbench CLI into focused sub-domain modules",
+          "status": "todo"
         }
       ]
     }

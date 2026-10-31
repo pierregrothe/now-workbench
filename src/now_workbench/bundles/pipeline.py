@@ -219,6 +219,7 @@ class DemoPipelineEngine:
         """Capture a video recording of the demo execution."""
         req = CaptureRequest(
             bundle_id=bundle_id,
+            instance_id=instance.id,
             target_path=target_path,
             media_type="video",
             label=caption,
