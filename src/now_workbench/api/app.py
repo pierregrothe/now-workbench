@@ -1,5 +1,6 @@
 """FastAPI backend server for now-workbench."""
 
+import uuid
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
@@ -8,6 +9,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict
 
 from now_workbench.ai.actions import execute_autonomous_action
+from now_workbench.ai.agent import AgentEventType, ClaudeAgentRunner, make_async_client
 from now_workbench.ai.client import OttoClient
 from now_workbench.ai.tiles import GenerativeUIResponse, resolve_query_to_tiles
 from now_workbench.api.demos import router as demos_router
@@ -18,6 +20,7 @@ from now_workbench.api.threads import _load_verified_instances_dict
 from now_workbench.api.threads import router as threads_router
 from now_workbench.config.settings import settings
 from now_workbench.db import (
+    ChatMessageRecord,
     DatabaseRepository,
     InstanceCreate,
     TemplateRecord,
@@ -250,22 +253,85 @@ def _register_websockets(app: FastAPI, log_broadcaster: LogBroadcaster) -> None:
         try:
             while True:
                 data = await websocket.receive_json()
-                messages = data.get("messages", [])
-                context = data.get("context", {})
-
-                with db_session() as repo:
-                    api_key = repo.get_decrypted_anthropic_api_key()
-                    prefs = repo.get_workbench_preferences()
-
-                live_client = OttoClient(
-                    api_key=api_key or settings.anthropic_api_key,
-                    model=prefs.claude_model if api_key else settings.claude_model,
-                )
-                async for chunk in live_client.stream_chat(messages, context=context):
-                    await websocket.send_json({"type": "chunk", "text": chunk})
-                await websocket.send_json({"type": "done"})
+                await _handle_ws_otto_message(websocket, data)
         except WebSocketDisconnect:
             pass
+
+
+def _save_thread_turn(
+    repo: DatabaseRepository, thread_id: str, prompt: str, final_resp: dict[str, Any]
+) -> None:
+    """Persist completed user prompt and agent response to SQLite thread."""
+    repo.add_message(
+        ChatMessageRecord(
+            id=f"msg-{uuid.uuid4().hex[:8]}",
+            thread_id=thread_id,
+            role="user",
+            content=prompt,
+        )
+    )
+    repo.add_message(
+        ChatMessageRecord(
+            id=f"msg-{uuid.uuid4().hex[:8]}",
+            thread_id=thread_id,
+            role="assistant",
+            content=final_resp.get("summary", ""),
+            widget_type="generative_tiles",
+            widget_data=final_resp,
+        )
+    )
+
+
+async def _stream_agent_to_ws(
+    websocket: WebSocket,
+    runner: ClaudeAgentRunner,
+    prompt: str,
+    thread_id: str | None,
+    repo: DatabaseRepository,
+) -> None:
+    """Stream Claude agent lifecycle events to WebSocket and persist to SQLite."""
+    history = repo.list_messages(str(thread_id)) if thread_id else []
+    final_resp: dict[str, Any] | None = None
+    async for event in runner.stream_run(str(prompt), history):
+        await websocket.send_json({"type": event.event_type.value, **event.payload})
+        if event.event_type == AgentEventType.TEXT_DELTA:
+            await websocket.send_json({"type": "chunk", "text": event.payload.get("text", "")})
+        elif event.event_type == AgentEventType.DONE:
+            final_resp = event.payload.get("response")
+
+    if thread_id and final_resp:
+        _save_thread_turn(repo, str(thread_id), str(prompt), final_resp)
+    await websocket.send_json({"type": "done"})
+
+
+async def _handle_ws_otto_message(websocket: WebSocket, data: dict[str, Any]) -> None:
+    """Process a WebSocket Otto chat request with real-time streaming (ADR-011)."""
+    prompt = data.get("prompt") or data.get("content")
+    thread_id = data.get("thread_id")
+    messages = data.get("messages", [])
+    context = data.get("context", {})
+
+    with db_session() as repo:
+        api_key = repo.get_decrypted_anthropic_api_key()
+        prefs = repo.get_workbench_preferences()
+        active_key = api_key or settings.anthropic_api_key
+        model = prefs.claude_model if api_key else settings.claude_model
+        fake_mode = prefs.sdk_fake_mode
+
+    if prompt and active_key:
+        with db_session() as repo:
+            runner = ClaudeAgentRunner(
+                client=make_async_client(active_key),
+                model=model,
+                repo=repo,
+                fake_mode=fake_mode,
+            )
+            await _stream_agent_to_ws(websocket, runner, str(prompt), thread_id, repo)
+    else:
+        live_client = OttoClient(api_key=active_key, model=model)
+        async for chunk in live_client.stream_chat(messages, context=context):
+            await websocket.send_json({"type": "chunk", "text": chunk})
+        await websocket.send_json({"type": "done"})
 
 
 app = create_app()

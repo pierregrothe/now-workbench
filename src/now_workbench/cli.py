@@ -24,15 +24,9 @@ from now_workbench.bundles.pipeline_cli import (
 )
 from now_workbench.config.cli import config_app
 from now_workbench.config.settings import settings
-from now_workbench.connectivity import verify_instance_authentication
-from now_workbench.db.models import (
-    InstanceCreate,
-    InstanceRecord,
-    InstanceUpdate,
-    TemplateInstantiationRequest,
-)
 from now_workbench.db.session import db_session
 from now_workbench.fluent.cli import fluent_app
+from now_workbench.instances.cli import format_instance_status, instance_app
 from now_workbench.properties.cli import properties_app, reset_demo_cmd
 from now_workbench.remediation import (
     RemediationPlan,
@@ -43,7 +37,9 @@ from now_workbench.runbooks.engine import RunbookEngine
 from now_workbench.sdk.runner import NowSdkRunner
 from now_workbench.seed.engine import SeedEngine
 from now_workbench.synthesizer.cli import capture_demo_cmd, synthesize_demo_cmd
-from now_workbench.templates import TemplateEngine
+from now_workbench.templates.cli import template_app
+
+_format_instance_status = format_instance_status
 
 app = typer.Typer(
     name="workbench",
@@ -51,8 +47,6 @@ app = typer.Typer(
     add_completion=False,
 )
 demo_app = typer.Typer(name="demo", help="Manage demonstration packages")
-instance_app = typer.Typer(name="instance", help="Manage registered ServiceNow instances")
-template_app = typer.Typer(name="template", help="Manage reusable customer templates")
 
 demo_app.add_typer(fluent_app)
 demo_app.add_typer(properties_app)
@@ -475,287 +469,6 @@ def seed_history_demo(
             op.created_at[:19].replace("T", " "),
         )
     console.print(table)
-
-
-def _format_instance_status(inst: InstanceRecord) -> str:
-    """Format instance authentication status with rich badges."""
-    if inst.status == "authenticated":
-        return f"[bold green][OK] Authenticated[/bold green] [dim]({inst.username})[/dim]"
-    if inst.status == "auth_failed":
-        return "[bold red][FAIL] Auth Failed (401)[/bold red]"
-    if inst.status == "unreachable":
-        return "[bold red][FAIL] Unreachable[/bold red]"
-    if inst.status in ("unknown", "", None):
-        return "[yellow]? Untested[/yellow]"
-    return f"[yellow]{inst.status}[/yellow]"
-
-
-@instance_app.command("list")
-def list_instances_cmd(
-    check: bool = typer.Option(
-        False,
-        "--check",
-        "-c",
-        help="Probe live authentication for each instance before listing",
-    ),
-) -> None:
-    """List all registered ServiceNow instances and authentication status."""
-    with db_session() as repo:
-        instances = repo.list_instances()
-
-        if not instances:
-            console.print("[yellow]No instances registered yet.[/yellow]")
-            console.print("Add an instance via: [bold]workbench instance add <name> <url>[/bold]")
-            return
-
-        table = Table(title="Registered ServiceNow Instances", header_style="bold cyan")
-        table.add_column("ID", style="bold white")
-        table.add_column("Name")
-        table.add_column("URL")
-        table.add_column("User", style="cyan")
-        table.add_column("Release", style="magenta")
-        table.add_column("Default", style="green")
-        table.add_column("Authentication Status")
-
-        for inst in instances:
-            if check:
-                status, _, _ = verify_instance_authentication(inst)
-                repo.update_instance_status(inst.id, status)
-                refreshed = repo.get_instance(inst.id)
-                if refreshed:
-                    inst = refreshed
-
-            active_badge = (
-                "[bold green]* ACTIVE[/bold green]" if inst.is_default else "[dim]--[/dim]"
-            )
-            status_badge = _format_instance_status(inst)
-            table.add_row(
-                inst.id,
-                inst.name,
-                inst.url,
-                inst.username,
-                inst.release,
-                active_badge,
-                status_badge,
-            )
-    console.print(table)
-
-
-@instance_app.command("add")
-def add_instance_cmd(
-    name: str = typer.Argument(..., help="Display name for this instance"),
-    url: str = typer.Argument(..., help="Base URL of the ServiceNow instance"),
-    instance_id: str | None = typer.Option(None, "--id", help="Explicit ID for the instance"),
-    username: str = typer.Option("admin", "--username", "-u", help="ServiceNow username"),
-    password: str = typer.Option("", "--password", "-p", help="ServiceNow password"),
-    release: str = typer.Option("Zurich", "--release", "-r", help="Release family"),
-    default: bool = typer.Option(False, "--default", "-d", help="Set as active default"),
-) -> None:
-    """Register a new ServiceNow instance."""
-    with db_session() as repo:
-        rec = repo.add_instance(
-            InstanceCreate(
-                id=instance_id,
-                name=name,
-                url=url,
-                username=username,
-                password=password,
-                auth_type="basic",
-                release=release,
-                is_default=default,
-            )
-        )
-    console.print(
-        f"[green][OK][/green] Registered [bold]{rec.name}[/bold] (ID: [cyan]{rec.id}[/cyan])"
-    )
-    if default:
-        console.print(f"[green]*[/green] Set as active default instance: {rec.url}")
-
-
-@instance_app.command("activate")
-def activate_instance_cmd(
-    instance_id: str = typer.Argument(..., help="Instance ID to mark as active default"),
-) -> None:
-    """Set an instance as the active default for tasks and customizations."""
-    with db_session() as repo:
-        inst = repo.get_instance(instance_id)
-        if not inst:
-            console.print(f"[red]Instance '{instance_id}' not found in registry.[/red]")
-            raise typer.Exit(code=1)
-        repo.set_default_instance(instance_id)
-    console.print(
-        f"[green][OK][/green] Instance [bold]{inst.name}[/bold] ({inst.url}) is now ACTIVE."
-    )
-
-
-@instance_app.command("rename")
-def rename_instance_cmd(
-    instance_id: str = typer.Argument(..., help="Instance ID or name to rename"),
-    new_name: str = typer.Argument(..., help="New display name for the instance"),
-) -> None:
-    """Rename a registered ServiceNow instance."""
-    with db_session() as repo:
-        rec = repo.update_instance(instance_id, InstanceUpdate(name=new_name))
-        if not rec:
-            console.print(f"[red]Instance '{instance_id}' not found in registry.[/red]")
-            raise typer.Exit(code=1)
-    console.print(f"[green][OK][/green] Instance renamed to [bold]{rec.name}[/bold]")
-
-
-@instance_app.command("delete")
-def delete_instance_cmd(
-    instance_id: str = typer.Argument(..., help="Instance ID or name to delete"),
-) -> None:
-    """Delete a ServiceNow instance from the registry."""
-    with db_session() as repo:
-        ok = repo.delete_instance(instance_id)
-        if not ok:
-            console.print(f"[red]Instance '{instance_id}' not found in registry.[/red]")
-            raise typer.Exit(code=1)
-    console.print(f"[green][OK][/green] Instance [bold]{instance_id}[/bold] deleted.")
-
-
-@instance_app.command("test")
-def test_instance_cmd(
-    instance_id: str = typer.Argument(
-        None, help="Instance ID to test (defaults to all instances if omitted)"
-    ),
-) -> None:
-    """Test connection and authentication to one or all registered instances."""
-    with db_session() as repo:
-        targets: list[InstanceRecord] = []
-        if instance_id:
-            target = repo.get_instance(instance_id)
-            if not target:
-                console.print(f"[red]Instance '{instance_id}' not found in registry.[/red]")
-                raise typer.Exit(code=1)
-            targets.append(target)
-        else:
-            targets = repo.list_instances()
-
-        if not targets:
-            console.print("[red]No instance found to test. Register an instance first.[/red]")
-            raise typer.Exit(code=1)
-
-        console.print("[bold cyan]Testing ServiceNow Instance Authentication...[/bold cyan]\n")
-        for inst in targets:
-            status, msg, code = verify_instance_authentication(inst)
-            repo.update_instance_status(inst.id, status)
-            if status == "authenticated":
-                console.print(
-                    f"  [green][OK][/green] [bold]{inst.name}[/bold] ({inst.url}): "
-                    f"[green]Authenticated as '{inst.username}'[/green] (HTTP {code})"
-                )
-            elif status == "auth_failed":
-                console.print(
-                    f"  [red][FAIL][/red] [bold]{inst.name}[/bold] ({inst.url}): [red]{msg}[/red]"
-                )
-            else:
-                console.print(
-                    f"  [yellow][WARN][/yellow] [bold]{inst.name}[/bold] ({inst.url}): "
-                    f"[yellow]{msg}[/yellow]"
-                )
-
-
-@template_app.command("list")
-def list_templates_cmd() -> None:
-    """List all available customization templates."""
-    with db_session() as repo:
-        templates = repo.list_templates()
-
-    if not templates:
-        console.print("[yellow]No customization templates registered.[/yellow]")
-        return
-
-    table = Table(title="Customization Templates", header_style="bold cyan")
-    table.add_column("ID", style="bold white")
-    table.add_column("Template Name")
-    table.add_column("Base Bundle", style="magenta")
-    table.add_column("Version", style="green")
-    table.add_column("Description", style="dim")
-
-    for tmpl in templates:
-        table.add_row(
-            tmpl.id,
-            tmpl.name,
-            tmpl.base_bundle_id,
-            tmpl.version,
-            tmpl.description[:60] + "..." if len(tmpl.description) > 60 else tmpl.description,
-        )
-    console.print(table)
-
-
-@template_app.command("generate")
-def generate_template_cmd(
-    template_id: str = typer.Argument(..., help="Template ID to instantiate"),
-    target_bundle_id: str = typer.Argument(..., help="New target bundle directory name"),
-    customer_name: str = typer.Argument(..., help="Customer organization name"),
-    primary_color: str = typer.Option(
-        "#23a17e", "--primary-color", "-c", help="Brand primary color"
-    ),
-    secondary_color: str = typer.Option(
-        "#0284c7", "--secondary-color", "-s", help="Secondary color"
-    ),
-    group: str = typer.Option(
-        "IT Support Tier 1", "--group", "-g", help="Default assignment group"
-    ),
-    logo: str = typer.Option("", "--logo", "-l", help="Logo URL"),
-) -> None:
-    """Generate a customer-tailored customization bundle from a template."""
-    with db_session() as repo:
-        templates = {t.id: t for t in repo.list_templates()}
-
-    if template_id not in templates:
-        console.print(f"[red]Template '{template_id}' not found in registry.[/red]")
-        raise typer.Exit(code=1)
-
-    req = TemplateInstantiationRequest(
-        target_bundle_id=target_bundle_id,
-        customer_name=customer_name,
-        primary_color=primary_color,
-        secondary_color=secondary_color,
-        logo_url=logo,
-        assignment_group=group,
-    )
-
-    base_bundle_id = templates[template_id].base_bundle_id
-    bundles_dir = settings.get_bundles_dir()
-    engine = TemplateEngine(bundles_dir=bundles_dir, output_dir=bundles_dir)
-    try:
-        out_path = engine.instantiate(base_bundle_id, req)
-        console.print(
-            f"[green][OK][/green] Generated tailored bundle for [bold]{customer_name}[/bold]!"
-        )
-        console.print(f"  Location: [cyan]{out_path.resolve()}[/cyan]")
-        console.print(f"  Primary Brand Color: [bold]{primary_color}[/bold]")
-        console.print(f"  Assignment Group: [bold]{group}[/bold]")
-    except Exception as exc:
-        console.print(f"[red]Template instantiation failed: {exc}[/red]")
-        raise typer.Exit(code=1)
-
-
-@template_app.command("inspect")
-def inspect_template_cmd(
-    template_id: str = typer.Argument(..., help="Template ID to inspect"),
-) -> None:
-    """Inspect parameters schema and details for a customization template."""
-    with db_session() as repo:
-        templates = {t.id: t for t in repo.list_templates()}
-    if template_id not in templates:
-        console.print(f"[red]Template '{template_id}' not found.[/red]")
-        raise typer.Exit(code=1)
-
-    tmpl = templates[template_id]
-    console.print(
-        Panel(
-            f"[bold cyan]{tmpl.name}[/bold cyan] ([green]v{tmpl.version}[/green])\n"
-            f"[dim]{tmpl.description}[/dim]\n\n"
-            f"- Base Bundle: {tmpl.base_bundle_id}\n"
-            f"- Parameters: {', '.join(tmpl.parameters_schema.keys()) or 'None'}",
-            title=f"Template: {template_id}",
-            border_style="cyan",
-        )
-    )
 
 
 @app.command()

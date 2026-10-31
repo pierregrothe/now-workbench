@@ -6,7 +6,7 @@ from typing import Any
 from fastapi import APIRouter, HTTPException
 
 from now_workbench.ai.actions import execute_autonomous_action
-from now_workbench.ai.agent import make_client, run_agent
+from now_workbench.ai.agent import _build_diagnostic_error_tiles, make_client, run_agent
 from now_workbench.ai.tiles import GenerativeUIResponse, resolve_query_to_tiles
 from now_workbench.ai.tools import ToolContext, execute_tool
 from now_workbench.ai.tools.base import text_tile
@@ -168,7 +168,14 @@ def _agent_reply(
             model=prefs.claude_model,
             fake_mode=prefs.sdk_fake_mode,
         )
-    except Exception:
+    except Exception as exc:
+        if not prefs.sdk_fake_mode:
+            diag_resp = _build_diagnostic_error_tiles(str(exc))
+            return (
+                diag_resp.summary,
+                "generative_tiles",
+                _widget_payload(diag_resp, repo, len(history)),
+            )
         return None
     return resp.summary, "generative_tiles", _widget_payload(resp, repo, len(history))
 

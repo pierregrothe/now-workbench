@@ -162,3 +162,49 @@ def test_confirm_message_executes_tool_through_thread_api() -> None:
     assert "Deleted 1 instance" in resp.json()[-1]["content"]
     with db_session() as repo:
         assert repo.get_instance("bad") is None
+
+
+async def test_claude_agent_runner_stream_events() -> None:
+    """Verify real-time event streaming in ClaudeAgentRunner (ADR-011)."""
+    from now_workbench.ai.agent import AgentEventType, ClaudeAgentRunner
+
+    with db_session() as repo:
+        client = _FakeClient(
+            [
+                _tool_call("t1", "list_bundles", {}),
+                _Resp([_Block("text", text="Found installed bundles.")], "end_turn"),
+            ]
+        )
+        runner = ClaudeAgentRunner(client=client, model="claude-test", repo=repo, fake_mode=True)
+        events = [ev async for ev in runner.stream_run("show me bundles", [])]
+
+        types = [e.event_type for e in events]
+        assert AgentEventType.TOOL_CALL_START in types
+        assert AgentEventType.TOOL_CALL_RESULT in types
+        assert AgentEventType.TILE_RENDER in types
+        assert AgentEventType.TEXT_DELTA in types
+        assert AgentEventType.DONE in types
+        done_ev = next(e for e in events if e.event_type == AgentEventType.DONE)
+        assert done_ev.payload["response"]["summary"] == "Found installed bundles."
+
+
+async def test_agent_live_mode_diagnostic_tile_on_error() -> None:
+    """Verify zero silent fallback and explicit diagnostic tile in live mode (ADR-011)."""
+    from now_workbench.ai.agent import ClaudeAgentRunner
+
+    class _ErrorMessages:
+        def create(self, **kwargs: Any) -> Any:
+            raise RuntimeError("API key invalid or expired (401)")
+
+    class _ErrorClient:
+        messages = _ErrorMessages()
+
+    with db_session() as repo:
+        runner = ClaudeAgentRunner(
+            client=_ErrorClient(), model="claude-live", repo=repo, fake_mode=False
+        )
+        resp = await runner.run("test instances", [])
+        assert "Diagnostic Warning" in resp.summary
+        assert len(resp.tiles) == 1
+        assert resp.tiles[0].type == "security-alert"
+        assert "401" in resp.tiles[0].props["issue"]

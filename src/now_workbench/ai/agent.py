@@ -1,8 +1,12 @@
-"""Otto agent loop: Claude tool-calling over the shared action registry."""
+"""Otto agent loop: Async Claude tool-calling over the shared action registry (ADR-011)."""
 
+import inspect
+from collections.abc import AsyncIterator
+from enum import StrEnum
 from typing import Any
 
 import anthropic
+from pydantic import BaseModel, ConfigDict
 
 from now_workbench.ai.tiles import GenerativeUIResponse, TileLayout, UITileSpec
 from now_workbench.ai.tools import ToolContext, ToolResult, execute_tool, tool_definitions
@@ -32,6 +36,26 @@ Rules:
 """
 
 
+class AgentEventType(StrEnum):
+    """Lifecycle event types emitted by ClaudeAgentRunner."""
+
+    TEXT_DELTA = "text_delta"
+    TOOL_CALL_START = "tool_call_start"
+    TOOL_CALL_RESULT = "tool_call_result"
+    TILE_RENDER = "tile_render"
+    ERROR = "error"
+    DONE = "done"
+
+
+class AgentEvent(BaseModel):
+    """Event envelope streamed to frontend or log observers."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    event_type: AgentEventType
+    payload: dict[str, Any] = {}
+
+
 class AgentUnavailableError(RuntimeError):
     """Raised when the Claude agent cannot run (no key, API failure)."""
 
@@ -39,6 +63,11 @@ class AgentUnavailableError(RuntimeError):
 def make_client(api_key: str) -> Any:
     """Create a synchronous Anthropic client."""
     return anthropic.Anthropic(api_key=api_key)
+
+
+def make_async_client(api_key: str) -> Any:
+    """Create an asynchronous Anthropic client."""
+    return anthropic.AsyncAnthropic(api_key=api_key)
 
 
 def _history_to_messages(history: list[ChatMessageRecord], user_text: str) -> list[dict[str, Any]]:
@@ -96,6 +125,188 @@ def _assemble(text: str, results: list[ToolResult]) -> GenerativeUIResponse:
     return GenerativeUIResponse(summary=summary, layout=_pick_layout(tiles), tiles=tiles)
 
 
+def _build_diagnostic_error_tiles(err_msg: str) -> GenerativeUIResponse:
+    """Construct an explicit diagnostic warning tile when live API fails (ADR-011)."""
+    alert_tile = UITileSpec(
+        id="tile-diagnostic-error",
+        type="security-alert",
+        title="Claude Agent Diagnostic Warning",
+        props={
+            "issue": f"Claude API execution encountered an error: {err_msg}",
+            "severity": "HIGH",
+            "remediation": (
+                "Verify your Anthropic API key in Settings or review instance connectivity."
+            ),
+            "actions": [
+                {"id": "settings", "label": "Review Settings", "variant": "primary"},
+                {"id": "probe_all", "label": "Test Connectivity"},
+            ],
+        },
+    )
+    return GenerativeUIResponse(
+        summary=f"Diagnostic Warning: {err_msg}",
+        layout="1-col",
+        tiles=[alert_tile],
+    )
+
+
+async def _call_client_create(client: Any, **kwargs: Any) -> Any:
+    """Invoke messages.create supporting both synchronous and asynchronous clients."""
+    fn = getattr(client.messages, "create", None)
+    if fn is None:
+        raise AgentUnavailableError("Client has no messages.create method.")
+    if inspect.iscoroutinefunction(fn):
+        return await fn(**kwargs)
+    result = fn(**kwargs)
+    if inspect.isawaitable(result):
+        return await result
+    return result
+
+
+def _execute_turn_calls(
+    calls: list[Any],
+    ctx: ToolContext,
+) -> tuple[list[ToolResult], list[dict[str, Any]], list[AgentEvent]]:
+    """Execute tool calls from an assistant turn and package results and events."""
+    results: list[ToolResult] = []
+    tool_results: list[dict[str, Any]] = []
+    events: list[AgentEvent] = []
+    for call in calls:
+        events.append(
+            AgentEvent(
+                event_type=AgentEventType.TOOL_CALL_START,
+                payload={"id": call.id, "tool": call.name, "input": dict(call.input)},
+            )
+        )
+        res = execute_tool(ctx, call.name, dict(call.input))
+        results.append(res)
+        events.append(
+            AgentEvent(
+                event_type=AgentEventType.TOOL_CALL_RESULT,
+                payload={"id": call.id, "tool": call.name, "summary": res.summary, "ok": res.ok},
+            )
+        )
+        if res.tiles:
+            events.append(
+                AgentEvent(
+                    event_type=AgentEventType.TILE_RENDER,
+                    payload={"tiles": [t.model_dump() for t in res.tiles]},
+                )
+            )
+        tool_results.append(
+            {
+                "type": "tool_result",
+                "tool_use_id": call.id,
+                "content": f"{res.summary}\n{model_to_text(res.data)}",
+                "is_error": not res.ok,
+            }
+        )
+    return results, tool_results, events
+
+
+class ClaudeAgentRunner:
+    """Async streaming agent runner with Anthropic prompt caching and real-time events."""
+
+    def __init__(
+        self,
+        client: Any,
+        model: str,
+        repo: DatabaseRepository,
+        fake_mode: bool = False,
+    ) -> None:
+        self.client = client
+        self.model = model
+        self.repo = repo
+        self.fake_mode = fake_mode
+        self.ctx = ToolContext(repo=repo, fake_mode=fake_mode)
+
+    async def stream_run(
+        self,
+        user_text: str,
+        history: list[ChatMessageRecord],
+    ) -> AsyncIterator[AgentEvent]:
+        """Stream granular lifecycle events through the Claude tool loop."""
+        messages = _history_to_messages(history, user_text)
+        tools = tool_definitions()
+        if tools:
+            tools[-1]["cache_control"] = {"type": "ephemeral"}
+
+        system = [
+            {
+                "type": "text",
+                "text": AGENT_SYSTEM_PROMPT,
+                "cache_control": {"type": "ephemeral"},
+            }
+        ]
+
+        results: list[ToolResult] = []
+        final_text = ""
+
+        try:
+            for _ in range(MAX_STEPS):
+                resp = await _call_client_create(
+                    self.client,
+                    model=self.model,
+                    max_tokens=1500,
+                    system=system,
+                    tools=tools,
+                    messages=messages,
+                )
+                final_text = "".join(b.text for b in resp.content if b.type == "text")
+                if final_text:
+                    yield AgentEvent(
+                        event_type=AgentEventType.TEXT_DELTA,
+                        payload={"text": final_text},
+                    )
+
+                calls = [b for b in resp.content if b.type == "tool_use"]
+                if resp.stop_reason != "tool_use" or not calls:
+                    break
+
+                blocks = [d for b in resp.content if (d := _block_to_dict(b)) is not None]
+                messages.append({"role": "assistant", "content": blocks})
+
+                step_res, step_tool_res, step_events = _execute_turn_calls(calls, self.ctx)
+                results.extend(step_res)
+                for ev in step_events:
+                    yield ev
+
+                if step_tool_res:
+                    step_tool_res[-1]["cache_control"] = {"type": "ephemeral"}
+                messages.append({"role": "user", "content": step_tool_res})
+
+            assembled = _assemble(final_text, results)
+            yield AgentEvent(
+                event_type=AgentEventType.DONE,
+                payload={"response": assembled.model_dump()},
+            )
+
+        except Exception as exc:
+            if self.fake_mode:
+                raise AgentUnavailableError(str(exc)) from exc
+            err_diag = _build_diagnostic_error_tiles(str(exc))
+            yield AgentEvent(event_type=AgentEventType.ERROR, payload={"error": str(exc)})
+            yield AgentEvent(
+                event_type=AgentEventType.DONE,
+                payload={"response": err_diag.model_dump()},
+            )
+
+    async def run(
+        self,
+        user_text: str,
+        history: list[ChatMessageRecord],
+    ) -> GenerativeUIResponse:
+        """Execute the agent run and return the final assembled GenerativeUIResponse."""
+        final_resp: GenerativeUIResponse | None = None
+        async for event in self.stream_run(user_text, history):
+            if event.event_type == AgentEventType.DONE:
+                raw_resp = event.payload.get("response", {})
+                final_resp = GenerativeUIResponse.model_validate(raw_resp)
+        if final_resp is None:
+            return _assemble("No response received from agent.", [])
+        return final_resp
+
+
 def run_agent(
     user_text: str,
     history: list[ChatMessageRecord],
@@ -104,15 +315,33 @@ def run_agent(
     model: str,
     fake_mode: bool = False,
 ) -> GenerativeUIResponse:
-    """Run the tool-calling loop with Anthropic prompt caching and return a tile response."""
+    """Synchronous adapter for backward compatibility running ClaudeAgentRunner."""
+    import asyncio
+
+    runner = ClaudeAgentRunner(client=client, model=model, repo=repo, fake_mode=fake_mode)
+
+    try:
+        asyncio.get_running_loop()
+        return _run_agent_sync(user_text, history, repo, client, model, fake_mode)
+    except RuntimeError:
+        return asyncio.run(runner.run(user_text, history))
+
+
+def _run_agent_sync(
+    user_text: str,
+    history: list[ChatMessageRecord],
+    repo: DatabaseRepository,
+    client: Any,
+    model: str,
+    fake_mode: bool = False,
+) -> GenerativeUIResponse:
+    """Direct synchronous runner for tests and sync execution contexts."""
     ctx = ToolContext(repo=repo, fake_mode=fake_mode)
     messages = _history_to_messages(history, user_text)
     tools = tool_definitions()
     if tools:
-        # Enable Anthropic prompt caching on tool definitions (cache breakpoint 1)
         tools[-1]["cache_control"] = {"type": "ephemeral"}
 
-    # Enable Anthropic prompt caching on the system instructions (cache breakpoint 2)
     system = [
         {
             "type": "text",
@@ -138,22 +367,14 @@ def run_agent(
                 break
             content_blocks = [d for b in resp.content if (d := _block_to_dict(b)) is not None]
             messages.append({"role": "assistant", "content": content_blocks})
-            tool_results: list[dict[str, Any]] = []
-            for call in calls:
-                res = execute_tool(ctx, call.name, dict(call.input))
-                results.append(res)
-                tool_results.append(
-                    {
-                        "type": "tool_result",
-                        "tool_use_id": call.id,
-                        "content": f"{res.summary}\n{model_to_text(res.data)}",
-                        "is_error": not res.ok,
-                    }
-                )
-            if tool_results:
-                # Cache breakpoint on the latest tool results turn for fast subsequent steps
-                tool_results[-1]["cache_control"] = {"type": "ephemeral"}
-            messages.append({"role": "user", "content": tool_results})
-    except anthropic.APIError as exc:
-        raise AgentUnavailableError(str(exc)) from exc
+            step_res, step_tool_res, _ = _execute_turn_calls(calls, ctx)
+            results.extend(step_res)
+            if step_tool_res:
+                step_tool_res[-1]["cache_control"] = {"type": "ephemeral"}
+            messages.append({"role": "user", "content": step_tool_res})
+    except Exception as exc:
+        if fake_mode:
+            raise AgentUnavailableError(str(exc)) from exc
+        return _build_diagnostic_error_tiles(str(exc))
+
     return _assemble(final_text, results)

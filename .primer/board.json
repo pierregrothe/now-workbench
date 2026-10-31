@@ -370,27 +370,27 @@
     {
       "id": "EPIC-016",
       "title": "Unified Async Claude Agent Loop & Real-Time Event Streaming",
-      "status": "in_progress",
+      "status": "done",
       "stories": [
         {
           "id": "STORY-053",
           "title": "Implement AsyncAnthropic ClaudeAgentRunner with prompt caching on system, tools, and history",
-          "status": "in_progress"
+          "status": "done"
         },
         {
           "id": "STORY-054",
           "title": "Unify REST and WebSocket endpoints to stream AG-UI lifecycle events",
-          "status": "todo"
+          "status": "done"
         },
         {
           "id": "STORY-055",
           "title": "Remove silent mock fallbacks in live mode and return diagnostic warning tiles",
-          "status": "todo"
+          "status": "done"
         },
         {
           "id": "STORY-056",
           "title": "Modularize DatabaseRepository and Workbench CLI into focused sub-domain modules",
-          "status": "todo"
+          "status": "done"
         }
       ]
     }
