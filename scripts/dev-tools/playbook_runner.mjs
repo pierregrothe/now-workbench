@@ -24,11 +24,13 @@ function parseArgs() {
     password: "",
     width: 1280,
     height: 720,
+    fake: false,
   };
 
   for (let i = 0; i < args.length; i++) {
     const a = args[i];
-    if (a === "--playbook" && args[i + 1]) opts.playbook = args[++i];
+    if (a === "--fake") opts.fake = true;
+    else if (a === "--playbook" && args[i + 1]) opts.playbook = args[++i];
     else if (a === "--url" && args[i + 1]) opts.url = args[++i];
     else if (a === "--output-video" && args[i + 1]) opts.outputVideo = args[++i];
     else if (a === "--output-image" && args[i + 1]) opts.outputImage = args[++i];
@@ -548,27 +550,36 @@ async function main() {
       await page.authenticate({ username: opts.username, password: opts.password }).catch(() => {});
     }
 
-    let isLiveConnected = false;
     const targetUrl = opts.url || "https://demoalectriallwfau164179.service-now.com/incident_list.do";
-    console.log(`[PlaybookRunner] Connecting to instance target: ${targetUrl}`);
-    try {
-      const resp = await page.goto(targetUrl, { waitUntil: "networkidle2", timeout: 10000 });
-      if (resp && resp.status() < 400) {
-        isLiveConnected = true;
-      }
-    } catch {
-      // Instance is offline / unreachable
-    }
 
-    // Handle ServiceNow Form Login
-    if (isLiveConnected) {
+    if (opts.fake) {
+      console.log("[PlaybookRunner] Fake mode enabled: Rendering simulated ServiceNow Agent Workspace...");
+      await page.setContent(buildServiceNowOfflineHtml(), { waitUntil: "load" });
+    } else {
+      console.log(`[PlaybookRunner] Connecting to live instance target: ${targetUrl}`);
+      try {
+        const resp = await page.goto(targetUrl, { waitUntil: "domcontentloaded", timeout: 30000 });
+        if (resp && resp.status() >= 400) {
+          console.error(`[PlaybookRunner] HTTP ${resp.status()} error loading target instance.`);
+          process.exit(1);
+        }
+      } catch (err) {
+        console.error(`[PlaybookRunner] Live target unreachable: ${err.message}`);
+        process.exit(1);
+      }
+
+      // Handle ServiceNow Form Login
       const loginUser = await page.$("#user_name");
-      if (loginUser && opts.username && opts.password) {
+      if (loginUser) {
+        if (!opts.username || !opts.password) {
+          console.error("[PlaybookRunner] Instance requires login credentials. Please provide username and password.");
+          process.exit(1);
+        }
         console.log(`[PlaybookRunner] Performing form login as '${opts.username}'...`);
-        await page.type("#user_name", opts.username, { delay: 30 });
-        await page.type("#user_password", opts.password, { delay: 30 });
+        await page.type("#user_name", opts.username, { delay: 20 });
+        await page.type("#user_password", opts.password, { delay: 20 });
         await Promise.all([
-          page.waitForNavigation({ waitUntil: "networkidle2", timeout: 12000 }).catch(() => {}),
+          page.waitForNavigation({ waitUntil: "domcontentloaded", timeout: 30000 }).catch(() => {}),
           page.click("#sysverb_login"),
         ]);
         liveAuthenticated = true;
@@ -588,12 +599,6 @@ async function main() {
           console.warn("[PlaybookRunner] Could not save storageState:", err);
         }
       }
-    }
-
-    // Offline / fallback to authentic ServiceNow workspace preview
-    if (!isLiveConnected || page.url().includes("about:blank") || page.url().includes("ERR_")) {
-      console.log("[PlaybookRunner] Using authentic ServiceNow Agent Workspace preview for demonstration...");
-      await page.setContent(buildServiceNowOfflineHtml(), { waitUntil: "load" });
     }
 
     await injectCursorOverlay(page);

@@ -95,6 +95,7 @@ async def _run_chrome_capture(
     username: str = "",
     password: str = "",
     duration: float = 3.0,
+    fake_mode: bool = False,
 ) -> bool:
     """Execute live Chrome / Puppeteer screenshot or WebM video capture."""
     script_path = (
@@ -121,6 +122,8 @@ async def _run_chrome_capture(
         "--duration",
         str(duration),
     ]
+    if fake_mode:
+        cmd.append("--fake")
     if username and password:
         cmd.extend(["--username", username, "--password", password])
 
@@ -202,6 +205,14 @@ async def _execute_video_playbook(
     return ok, exec_res.live_authenticated, steps
 
 
+def _delete_companion_files(media_dir: Path, filename: str) -> None:
+    """Clean up companion thumbnail or related files sharing same stem."""
+    stem = Path(filename).stem
+    for companion in media_dir.glob(f"{stem}.*"):
+        if companion.name != "captures.json" and companion.is_file():
+            companion.unlink()
+
+
 class PlaywrightCaptureEngine:
     """Captures screenshots and videos from a ServiceNow instance into a demo bundle."""
 
@@ -240,6 +251,7 @@ class PlaywrightCaptureEngine:
             raise FileNotFoundError(f"Capture file '{filename}' not found in '{bundle_id}'.")
         if target_file.exists():
             target_file.unlink()
+        _delete_companion_files(media_dir, filename)
         index_file = media_dir / "captures.json"
         index_file.write_text(
             json.dumps([a.model_dump() for a in remaining], indent=2), encoding="utf-8"
@@ -329,6 +341,7 @@ class PlaywrightCaptureEngine:
                     req.viewport_height,
                     username=username,
                     password=password,
+                    fake_mode=req.fake_mode,
                 )
                 if chrome_ok:
                     used_engine = "google-chrome-native"

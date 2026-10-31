@@ -123,6 +123,7 @@ def _build_runner_cmd(
     viewport_width: int,
     viewport_height: int,
     instance: InstanceRecord,
+    fake_mode: bool = False,
 ) -> list[str]:
     node_bin = shutil.which("node") or "node"
     cmd = [
@@ -145,6 +146,8 @@ def _build_runner_cmd(
         "--height",
         str(viewport_height),
     ]
+    if fake_mode:
+        cmd.append("--fake")
     if instance.username:
         cmd.extend(["--username", instance.username])
     if instance.password:
@@ -260,6 +263,7 @@ class PlaywrightPlaybookDriver:
             viewport_width,
             viewport_height,
             instance,
+            fake_mode,
         )
 
         try:

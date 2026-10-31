@@ -22,11 +22,13 @@ function parseArgs() {
     width: 1280,
     height: 720,
     duration: 3,
+    fake: false,
   };
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
-    if (arg === "--url" && args[i + 1]) options.url = args[++i];
+    if (arg === "--fake") options.fake = true;
+    else if (arg === "--url" && args[i + 1]) options.url = args[++i];
     else if (arg === "--output" && args[i + 1]) options.output = args[++i];
     else if (arg === "--mode" && args[i + 1]) options.mode = args[++i];
     else if (arg === "--username" && args[i + 1]) options.username = args[++i];
@@ -523,36 +525,38 @@ async function main() {
       await page.authenticate({ username: opts.username, password: opts.password }).catch(() => {});
     }
 
-    let isLiveConnected = false;
-    console.log(`[ChromeCapture] Connecting to instance target: ${opts.url}`);
-    try {
-      const resp = await page.goto(opts.url, { waitUntil: "networkidle2", timeout: 10000 });
-      if (resp && resp.status() < 400) {
-        isLiveConnected = true;
+    if (opts.fake) {
+      console.log("[ChromeCapture] Fake mode enabled: Rendering simulated ServiceNow Agent Workspace...");
+      await page.setContent(buildServiceNowOfflineHtml(), { waitUntil: "load" });
+    } else {
+      console.log(`[ChromeCapture] Connecting to live instance target: ${opts.url}`);
+      try {
+        const resp = await page.goto(opts.url, { waitUntil: "domcontentloaded", timeout: 30000 });
+        if (resp && resp.status() >= 400) {
+          console.error(`[ChromeCapture] HTTP ${resp.status()} error loading target instance.`);
+          process.exit(1);
+        }
+      } catch (err) {
+        console.error(`[ChromeCapture] Live target unreachable: ${err.message}`);
+        process.exit(1);
       }
-    } catch {
-      // Continue with offline workspace fallback if instance is unreachable
-    }
 
-    // Check for ServiceNow web login page redirect
-    if (isLiveConnected) {
+      // Check for ServiceNow web login page redirect
       const loginUser = await page.$("#user_name");
-      if (loginUser && opts.username && opts.password) {
+      if (loginUser) {
+        if (!opts.username || !opts.password) {
+          console.error("[ChromeCapture] Instance requires login credentials. Please provide username and password.");
+          process.exit(1);
+        }
         console.log(`[ChromeCapture] Authenticating user '${opts.username}' via ServiceNow login form...`);
-        await page.type("#user_name", opts.username, { delay: 30 });
-        await page.type("#user_password", opts.password, { delay: 30 });
+        await page.type("#user_name", opts.username, { delay: 20 });
+        await page.type("#user_password", opts.password, { delay: 20 });
         await Promise.all([
-          page.waitForNavigation({ waitUntil: "networkidle2", timeout: 12000 }).catch(() => {}),
+          page.waitForNavigation({ waitUntil: "domcontentloaded", timeout: 30000 }).catch(() => {}),
           page.click("#sysverb_login"),
         ]);
         console.log(`[ChromeCapture] Login submitted. Current URL: ${page.url()}`);
       }
-    }
-
-    // If unable to load live instance, load authentic ServiceNow Workspace
-    if (!isLiveConnected || page.url().includes("about:blank") || page.url().includes("ERR_")) {
-      console.log("[ChromeCapture] Using authentic ServiceNow Agent Workspace preview for demonstration...");
-      await page.setContent(buildServiceNowOfflineHtml(), { waitUntil: "load" });
     }
 
     await injectCursorOverlay(page);
