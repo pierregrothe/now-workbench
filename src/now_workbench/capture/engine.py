@@ -213,6 +213,23 @@ def _delete_companion_files(media_dir: Path, filename: str) -> None:
             companion.unlink()
 
 
+def _is_matching_capture(artifact: CaptureArtifact, filename: str, stem: str) -> bool:
+    return (
+        artifact.filename == filename
+        or artifact.id == filename
+        or Path(artifact.filename).stem == stem
+    )
+
+
+def _check_capture_exists(
+    media_dir: Path, filename: str, stem: str, n_remaining: int, n_existing: int
+) -> bool:
+    if n_remaining < n_existing or (media_dir / filename).exists():
+        return True
+    matches = [m for m in media_dir.glob(f"{stem}.*") if m.name != "captures.json"]
+    return len(matches) > 0
+
+
 class PlaywrightCaptureEngine:
     """Captures screenshots and videos from a ServiceNow instance into a demo bundle."""
 
@@ -243,11 +260,11 @@ class PlaywrightCaptureEngine:
         if not filename or "/" in filename or "\\" in filename or ".." in filename:
             raise ValueError(f"Invalid capture filename: {filename}")
         media_dir = self._media_dir(bundle_id)
+        stem = Path(filename).stem
         target_file = media_dir / filename
         existing = self.list_captures(bundle_id)
-        remaining = [a for a in existing if a.filename != filename]
-        found = len(remaining) < len(existing) or target_file.exists()
-        if not found:
+        remaining = [a for a in existing if not _is_matching_capture(a, filename, stem)]
+        if not _check_capture_exists(media_dir, filename, stem, len(remaining), len(existing)):
             raise FileNotFoundError(f"Capture file '{filename}' not found in '{bundle_id}'.")
         if target_file.exists():
             target_file.unlink()

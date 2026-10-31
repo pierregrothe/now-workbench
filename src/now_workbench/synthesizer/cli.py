@@ -63,6 +63,8 @@ def capture_demo_cmd(
     with db_session() as repo:
         inst = repo.get_instance(instance) if instance else repo.get_default_instance()
     inst_url = inst.url if inst else "https://demoalectriallwfau164179.service-now.com"
+    username = inst.username if inst else ""
+    password = inst.password if inst else ""
 
     engine = PlaywrightCaptureEngine(bundles_dir=settings.get_bundles_dir())
     artifact = asyncio.run(
@@ -76,6 +78,8 @@ def capture_demo_cmd(
                 fake_mode=fake,
             ),
             instance_url=inst_url,
+            username=username,
+            password=password,
         )
     )
     msg = (

@@ -556,7 +556,32 @@ async function main() {
       console.log("[PlaybookRunner] Fake mode enabled: Rendering simulated ServiceNow Agent Workspace...");
       await page.setContent(buildServiceNowOfflineHtml(), { waitUntil: "load" });
     } else {
-      console.log(`[PlaybookRunner] Connecting to live instance target: ${targetUrl}`);
+      const baseUrl = new URL(targetUrl).origin;
+      if (opts.username && opts.password) {
+        console.log(`[PlaybookRunner] Authenticating user '${opts.username}' via ${baseUrl}/login.do...`);
+        try {
+          await page.goto(`${baseUrl}/login.do`, { waitUntil: "domcontentloaded", timeout: 30000 });
+          const hasUserInput = await page.waitForSelector("#user_name", { timeout: 10000 }).catch(() => null);
+          if (hasUserInput) {
+            console.log(`[PlaybookRunner] Submitting credentials as '${opts.username}'...`);
+            await page.type("#user_name", opts.username, { delay: 40 });
+            await page.type("#user_password", opts.password, { delay: 40 });
+            await Promise.all([
+              page.waitForNavigation({ waitUntil: "domcontentloaded", timeout: 30000 }).catch(() => {}),
+              page.click("#sysverb_login"),
+            ]);
+            await page.waitForFunction(
+              () => !window.location.href.includes("login.do"),
+              { timeout: 30000 }
+            ).catch(() => {});
+          }
+          liveAuthenticated = true;
+        } catch (err) {
+          console.warn(`[PlaybookRunner] Login attempt warning: ${err.message}`);
+        }
+      }
+
+      console.log(`[PlaybookRunner] Navigating to destination: ${targetUrl}`);
       try {
         const resp = await page.goto(targetUrl, { waitUntil: "domcontentloaded", timeout: 30000 });
         if (resp && resp.status() >= 400) {
@@ -568,24 +593,13 @@ async function main() {
         process.exit(1);
       }
 
-      // Handle ServiceNow Form Login
-      const loginUser = await page.$("#user_name");
-      if (loginUser) {
-        if (!opts.username || !opts.password) {
-          console.error("[PlaybookRunner] Instance requires login credentials. Please provide username and password.");
-          process.exit(1);
-        }
-        console.log(`[PlaybookRunner] Performing form login as '${opts.username}'...`);
-        await page.type("#user_name", opts.username, { delay: 20 });
-        await page.type("#user_password", opts.password, { delay: 20 });
-        await Promise.all([
-          page.waitForNavigation({ waitUntil: "domcontentloaded", timeout: 30000 }).catch(() => {}),
-          page.click("#sysverb_login"),
-        ]);
-        liveAuthenticated = true;
-      } else if (!page.url().includes("login.do")) {
-        liveAuthenticated = true;
+      await page.waitForSelector("table, .list_div, #incident_table, form, .form_header, body", { timeout: 15000 }).catch(() => {});
+
+      if (page.url().includes("login.do")) {
+        console.error("[PlaybookRunner] Authentication failed: still on login.do.");
+        process.exit(1);
       }
+      liveAuthenticated = true;
 
       // Persist session cookies to storageState
       if (opts.storageState && liveAuthenticated) {
@@ -655,79 +669,243 @@ async function main() {
         console.log(`[PlaybookRunner] Executing step '${step.id}': ${step.description}`);
 
         if (step.action === "authenticate") {
-          // Handled during initial connection
-          await captureFrame();
-        } else if (step.action === "navigate") {
-          await moveCursor(cursorX, cursorY, 320, 110, 5);
-          cursorX = 320;
-          cursorY = 110;
-          await captureFrame();
-        } else if (step.action === "move_and_click" || step.action === "click") {
-          let targetCoords = { x: 480, y: 210 };
-          if (step.selector && step.selector.includes("save")) {
-            targetCoords = { x: 880, y: 575 };
-          }
-          await moveCursor(cursorX, cursorY, targetCoords.x, targetCoords.y, 6);
-          cursorX = targetCoords.x;
-          cursorY = targetCoords.y;
-
-          await page.evaluate((x, y) => window.__wb_click_pulse?.(x, y), cursorX, cursorY);
-          await captureFrame();
-
-          // Trigger simulated UI reactions in workspace
-          await page.evaluate((sel) => {
-            if (sel && sel.includes("row")) {
-              const row = document.getElementById("row-target-incident");
-              if (row) row.classList.add("selected");
-              const panel = document.getElementById("detail-panel");
-              if (panel) panel.style.display = "block";
-              const group = document.getElementById("target-assign-group");
-              if (group) {
-                group.innerText = "Network Operations";
-                group.style.color = "#059669";
-                group.style.fontWeight = "700";
-              }
-            } else if (sel && sel.includes("save")) {
-              const btn = document.getElementById("btn-save-incident");
-              if (btn) {
-                btn.classList.add("success");
-                btn.innerText = "Saved & Verified ✓";
-              }
-            }
-          }, step.selector);
-
-          await captureFrame();
-        } else if (step.action === "type") {
-          const targetCoords = { x: 460, y: 490 };
-          await moveCursor(cursorX, cursorY, targetCoords.x, targetCoords.y, 5);
-          cursorX = targetCoords.x;
-          cursorY = targetCoords.y;
-          await page.evaluate((x, y) => window.__wb_click_pulse?.(x, y), cursorX, cursorY);
-          await captureFrame();
-
-          const textToType = step.text || "[Now Assist] Auto-triaged to Network Operations.";
-          const chunks = [
-            textToType.slice(0, 18),
-            textToType.slice(18, 45),
-            textToType.slice(45),
-          ].filter(Boolean);
-
-          for (const chunk of chunks) {
-            await page.evaluate((txt) => {
-              const input = document.getElementById("work-notes-input");
-              if (input) input.value += txt;
-            }, chunk);
+          const authCoords = opts.fake ? { x: opts.width - 120, y: 26 } : { x: opts.width - 140, y: 30 };
+          await moveCursor(cursorX, cursorY, authCoords.x, authCoords.y, 6);
+          cursorX = authCoords.x;
+          cursorY = authCoords.y;
+          for (let f = 0; f < 10; f++) {
             await captureFrame();
             await new Promise((r) => setTimeout(r, 60));
           }
-        } else if (step.action === "ai_triage") {
-          await moveCursor(cursorX, cursorY, 520, 340, 5);
-          cursorX = 520;
-          cursorY = 340;
+        } else if (step.action === "navigate") {
+          if (!opts.fake) {
+            const baseUrl = new URL(page.url()).origin;
+            const dest = step.path
+              ? (step.path.startsWith("http") ? step.path : `${baseUrl}${step.path}`)
+              : page.url();
+            console.log(`[PlaybookRunner] Navigating to ${dest}...`);
+            await page.goto(dest, { waitUntil: "domcontentloaded", timeout: 30000 });
+            await page.waitForSelector("table, .list_div, #incident_table, form, .form_header, body", { timeout: 15000 }).catch(() => {});
+            await injectCursorOverlay(page);
+          }
+          await moveCursor(cursorX, cursorY, 320, 110, 8);
+          cursorX = 320;
+          cursorY = 110;
+          for (let f = 0; f < 14; f++) {
+            await captureFrame();
+            await new Promise((r) => setTimeout(r, 60));
+          }
+        } else if (step.action === "move_and_click" || step.action === "click") {
+          const targetCoords = await page.evaluate((sel, desc, isFake) => {
+            function getCenter(el) {
+              if (!el) return null;
+              const r = el.getBoundingClientRect();
+              if (r.width > 0 && r.height > 0) {
+                return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2), found: true };
+              }
+              return null;
+            }
+
+            if (isFake) {
+              if (sel && sel.includes("save")) return { x: 880, y: 575, found: true };
+              return { x: 480, y: 210, found: true };
+            }
+
+            const textHint = (desc && desc.toLowerCase().includes("vpn")) ? "vpn" : null;
+            if (textHint) {
+              const rows = Array.from(document.querySelectorAll("tr.list_row, tr"));
+              for (const r of rows) {
+                if (r.innerText && r.innerText.toLowerCase().includes(textHint)) {
+                  const link = r.querySelector("a.linked.formlink, a[href*='incident.do'], a");
+                  const c = getCenter(link || r);
+                  if (c) return c;
+                }
+              }
+            }
+
+            if (sel) {
+              const parts = sel.split(",").map(p => p.trim());
+              for (const p of parts) {
+                if (p.includes(":has-text(")) {
+                  const m = p.match(/(.*?):has-text\(['"](.*?)['"]\)/);
+                  if (m) {
+                    const tag = m[1] || "*";
+                    const query = m[2].toLowerCase();
+                    const matches = Array.from(document.querySelectorAll(tag)).filter(e => e.innerText && e.innerText.toLowerCase().includes(query));
+                    if (matches.length > 0) {
+                      const c = getCenter(matches[0]);
+                      if (c) return c;
+                    }
+                  }
+                } else {
+                  try {
+                    const el = document.querySelector(p);
+                    const c = getCenter(el);
+                    if (c) return c;
+                  } catch {}
+                }
+              }
+            }
+
+            if (sel && (sel.includes("save") || sel.includes("update") || sel.includes("sysverb_update"))) {
+              const btn = document.querySelector("#sysverb_update, button#sysverb_update, input#sysverb_update, #sysverb_update_bottom");
+              const c = getCenter(btn);
+              if (c) return c;
+            }
+
+            const firstLink = document.querySelector("a.linked.formlink, a[href*='incident.do']");
+            const c = getCenter(firstLink);
+            if (c) return c;
+
+            return { x: 480, y: 210, found: false };
+          }, step.selector, step.description, opts.fake);
+
+          await moveCursor(cursorX, cursorY, targetCoords.x, targetCoords.y, 8);
+          cursorX = targetCoords.x;
+          cursorY = targetCoords.y;
+
+          await page.evaluate((x, y) => window.__wb_click_pulse?.(x, y), cursorX, cursorY);
           await captureFrame();
-        } else if (step.action === "wait_for") {
+
+          if (!opts.fake) {
+            console.log(`[PlaybookRunner] Clicking live element at (${cursorX}, ${cursorY})...`);
+            const didClick = await page.evaluate((x, y, sel, desc) => {
+              const textHint = (desc && desc.toLowerCase().includes("vpn")) ? "vpn" : null;
+              if (textHint) {
+                const links = Array.from(document.querySelectorAll("a.linked.formlink, a[href*='incident.do'], a"));
+                const match = links.find(l => l.innerText && l.innerText.toLowerCase().includes(textHint));
+                if (match) { match.click(); return true; }
+              }
+
+              if (sel && (sel.includes("save") || sel.includes("update") || sel.includes("sysverb_update"))) {
+                const btn = document.querySelector("#sysverb_update, button#sysverb_update, input#sysverb_update, #sysverb_update_bottom");
+                if (btn) { btn.click(); return true; }
+              }
+
+              const el = document.elementFromPoint(x, y);
+              if (el) {
+                const clickable = el.closest("a, button, input[type='button'], input[type='submit']") || el;
+                clickable.click();
+                return true;
+              }
+
+              const firstLink = document.querySelector("a.linked.formlink, a[href*='incident.do']");
+              if (firstLink && sel && (sel.includes("row") || sel.includes("incident"))) {
+                firstLink.click();
+                return true;
+              }
+              return false;
+            }, cursorX, cursorY, step.selector, step.description);
+
+            if (didClick) {
+              await page.waitForNavigation({ waitUntil: "domcontentloaded", timeout: 20000 }).catch(() => {});
+              await page.waitForSelector("form, .form_header, #incident_table, table, body", { timeout: 10000 }).catch(() => {});
+              await injectCursorOverlay(page);
+              for (let f = 0; f < 12; f++) {
+                await captureFrame();
+                await new Promise((r) => setTimeout(r, 60));
+              }
+            }
+          } else {
+            await page.evaluate((sel) => {
+              if (sel && sel.includes("row")) {
+                const row = document.getElementById("row-target-incident");
+                if (row) row.classList.add("selected");
+                const panel = document.getElementById("detail-panel");
+                if (panel) panel.style.display = "block";
+                const group = document.getElementById("target-assign-group");
+                if (group) {
+                  group.innerText = "Network Operations";
+                  group.style.color = "#059669";
+                  group.style.fontWeight = "700";
+                }
+              } else if (sel && sel.includes("save")) {
+                const btn = document.getElementById("btn-save-incident");
+                if (btn) {
+                  btn.classList.add("success");
+                  btn.innerText = "Saved & Verified ✓";
+                }
+              }
+            }, step.selector);
+            for (let f = 0; f < 6; f++) {
+              await captureFrame();
+              await new Promise((r) => setTimeout(r, 50));
+            }
+          }
+        } else if (step.action === "type") {
+          const inputCoords = await page.evaluate((isFake) => {
+            if (isFake) {
+              const el = document.getElementById("work-notes-input");
+              if (el) {
+                const r = el.getBoundingClientRect();
+                return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2), found: true };
+              }
+              return { x: 460, y: 490, found: true };
+            }
+            const el = document.querySelector(
+              "#activity-stream-textarea, textarea[name='incident.work_notes'], textarea[id*='work_notes'], #activity-stream-work_notes-textarea, textarea[name='work_notes'], textarea"
+            );
+            if (el) {
+              const r = el.getBoundingClientRect();
+              if (r.width > 0 && r.height > 0) {
+                return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2), found: true };
+              }
+            }
+            return { x: 500, y: 450, found: false };
+          }, opts.fake);
+
+          await moveCursor(cursorX, cursorY, inputCoords.x, inputCoords.y, 8);
+          cursorX = inputCoords.x;
+          cursorY = inputCoords.y;
+          await page.evaluate((x, y) => window.__wb_click_pulse?.(x, y), cursorX, cursorY);
           await captureFrame();
-          await new Promise((r) => setTimeout(r, Math.min(step.wait_ms || 400, 1000)));
+
+          if (!opts.fake) {
+            await page.evaluate(() => {
+              const el = document.querySelector(
+                "#activity-stream-textarea, textarea[name='incident.work_notes'], textarea[id*='work_notes'], #activity-stream-work_notes-textarea, textarea[name='work_notes'], textarea"
+              );
+              if (el) {
+                el.focus();
+                el.scrollIntoView({ behavior: "smooth", block: "center" });
+              }
+            });
+          }
+
+          const textToType = step.text || "[Now Assist] Auto-triaged to Network Operations.";
+          const chunks = [];
+          for (let i = 0; i < textToType.length; i += 10) {
+            chunks.push(textToType.slice(i, i + 10));
+          }
+
+          for (const chunk of chunks) {
+            await page.evaluate((txt, isFake) => {
+              const el = isFake
+                ? document.getElementById("work-notes-input")
+                : document.querySelector("#activity-stream-textarea, textarea[name='incident.work_notes'], textarea[id*='work_notes'], #activity-stream-work_notes-textarea, textarea[name='work_notes'], textarea");
+              if (el) {
+                el.value = (el.value || "") + txt;
+                el.dispatchEvent(new Event("input", { bubbles: true }));
+                el.dispatchEvent(new Event("change", { bubbles: true }));
+              }
+            }, chunk, opts.fake);
+            await captureFrame();
+            await new Promise((r) => setTimeout(r, 60));
+          }
+
+          for (let f = 0; f < 10; f++) {
+            await captureFrame();
+            await new Promise((r) => setTimeout(r, 60));
+          }
+        } else if (step.action === "ai_triage" || step.action === "wait_for") {
+          const triageCoords = opts.fake ? { x: 520, y: 340 } : { x: 580, y: 280 };
+          await moveCursor(cursorX, cursorY, triageCoords.x, triageCoords.y, 8);
+          cursorX = triageCoords.x;
+          cursorY = triageCoords.y;
+          for (let f = 0; f < 16; f++) {
+            await captureFrame();
+            await new Promise((r) => setTimeout(r, 60));
+          }
         }
       } catch (err) {
         if (!step.optional) {
@@ -791,7 +969,7 @@ async function main() {
 
             ctx.clearRect(0, 0, w, h);
             ctx.drawImage(img, 0, 0, w, h);
-            await new Promise((r) => setTimeout(r, 70));
+            await new Promise((r) => setTimeout(r, 80));
           }
 
           await new Promise((r) => setTimeout(r, 250));
