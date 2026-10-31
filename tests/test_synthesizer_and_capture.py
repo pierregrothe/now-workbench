@@ -262,6 +262,17 @@ def test_api_synthesize_and_captures_routes(tmp_path: Path) -> None:
         remaining_caps = client.get(f"/api/demos/{bundle_id}/captures").json()
         assert len(remaining_caps) == 1
 
+        # DELETE all captures for bundle
+        clear_all_res = client.delete(f"/api/demos/{bundle_id}/captures")
+        assert clear_all_res.status_code == 200
+        assert clear_all_res.json()["deleted_count"] >= 1
+        assert client.get(f"/api/demos/{bundle_id}/captures").json() == []
+
+        # Legacy aliases
+        legacy_list = client.get(f"/api/capture/{bundle_id}/list")
+        assert legacy_list.status_code == 200
+        assert legacy_list.json()["captures"] == []
+
         # HTTP PATCH bundle manifest
         patch_b_res = client.request(
             "PATCH",
@@ -355,6 +366,22 @@ def test_cli_demo_synthesize_and_capture(tmp_path: Path) -> None:
         )
         assert del_cap_res.exit_code == 0
         assert "Deleted capture artifact" in del_cap_res.stdout
+
+        # Capture another file and test --all deletion
+        engine = PlaywrightCaptureEngine(bundles_dir=tmp_path)
+        runner.invoke(
+            cli_app,
+            ["demo", "capture", synth_id, "--fake", "--type", "video"],
+        )
+        assert len(engine.list_captures(synth_id)) == 1
+
+        del_all_res = runner.invoke(
+            cli_app,
+            ["demo", "delete-capture", synth_id, "--all"],
+        )
+        assert del_all_res.exit_code == 0
+        assert "Cleared all" in del_all_res.stdout
+        assert len(engine.list_captures(synth_id)) == 0
 
         # Update demo bundle
         up_demo_res = runner.invoke(

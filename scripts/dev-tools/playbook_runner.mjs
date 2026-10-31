@@ -601,15 +601,30 @@ async function main() {
 
     const frames = [];
     async function captureFrame() {
-      const buf = await page.screenshot({ encoding: "base64", type: "jpeg", quality: 80 });
-      frames.push(buf);
+      try {
+        const buf = await page.screenshot({ encoding: "base64", type: "jpeg", quality: 80 });
+        frames.push(buf);
+      } catch {
+        try {
+          await new Promise((r) => setTimeout(r, 200));
+          const buf = await page.screenshot({ encoding: "base64", type: "jpeg", quality: 80 });
+          frames.push(buf);
+        } catch {}
+      }
     }
 
     async function moveCursor(startX, startY, endX, endY, steps = 6) {
       for (let i = 1; i <= steps; i++) {
         const curX = Math.round(startX + ((endX - startX) * i) / steps);
         const curY = Math.round(startY + ((endY - startY) * i) / steps);
-        await page.evaluate((x, y) => window.__wb_set_cursor?.(x, y), curX, curY);
+        try {
+          await page.evaluate((x, y) => window.__wb_set_cursor?.(x, y), curX, curY);
+        } catch {
+          try {
+            await injectCursorOverlay(page);
+            await page.evaluate((x, y) => window.__wb_set_cursor?.(x, y), curX, curY);
+          } catch {}
+        }
         await captureFrame();
         await new Promise((r) => setTimeout(r, 40));
       }

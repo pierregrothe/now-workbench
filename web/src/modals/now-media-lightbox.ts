@@ -179,6 +179,19 @@ export class NowMediaLightbox extends LitElement {
     );
   }
 
+  private handleDelete(): void {
+    if (!this.artifact) return;
+    if (window.confirm(`Delete capture proof '${this.artifact.filename}'?`)) {
+      this.dispatchEvent(
+        new CustomEvent('delete', {
+          detail: { filename: this.artifact.filename, bundleId: this.artifact.bundle_id },
+          bubbles: true,
+          composed: true,
+        })
+      );
+    }
+  }
+
   private formatDate(isoString?: string): string {
     if (!isoString) return '';
     try {
@@ -256,6 +269,13 @@ export class NowMediaLightbox extends LitElement {
                 @click=${this.handleRename}
               >
                 Rename
+              </button>
+              <button
+                class="action-btn"
+                style="color: #dc2626; border-color: #fca5a5;"
+                @click=${this.handleDelete}
+              >
+                Delete
               </button>
               <a
                 class="action-btn"

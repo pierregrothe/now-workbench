@@ -18,6 +18,7 @@ from now_workbench.api.settings_api import router as settings_router
 from now_workbench.api.templates import router as templates_router
 from now_workbench.api.threads import _load_verified_instances_dict
 from now_workbench.api.threads import router as threads_router
+from now_workbench.capture.engine import PlaywrightCaptureEngine
 from now_workbench.config.settings import settings
 from now_workbench.db import (
     ChatMessageRecord,
@@ -119,7 +120,19 @@ def create_app() -> FastAPI:
     sdk_runner = NowSdkRunner(now_sdk_bin=settings.now_sdk_bin, node_bin=settings.node_bin)
     log_broadcaster = LogBroadcaster()
 
-    # -- Health & Diagnostics --------------------------------------------------
+    _register_diagnostics(app, sdk_runner)
+    _register_ai_tiles(app)
+    _register_build_deploy(app, sdk_runner, log_broadcaster)
+    _register_legacy_capture_routes(app)
+    _register_websockets(app, log_broadcaster)
+    _mount_static_ui(app)
+
+    return app
+
+
+def _register_diagnostics(app: FastAPI, sdk_runner: NowSdkRunner) -> None:
+    """Register health check and administrative diagnostics routes."""
+
     @app.get("/api/health")
     def health_check() -> dict[str, Any]:
         with db_session() as repo:
@@ -152,7 +165,10 @@ def create_app() -> FastAPI:
             "otto_status": "Ready" if settings.anthropic_api_key else "Simulated",
         }
 
-    # -- Generative UI Tile Resolution -----------------------------------------
+
+def _register_ai_tiles(app: FastAPI) -> None:
+    """Register generative AI tile resolution endpoint."""
+
     class GenerativeUIQueryRequest(BaseModel):
         model_config = ConfigDict(extra="forbid", frozen=True)
         query: str
@@ -166,10 +182,14 @@ def create_app() -> FastAPI:
             instances = _load_verified_instances_dict(repo)
         return resolve_query_to_tiles(req.query, instances=instances)
 
-    # -- Build & Deploy Operations ---------------------------------------------
+
+def _register_build_deploy(
+    app: FastAPI, sdk_runner: NowSdkRunner, log_broadcaster: LogBroadcaster
+) -> None:
+    """Register demo build and deployment execution endpoints."""
+
     class BuildRequest(BaseModel):
         model_config = ConfigDict(extra="forbid", frozen=True)
-
         stream_logs: bool = True
         instance_id: str | None = None
 
@@ -228,11 +248,29 @@ def create_app() -> FastAPI:
             "target_instance": target_inst.name if target_inst else "default",
         }
 
-    # -- WebSockets & Static UI ------------------------------------------------
-    _register_websockets(app, log_broadcaster)
-    _mount_static_ui(app)
 
-    return app
+def _register_legacy_capture_routes(app: FastAPI) -> None:
+    """Register backwards-compatible media capture aliases."""
+
+    @app.get("/api/capture/{bundle_id}/list")
+    def legacy_list_captures(bundle_id: str) -> dict[str, Any]:
+        engine = PlaywrightCaptureEngine(bundles_dir=settings.get_bundles_dir())
+        return {"captures": [c.model_dump() for c in engine.list_captures(bundle_id)]}
+
+    @app.delete("/api/capture/{bundle_id}/all")
+    def legacy_clear_bundle_captures(bundle_id: str) -> dict[str, Any]:
+        engine = PlaywrightCaptureEngine(bundles_dir=settings.get_bundles_dir())
+        count = engine.clear_all_captures(bundle_id)
+        return {"success": True, "bundle_id": bundle_id, "deleted_count": count}
+
+    @app.delete("/api/capture/{filename}")
+    def legacy_delete_capture(filename: str) -> dict[str, Any]:
+        engine = PlaywrightCaptureEngine(bundles_dir=settings.get_bundles_dir())
+        for b in settings.get_bundles_dir().iterdir():
+            if b.is_dir() and (b / "media" / filename).exists():
+                engine.delete_capture(b.name, filename)
+                return {"success": True, "bundle_id": b.name, "filename": filename}
+        raise HTTPException(status_code=404, detail="Capture artifact not found.")
 
 
 def _register_websockets(app: FastAPI, log_broadcaster: LogBroadcaster) -> None:

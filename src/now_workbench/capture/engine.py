@@ -246,6 +246,21 @@ class PlaywrightCaptureEngine:
         )
         return True
 
+    def clear_all_captures(self, bundle_id: str) -> int:
+        """Delete all recorded screenshot and video captures for a bundle."""
+        if not bundle_id or "/" in bundle_id or "\\" in bundle_id or ".." in bundle_id:
+            raise ValueError(f"Invalid bundle ID: {bundle_id}")
+        media_dir = self._media_dir(bundle_id)
+        count = 0
+        for item in media_dir.glob("*"):
+            if item.is_file() and item.name != "captures.json":
+                if item.suffix.lower() in (".png", ".webm", ".json", ".jpg", ".jpeg"):
+                    item.unlink()
+                    count += 1
+        index_file = media_dir / "captures.json"
+        index_file.write_text("[]\n", encoding="utf-8")
+        return count
+
     def update_capture(self, bundle_id: str, filename: str, label: str) -> CaptureArtifact:
         """Update label/caption of an existing capture artifact in captures.json."""
         if not filename or "/" in filename or "\\" in filename or ".." in filename:

@@ -281,11 +281,27 @@ def update_capture_cmd(
 
 def delete_capture_cmd(
     bundle_id: str = typer.Argument(..., help="Demo bundle ID"),
-    filename: str = typer.Argument(..., help="Capture filename (.png or .webm) to delete"),
+    filename: str | None = typer.Argument(
+        None, help="Capture filename (.png or .webm) to delete, or omit with --all"
+    ),
+    all_captures: bool = typer.Option(
+        False, "--all", "-a", help="Delete all captures for this bundle"
+    ),
 ) -> None:
-    """Delete a recorded screenshot or video artifact file."""
+    """Delete a recorded screenshot or video artifact file, or all captures for a bundle."""
     engine = PlaywrightCaptureEngine(bundles_dir=settings.get_bundles_dir())
     try:
+        if all_captures or filename in ("all", "--all"):
+            count = engine.clear_all_captures(bundle_id)
+            console.print(f"[green][OK][/green] Cleared all {count} captures from '{bundle_id}'.")
+            return
+
+        if not filename:
+            console.print(
+                "[red]Error: Specify a filename to delete or pass --all to clear captures.[/red]"
+            )
+            raise typer.Exit(code=1)
+
         engine.delete_capture(bundle_id, filename)
         console.print(
             f"[green][OK][/green] Deleted capture artifact '{filename}' from bundle '{bundle_id}'."

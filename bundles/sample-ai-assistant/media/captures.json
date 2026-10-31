@@ -1,5 +1,163 @@
 [
   {
+    "id": "cap-85f2d5ca",
+    "bundle_id": "sample-ai-assistant",
+    "instance_url": "https://demoalectriallwfau164179.service-now.com",
+    "target_path": "/incident_list.do",
+    "media_type": "video",
+    "label": "Verified Demo Execution Proof - sample-ai-assistant",
+    "filename": "cap-85f2d5ca.webm",
+    "file_path": "/Users/pierre.grothe/Developer/now-workbench/bundles/sample-ai-assistant/media/cap-85f2d5ca.webm",
+    "url": "/api/demos/sample-ai-assistant/captures/cap-85f2d5ca.webm",
+    "engine": "google-chrome-native",
+    "created_at": "2026-10-31T15:59:46.428684+00:00",
+    "live_authenticated": false,
+    "step_results": [
+      {
+        "step_id": "step-1",
+        "action": "authenticate",
+        "description": "Authenticate user session against ServiceNow instance",
+        "status": "passed",
+        "duration_ms": 26,
+        "error_message": null,
+        "screenshot_file": null
+      },
+      {
+        "step_id": "step-2",
+        "action": "navigate",
+        "description": "Navigate to the unassigned incident queue",
+        "status": "failed",
+        "duration_ms": 609,
+        "error_message": "Error: Execution context was destroyed, most likely because of a navigation.",
+        "screenshot_file": null
+      },
+      {
+        "step_id": "step-3",
+        "action": "move_and_click",
+        "description": "Select the target VPN connection incident",
+        "status": "passed",
+        "duration_ms": 586,
+        "error_message": null,
+        "screenshot_file": null
+      },
+      {
+        "step_id": "step-4",
+        "action": "wait_for",
+        "description": "Wait for incident detail and Now Assist triage panel to load",
+        "status": "passed",
+        "duration_ms": 552,
+        "error_message": null,
+        "screenshot_file": null
+      },
+      {
+        "step_id": "step-5",
+        "action": "ai_triage",
+        "description": "Inspect Now Assist entity extraction and routing confidence",
+        "status": "passed",
+        "duration_ms": 453,
+        "error_message": null,
+        "screenshot_file": null
+      },
+      {
+        "step_id": "step-6",
+        "action": "type",
+        "description": "Log autonomous AI routing recommendation into Work Notes",
+        "status": "passed",
+        "duration_ms": 789,
+        "error_message": null,
+        "screenshot_file": null
+      },
+      {
+        "step_id": "step-7",
+        "action": "move_and_click",
+        "description": "Save incident with verified AI routing decision",
+        "status": "passed",
+        "duration_ms": 457,
+        "error_message": null,
+        "screenshot_file": null
+      }
+    ]
+  },
+  {
+    "id": "cap-b05bc849",
+    "bundle_id": "sample-ai-assistant",
+    "instance_url": "https://demoalectriallwfau164179.service-now.com",
+    "target_path": "/now/nav/ui/classic/params/target/incident_list.do",
+    "media_type": "video",
+    "label": "Live AI Walkthrough Test",
+    "filename": "cap-b05bc849.webm",
+    "file_path": "/Users/pierre.grothe/Developer/now-workbench/bundles/sample-ai-assistant/media/cap-b05bc849.webm",
+    "url": "/api/demos/sample-ai-assistant/captures/cap-b05bc849.webm",
+    "engine": "google-chrome-native",
+    "created_at": "2026-10-31T15:56:28.629231+00:00",
+    "live_authenticated": false,
+    "step_results": [
+      {
+        "step_id": "step-1",
+        "action": "authenticate",
+        "description": "Authenticate user session against ServiceNow instance",
+        "status": "passed",
+        "duration_ms": 24,
+        "error_message": null,
+        "screenshot_file": null
+      },
+      {
+        "step_id": "step-2",
+        "action": "navigate",
+        "description": "Navigate to the unassigned incident queue",
+        "status": "passed",
+        "duration_ms": 530,
+        "error_message": null,
+        "screenshot_file": null
+      },
+      {
+        "step_id": "step-3",
+        "action": "move_and_click",
+        "description": "Select the target VPN connection incident",
+        "status": "passed",
+        "duration_ms": 752,
+        "error_message": null,
+        "screenshot_file": null
+      },
+      {
+        "step_id": "step-4",
+        "action": "wait_for",
+        "description": "Wait for incident detail and Now Assist triage panel to load",
+        "status": "passed",
+        "duration_ms": 569,
+        "error_message": null,
+        "screenshot_file": null
+      },
+      {
+        "step_id": "step-5",
+        "action": "ai_triage",
+        "description": "Inspect Now Assist entity extraction and routing confidence",
+        "status": "passed",
+        "duration_ms": 530,
+        "error_message": null,
+        "screenshot_file": null
+      },
+      {
+        "step_id": "step-6",
+        "action": "type",
+        "description": "Log autonomous AI routing recommendation into Work Notes",
+        "status": "passed",
+        "duration_ms": 928,
+        "error_message": null,
+        "screenshot_file": null
+      },
+      {
+        "step_id": "step-7",
+        "action": "move_and_click",
+        "description": "Save incident with verified AI routing decision",
+        "status": "passed",
+        "duration_ms": 755,
+        "error_message": null,
+        "screenshot_file": null
+      }
+    ]
+  },
+  {
     "id": "cap-8f279c05",
     "bundle_id": "sample-ai-assistant",
     "instance_url": "https://demoalectriallwfau164179.service-now.com",
@@ -10,7 +168,9 @@
     "file_path": "/Users/pierre.grothe/Developer/now-workbench/bundles/sample-ai-assistant/media/cap-8f279c05.webm",
     "url": "/api/demos/sample-ai-assistant/captures/cap-8f279c05.webm",
     "engine": "google-chrome-native",
-    "created_at": "2026-10-30T19:12:02.385681+00:00"
+    "created_at": "2026-10-30T19:12:02.385681+00:00",
+    "live_authenticated": false,
+    "step_results": []
   },
   {
     "id": "cap-f7ebe233",
@@ -23,6 +183,8 @@
     "file_path": "/Users/pierre.grothe/Developer/now-workbench/bundles/sample-ai-assistant/media/cap-f7ebe233.png",
     "url": "/api/demos/sample-ai-assistant/captures/cap-f7ebe233.png",
     "engine": "google-chrome-native",
-    "created_at": "2026-10-30T19:11:52.195486+00:00"
+    "created_at": "2026-10-30T19:11:52.195486+00:00",
+    "live_authenticated": false,
+    "step_results": []
   }
 ]

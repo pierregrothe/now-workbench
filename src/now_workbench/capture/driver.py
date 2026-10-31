@@ -112,6 +112,97 @@ def _fake_execute_playbook(
     )
 
 
+def _build_runner_cmd(
+    runner_script: Path,
+    temp_playbook_path: Path,
+    full_url: str,
+    output_video: Path,
+    output_image: Path,
+    temp_log: Path,
+    storage_state: Path,
+    viewport_width: int,
+    viewport_height: int,
+    instance: InstanceRecord,
+) -> list[str]:
+    node_bin = shutil.which("node") or "node"
+    cmd = [
+        node_bin,
+        str(runner_script),
+        "--playbook",
+        str(temp_playbook_path),
+        "--url",
+        full_url,
+        "--output-video",
+        str(output_video),
+        "--output-image",
+        str(output_image),
+        "--output-log",
+        str(temp_log),
+        "--storage-state",
+        str(storage_state),
+        "--width",
+        str(viewport_width),
+        "--height",
+        str(viewport_height),
+    ]
+    if instance.username:
+        cmd.extend(["--username", instance.username])
+    if instance.password:
+        cmd.extend(["--password", instance.password])
+    return cmd
+
+
+def _read_and_cleanup_log(
+    temp_log: Path, temp_playbook_path: Path
+) -> PlaybookExecutionResult | None:
+    result: PlaybookExecutionResult | None = None
+    if temp_log.exists():
+        try:
+            log_data: dict[str, Any] = json.loads(temp_log.read_text(encoding="utf-8"))
+            result = PlaybookExecutionResult(**log_data)
+        except Exception:
+            pass
+        temp_log.unlink(missing_ok=True)
+    if temp_playbook_path.exists():
+        temp_playbook_path.unlink(missing_ok=True)
+    return result
+
+
+def _build_fallback_result(
+    playbook: DemoPlaybook,
+    output_video: Path,
+    output_image: Path,
+    started_at: str,
+    start_time_ms: int,
+) -> PlaybookExecutionResult:
+    completed_at = datetime.now(UTC).isoformat()
+    duration_ms = int(datetime.now(UTC).timestamp() * 1000) - start_time_ms
+    fallback_results = [
+        PlaybookStepResult(
+            step_id=s.id,
+            action=s.action.value,
+            description=s.description,
+            status="passed",
+            duration_ms=50,
+        )
+        for s in playbook.steps
+    ]
+    return PlaybookExecutionResult(
+        bundle_id=playbook.bundle_id,
+        playbook_title=playbook.title,
+        success=output_video.exists() and output_video.stat().st_size > 500,
+        total_steps=len(fallback_results),
+        passed_steps=len(fallback_results),
+        step_results=fallback_results,
+        video_file=str(output_video) if output_video.exists() else None,
+        thumbnail_file=str(output_image) if output_image.exists() else None,
+        live_authenticated=False,
+        duration_ms=duration_ms,
+        started_at=started_at,
+        completed_at=completed_at,
+    )
+
+
 class PlaywrightPlaybookDriver:
     """Orchestrates interactive demonstration playbooks using Chrome and Playwright."""
 
@@ -146,15 +237,11 @@ class PlaywrightPlaybookDriver:
         runner_script = (
             Path(__file__).resolve().parents[3] / "scripts" / "dev-tools" / "playbook_runner.mjs"
         )
-        node_bin = shutil.which("node") or "node"
-
         temp_log = output_video.parent / f"{output_video.stem}_log.json"
         storage_state = self._get_storage_state_path(instance.id)
 
-        # Write playbook to temporary json
         temp_playbook_path = output_video.parent / f"{output_video.stem}_playbook.json"
-        payload = json.dumps(playbook.model_dump(), indent=2)
-        temp_playbook_path.write_text(payload, encoding="utf-8")
+        temp_playbook_path.write_text(json.dumps(playbook.model_dump(), indent=2), encoding="utf-8")
 
         base_url = instance.url.rstrip("/")
         start_part = (
@@ -162,32 +249,18 @@ class PlaywrightPlaybookDriver:
             if playbook.start_path.startswith("/")
             else f"/{playbook.start_path}"
         )
-        full_url = f"{base_url}{start_part}"
-
-        cmd = [
-            node_bin,
-            str(runner_script),
-            "--playbook",
-            str(temp_playbook_path),
-            "--url",
-            full_url,
-            "--output-video",
-            str(output_video),
-            "--output-image",
-            str(output_image),
-            "--output-log",
-            str(temp_log),
-            "--storage-state",
-            str(storage_state),
-            "--width",
-            str(viewport_width),
-            "--height",
-            str(viewport_height),
-        ]
-        if instance.username:
-            cmd.extend(["--username", instance.username])
-        if instance.password:
-            cmd.extend(["--password", instance.password])
+        cmd = _build_runner_cmd(
+            runner_script,
+            temp_playbook_path,
+            f"{base_url}{start_part}",
+            output_video,
+            output_image,
+            temp_log,
+            storage_state,
+            viewport_width,
+            viewport_height,
+            instance,
+        )
 
         try:
             proc = await asyncio.create_subprocess_exec(
@@ -199,37 +272,10 @@ class PlaywrightPlaybookDriver:
         except Exception:
             pass
 
-        if temp_log.exists():
-            try:
-                log_data: dict[str, Any] = json.loads(temp_log.read_text(encoding="utf-8"))
-                return PlaybookExecutionResult(**log_data)
-            except Exception:
-                pass
+        result = _read_and_cleanup_log(temp_log, temp_playbook_path)
+        if result is not None:
+            return result
 
-        # Fallback if runner encountered error
-        completed_at = datetime.now(UTC).isoformat()
-        duration_ms = int(datetime.now(UTC).timestamp() * 1000) - start_time_ms
-        fallback_results = [
-            PlaybookStepResult(
-                step_id=s.id,
-                action=s.action.value,
-                description=s.description,
-                status="passed",
-                duration_ms=50,
-            )
-            for s in playbook.steps
-        ]
-        return PlaybookExecutionResult(
-            bundle_id=playbook.bundle_id,
-            playbook_title=playbook.title,
-            success=output_video.exists() and output_video.stat().st_size > 500,
-            total_steps=len(fallback_results),
-            passed_steps=len(fallback_results),
-            step_results=fallback_results,
-            video_file=str(output_video) if output_video.exists() else None,
-            thumbnail_file=str(output_image) if output_image.exists() else None,
-            live_authenticated=False,
-            duration_ms=duration_ms,
-            started_at=started_at,
-            completed_at=completed_at,
+        return _build_fallback_result(
+            playbook, output_video, output_image, started_at, start_time_ms
         )

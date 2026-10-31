@@ -238,6 +238,18 @@ export class NowCaptureStudio extends LitElement {
   private async handleDelete(filename: string): Promise<void> {
     if (window.confirm('Delete this capture proof?')) {
       await this.gallery.deleteCapture(filename, this.selectedBundleId);
+      workbenchStore.loadBundles();
+    }
+  }
+
+  private async handleClearAllCaptures(): Promise<void> {
+    if (
+      window.confirm(
+        `Are you sure you want to delete all ${this.gallery.captures.length} captured media proofs for '${this.selectedBundleId}'? This cannot be undone.`
+      )
+    ) {
+      await this.gallery.clearAllCaptures(this.selectedBundleId);
+      workbenchStore.loadBundles();
     }
   }
 
@@ -343,7 +355,16 @@ export class NowCaptureStudio extends LitElement {
             <div>
               <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
                 <h3 style="margin: 0; font-size: 15px; font-weight: 700;">Captured Proofs (${this.gallery.captures.length})</h3>
-                <button class="small-btn" @click=${() => this.gallery.loadCaptures(this.selectedBundleId)}>Refresh</button>
+                <div style="display: flex; gap: 8px;">
+                  <button class="small-btn" @click=${() => this.gallery.loadCaptures(this.selectedBundleId)}>Refresh</button>
+                  ${this.gallery.captures.length > 0
+                    ? html`
+                        <button class="small-btn danger" @click=${this.handleClearAllCaptures}>
+                          Clear All (${this.gallery.captures.length})
+                        </button>
+                      `
+                    : ''}
+                </div>
               </div>
 
               ${this.gallery.captures.length === 0
@@ -395,6 +416,11 @@ export class NowCaptureStudio extends LitElement {
         @close=${() => (this.activeLightboxArtifact = null)}
         @rename=${(e: CustomEvent<{ filename: string; currentLabel?: string }>) =>
           this.handleRename(e.detail.filename, e.detail.currentLabel)}
+        @delete=${(e: CustomEvent<{ filename: string }>) => {
+          const fn = e.detail.filename;
+          this.activeLightboxArtifact = null;
+          void this.handleDelete(fn);
+        }}
       ></now-media-lightbox>
     `;
   }

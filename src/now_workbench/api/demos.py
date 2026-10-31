@@ -496,6 +496,24 @@ def get_demo_capture_file(bundle_id: str, filename: str) -> FileResponse:
     )
 
 
+@router.delete("/{bundle_id}/captures")
+def clear_demo_captures(bundle_id: str) -> dict[str, Any]:
+    """Delete all captured screenshots and videos associated with a demonstration bundle."""
+    engine = PlaywrightCaptureEngine(bundles_dir=settings.get_bundles_dir())
+    try:
+        count = engine.clear_all_captures(bundle_id)
+        return {
+            "success": True,
+            "bundle_id": bundle_id,
+            "deleted_count": count,
+            "message": f"Cleared {count} capture artifact(s) from bundle '{bundle_id}'.",
+        }
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
 @router.delete("/{bundle_id}/captures/{filename}")
 def delete_demo_capture_file(bundle_id: str, filename: str) -> dict[str, Any]:
     """Delete a captured screenshot (.png) or video (.webm) artifact."""

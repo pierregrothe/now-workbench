@@ -50,10 +50,16 @@ export class CaptureGalleryController implements ReactiveController {
     this.host.requestUpdate();
 
     try {
-      const res = await fetch(`/api/capture/${encodeURIComponent(bundleId)}/list`);
+      const res = await fetch(`/api/demos/${encodeURIComponent(bundleId)}/captures`);
       if (res.ok) {
         const data = await res.json();
-        this.captures = data.captures || [];
+        this.captures = Array.isArray(data) ? data : data.captures || [];
+      } else {
+        const fallback = await fetch(`/api/capture/${encodeURIComponent(bundleId)}/list`);
+        if (fallback.ok) {
+          const data = await fallback.json();
+          this.captures = data.captures || [];
+        }
       }
     } catch (err: any) {
       this.error = err.message || 'Failed to load captures';
@@ -80,7 +86,7 @@ export class CaptureGalleryController implements ReactiveController {
         payload.instance_id = params.instanceId;
       }
 
-      const res = await fetch('/api/capture', {
+      const res = await fetch(`/api/demos/${encodeURIComponent(params.bundleId)}/captures`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -107,11 +113,14 @@ export class CaptureGalleryController implements ReactiveController {
 
   async renameCapture(filename: string, newLabel: string, bundleId: string = 'sample-ai-assistant'): Promise<boolean> {
     try {
-      const res = await fetch(`/api/capture/metadata/${encodeURIComponent(filename)}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ label: newLabel }),
-      });
+      const res = await fetch(
+        `/api/demos/${encodeURIComponent(bundleId)}/captures/${encodeURIComponent(filename)}`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ label: newLabel }),
+        }
+      );
       if (res.ok) {
         await this.loadCaptures(bundleId);
         return true;
@@ -126,9 +135,12 @@ export class CaptureGalleryController implements ReactiveController {
 
   async deleteCapture(filename: string, bundleId: string = 'sample-ai-assistant'): Promise<boolean> {
     try {
-      const res = await fetch(`/api/capture/${encodeURIComponent(filename)}`, {
-        method: 'DELETE',
-      });
+      const res = await fetch(
+        `/api/demos/${encodeURIComponent(bundleId)}/captures/${encodeURIComponent(filename)}`,
+        {
+          method: 'DELETE',
+        }
+      );
       if (res.ok) {
         if (this.previewCapture?.filename === filename) {
           this.previewCapture = null;
@@ -141,6 +153,33 @@ export class CaptureGalleryController implements ReactiveController {
       this.error = err.message || 'Delete failed';
       this.host.requestUpdate();
       return false;
+    }
+  }
+
+  async clearAllCaptures(bundleId: string = 'sample-ai-assistant'): Promise<boolean> {
+    this.isLoading = true;
+    this.error = null;
+    this.host.requestUpdate();
+
+    try {
+      const res = await fetch(`/api/demos/${encodeURIComponent(bundleId)}/captures`, {
+        method: 'DELETE',
+      });
+      if (res.ok) {
+        this.captures = [];
+        this.previewCapture = null;
+        this.statusMessage = `All media captures for ${bundleId} cleared successfully.`;
+        return true;
+      }
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.detail || 'Failed to clear captures');
+    } catch (err: any) {
+      this.error = err.message || 'Failed to clear captures';
+      this.statusMessage = `Error: ${this.error}`;
+      return false;
+    } finally {
+      this.isLoading = false;
+      this.host.requestUpdate();
     }
   }
 

@@ -653,6 +653,54 @@ export class NowDemoCatalog extends LitElement {
     }
   }
 
+  private async handleDeleteProof(bundle: DemoBundle, filename: string): Promise<void> {
+    if (!window.confirm(`Delete capture proof '${filename}'?`)) return;
+    try {
+      const res = await fetch(
+        `/api/demos/${encodeURIComponent(bundle.manifest.id)}/captures/${encodeURIComponent(filename)}`,
+        { method: 'DELETE' }
+      );
+      if (res.ok) {
+        if (bundle.media_captures) {
+          bundle.media_captures = bundle.media_captures.filter((c) => c.filename !== filename);
+        }
+        await this.loadDemos();
+        this.requestUpdate();
+      } else {
+        const err = await res.json().catch(() => ({}));
+        alert(err.detail || 'Failed to delete capture proof.');
+      }
+    } catch (e: any) {
+      alert(`Error deleting capture: ${e.message}`);
+    }
+  }
+
+  private async handleClearAllProofs(bundle: DemoBundle): Promise<void> {
+    const count = bundle.media_captures?.length || 0;
+    if (
+      !window.confirm(
+        `Delete all ${count} captured media proofs for '${bundle.manifest.name}'? This cannot be undone.`
+      )
+    )
+      return;
+    try {
+      const res = await fetch(
+        `/api/demos/${encodeURIComponent(bundle.manifest.id)}/captures`,
+        { method: 'DELETE' }
+      );
+      if (res.ok) {
+        bundle.media_captures = [];
+        await this.loadDemos();
+        this.requestUpdate();
+      } else {
+        const err = await res.json().catch(() => ({}));
+        alert(err.detail || 'Failed to clear media proofs.');
+      }
+    } catch (e: any) {
+      alert(`Error clearing captures: ${e.message}`);
+    }
+  }
+
   render() {
     return html`
       <div class="header-row">
@@ -922,16 +970,30 @@ export class NowDemoCatalog extends LitElement {
                       Package created: ${this.formatBundleDate(this.viewingMediaBundle.manifest.created_at)} | Target: ${this.viewingMediaBundle.manifest.sn_release}
                     </div>
                   </div>
-                  <button
-                    class="btn-secondary icon-btn"
-                    style="flex: 0 0 32px; width: 32px; height: 32px;"
-                    title="Close"
-                    @click=${() => {
-                      this.viewingMediaBundle = null;
-                    }}
-                  >
-                    <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
-                  </button>
+                  <div style="display: flex; gap: 8px; align-items: center;">
+                    ${this.viewingMediaBundle.media_captures && this.viewingMediaBundle.media_captures.length > 0
+                      ? html`
+                          <button
+                            class="btn-secondary"
+                            style="color: #dc2626; border-color: #fca5a5; font-size: 12px; padding: 4px 10px; font-weight: 600;"
+                            @click=${() => this.handleClearAllProofs(this.viewingMediaBundle!)}
+                            title="Delete all captured media for this bundle"
+                          >
+                            Clear All (${this.viewingMediaBundle.media_captures.length})
+                          </button>
+                        `
+                      : ''}
+                    <button
+                      class="btn-secondary icon-btn"
+                      style="flex: 0 0 32px; width: 32px; height: 32px;"
+                      title="Close"
+                      @click=${() => {
+                        this.viewingMediaBundle = null;
+                      }}
+                    >
+                      <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+                    </button>
+                  </div>
                 </div>
 
                 <div class="modal-body" style="display: flex; flex-direction: column; gap: 14px; padding: 10px 0;">
@@ -964,7 +1026,7 @@ export class NowDemoCatalog extends LitElement {
                                 </svg>
                                 <span>Recorded: ${this.formatBundleDate(cap.created_at)}</span>
                               </div>
-                              <div style="display: flex; gap: 8px;">
+                              <div style="display: flex; gap: 8px; align-items: center;">
                                 <a
                                   href=${cap.url}
                                   target="_blank"
@@ -980,6 +1042,14 @@ export class NowDemoCatalog extends LitElement {
                                 >
                                   Download
                                 </a>
+                                <button
+                                  class="btn-secondary"
+                                  style="color: #dc2626; border-color: #fca5a5; font-size: 11px; padding: 2px 8px; font-weight: 600; cursor: pointer;"
+                                  @click=${() => this.handleDeleteProof(this.viewingMediaBundle!, cap.filename)}
+                                  title="Delete this capture proof"
+                                >
+                                  Delete
+                                </button>
                               </div>
                             </div>
                           </div>
