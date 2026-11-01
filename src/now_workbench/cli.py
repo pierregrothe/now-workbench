@@ -121,6 +121,12 @@ def _render_doctor_table(probe: dict[str, str | bool]) -> None:
 
     # Claude API / Otto
     claude_key = os.environ.get("WORKBENCH_ANTHROPIC_API_KEY", settings.anthropic_api_key)
+    if not claude_key:
+        try:
+            with db_session() as repo:
+                claude_key = repo.get_decrypted_anthropic_api_key()
+        except Exception:
+            pass
     if claude_key:
         table.add_row("Otto (Claude API)", "[green][OK] Connected[/green]", settings.claude_model)
     else:
