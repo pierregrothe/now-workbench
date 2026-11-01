@@ -449,9 +449,6 @@ async function injectCursorOverlay(page) {
       <svg viewBox="0 0 24 24" width="24" height="24" style="filter: drop-shadow(0 2px 5px rgba(0,0,0,0.45));">
         <path d="M3 3l7 18 3.5-7 7-3.5L3 3z" fill="#032d42" stroke="#62d84e" stroke-width="1.8"/>
       </svg>
-      <div style="position: absolute; left: 20px; top: 12px; background: #032d42; color: #62d84e; font-size: 10px; font-weight: 700; font-family: monospace; padding: 2px 6px; border-radius: 4px; border: 1px solid #62d84e; white-space: nowrap; box-shadow: 0 2px 6px rgba(0,0,0,0.25);">
-        Otto AI Demo
-      </div>
     `;
     document.body.appendChild(cursor);
 
