@@ -8,32 +8,32 @@
       "id": "step-1",
       "action": "authenticate",
       "description": "Authenticate user session against ServiceNow instance",
-      "wait_ms": 500,
-      "timeout_ms": 12000
+      "wait_ms": 1500,
+      "timeout_ms": 15000
     },
     {
       "id": "step-2",
       "action": "navigate",
       "description": "Navigate to the unassigned incident queue",
       "path": "/incident_list.do?sysparm_query=ORDERBYDESCsys_updated_on",
-      "wait_ms": 600,
-      "timeout_ms": 10000
+      "wait_ms": 2500,
+      "timeout_ms": 15000
     },
     {
       "id": "step-3",
       "action": "move_and_click",
       "description": "Select the target VPN connection incident",
       "selector": "#row-target-incident, tr.incident-row:has-text('VPN'), a.formlink:has-text('VPN')",
-      "wait_ms": 600,
-      "timeout_ms": 8000
+      "wait_ms": 2500,
+      "timeout_ms": 15000
     },
     {
       "id": "step-4",
       "action": "wait_for",
       "description": "Wait for incident detail and Now Assist triage panel to load",
       "selector": "#detail-panel, form.incident-form, #activity-stream-textarea",
-      "wait_ms": 500,
-      "timeout_ms": 8000
+      "wait_ms": 2000,
+      "timeout_ms": 15000
     },
     {
       "id": "step-5",
@@ -41,8 +41,8 @@
       "description": "Inspect Now Assist entity extraction and routing confidence",
       "selector": ".ai-banner, .now-assist-recommendation",
       "text": "Network Operations",
-      "wait_ms": 700,
-      "timeout_ms": 6000,
+      "wait_ms": 3000,
+      "timeout_ms": 10000,
       "optional": true
     },
     {
@@ -51,16 +51,16 @@
       "description": "Log autonomous AI routing recommendation into Work Notes",
       "selector": "#work-notes-input, #activity-stream-textarea, textarea[name='work_notes']",
       "text": "[Now Assist AI] Incident auto-triaged to Network Operations (Confidence: 94.2%). Gateway lease expiration flagged.",
-      "wait_ms": 600,
-      "timeout_ms": 6000
+      "wait_ms": 2500,
+      "timeout_ms": 10000
     },
     {
       "id": "step-7",
       "action": "move_and_click",
       "description": "Save incident with verified AI routing decision",
       "selector": "#btn-save-incident, button#sysverb_update, input#sysverb_update",
-      "wait_ms": 800,
-      "timeout_ms": 8000
+      "wait_ms": 3000,
+      "timeout_ms": 15000
     }
   ]
 }

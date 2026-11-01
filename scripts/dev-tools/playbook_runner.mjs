@@ -629,6 +629,15 @@ async function main() {
       }
     }
 
+    async function holdFrames(durationMs = 1500) {
+      const interval = 100;
+      const count = Math.max(1, Math.round(durationMs / interval));
+      for (let i = 0; i < count; i++) {
+        await captureFrame();
+        await new Promise((r) => setTimeout(r, interval));
+      }
+    }
+
     async function moveCursor(startX, startY, endX, endY, steps = 6) {
       for (let i = 1; i <= steps; i++) {
         const curX = Math.round(startX + ((endX - startX) * i) / steps);
@@ -670,10 +679,7 @@ async function main() {
           await moveCursor(cursorX, cursorY, authCoords.x, authCoords.y, 6);
           cursorX = authCoords.x;
           cursorY = authCoords.y;
-          for (let f = 0; f < 10; f++) {
-            await captureFrame();
-            await new Promise((r) => setTimeout(r, 60));
-          }
+          await holdFrames(step.wait_ms || 1200);
         } else if (step.action === "navigate") {
           if (!opts.fake) {
             const baseUrl = new URL(page.url()).origin;
@@ -688,10 +694,7 @@ async function main() {
           await moveCursor(cursorX, cursorY, 320, 110, 8);
           cursorX = 320;
           cursorY = 110;
-          for (let f = 0; f < 14; f++) {
-            await captureFrame();
-            await new Promise((r) => setTimeout(r, 60));
-          }
+          await holdFrames(step.wait_ms || 2000);
         } else if (step.action === "move_and_click" || step.action === "click") {
           const targetCoords = await page.evaluate((sel, desc, isFake) => {
             function getCenter(el) {
@@ -798,10 +801,6 @@ async function main() {
               await page.waitForNavigation({ waitUntil: "domcontentloaded", timeout: 20000 }).catch(() => {});
               await page.waitForSelector("form, .form_header, #incident_table, table, body", { timeout: 10000 }).catch(() => {});
               await injectCursorOverlay(page);
-              for (let f = 0; f < 12; f++) {
-                await captureFrame();
-                await new Promise((r) => setTimeout(r, 60));
-              }
             }
           } else {
             await page.evaluate((sel) => {
@@ -824,11 +823,8 @@ async function main() {
                 }
               }
             }, step.selector);
-            for (let f = 0; f < 6; f++) {
-              await captureFrame();
-              await new Promise((r) => setTimeout(r, 50));
-            }
           }
+          await holdFrames(step.wait_ms || 2000);
         } else if (step.action === "type") {
           const inputCoords = await page.evaluate((isFake) => {
             if (isFake) {
@@ -890,19 +886,13 @@ async function main() {
             await new Promise((r) => setTimeout(r, 60));
           }
 
-          for (let f = 0; f < 10; f++) {
-            await captureFrame();
-            await new Promise((r) => setTimeout(r, 60));
-          }
+          await holdFrames(step.wait_ms || 2000);
         } else if (step.action === "ai_triage" || step.action === "wait_for") {
           const triageCoords = opts.fake ? { x: 520, y: 340 } : { x: 580, y: 280 };
           await moveCursor(cursorX, cursorY, triageCoords.x, triageCoords.y, 8);
           cursorX = triageCoords.x;
           cursorY = triageCoords.y;
-          for (let f = 0; f < 16; f++) {
-            await captureFrame();
-            await new Promise((r) => setTimeout(r, 60));
-          }
+          await holdFrames(step.wait_ms || 2500);
         }
       } catch (err) {
         if (!step.optional) {
@@ -966,7 +956,7 @@ async function main() {
 
             ctx.clearRect(0, 0, w, h);
             ctx.drawImage(img, 0, 0, w, h);
-            await new Promise((r) => setTimeout(r, 80));
+            await new Promise((r) => setTimeout(r, 100));
           }
 
           await new Promise((r) => setTimeout(r, 250));

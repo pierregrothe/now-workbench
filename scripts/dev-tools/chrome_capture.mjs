@@ -21,7 +21,7 @@ function parseArgs() {
     password: "",
     width: 1280,
     height: 720,
-    duration: 3,
+    duration: 15,
     fake: false,
   };
 
@@ -583,6 +583,17 @@ async function main() {
         frames.push(buf);
       }
 
+      async function holdFrames(durationMs = 1500) {
+        const interval = 100;
+        const count = Math.max(1, Math.round(durationMs / interval));
+        for (let i = 0; i < count; i++) {
+          await captureFrame();
+          await new Promise((r) => setTimeout(r, interval));
+        }
+      }
+
+      const holdDuration = Math.max(1000, Math.round((opts.duration * 1000) / 7));
+
       async function moveCursor(startX, startY, endX, endY, steps = 6) {
         for (let i = 1; i <= steps; i++) {
           const curX = Math.round(startX + ((endX - startX) * i) / steps);
@@ -596,6 +607,7 @@ async function main() {
       // Step 1: Cursor enters from sidebar towards Incident Triage Queue
       await captureFrame();
       await moveCursor(120, 110, 360, 120, 5);
+      await holdFrames(holdDuration);
 
       // Step 2: Hover over priority incident row
       await moveCursor(360, 120, 480, 210, 6);
@@ -603,7 +615,7 @@ async function main() {
         const row = document.getElementById("row-target-incident");
         if (row) row.classList.add("selected");
       });
-      await captureFrame();
+      await holdFrames(holdDuration);
 
       // Step 3: Click incident to trigger Now Assist Triage view
       await page.evaluate(() => window.__wb_click_pulse?.(480, 210));
@@ -618,11 +630,11 @@ async function main() {
           group.style.fontWeight = "700";
         }
       });
-      await captureFrame();
-      await new Promise((r) => setTimeout(r, 200));
+      await holdFrames(holdDuration);
 
       // Step 4: Move cursor down to the AI recommendation banner
       await moveCursor(480, 210, 520, 340, 5);
+      await holdFrames(holdDuration);
 
       // Step 5: Move cursor into the Work Notes field
       await moveCursor(520, 340, 460, 490, 5);
@@ -646,6 +658,7 @@ async function main() {
         await captureFrame();
         await new Promise((r) => setTimeout(r, 50));
       }
+      await holdFrames(holdDuration);
 
       // Step 7: Move to Save button and click
       await moveCursor(460, 490, 880, 575, 6);
@@ -657,8 +670,7 @@ async function main() {
           btn.innerText = "Saved & Verified ✓";
         }
       });
-      await captureFrame();
-      await captureFrame();
+      await holdFrames(holdDuration);
 
       console.log(`[ChromeCapture] Collected ${frames.length} real interactive demonstration frames.`);
 
@@ -693,7 +705,7 @@ async function main() {
 
             ctx.clearRect(0, 0, w, h);
             ctx.drawImage(img, 0, 0, w, h);
-            await new Promise((r) => setTimeout(r, 80));
+            await new Promise((r) => setTimeout(r, 100));
           }
 
           // Hold last frame briefly for clarity

@@ -1,24 +1,24 @@
 [
   {
-    "id": "cap-9bbf16b8",
+    "id": "cap-06d9b77b",
     "bundle_id": "sample-ai-assistant",
     "instance_url": "https://demoalectriallwfau164179.service-now.com",
     "target_path": "/now/nav/ui/classic/params/target/incident_list.do",
     "media_type": "video",
-    "label": "Live Demo Proof - Clean Cursor",
-    "filename": "cap-9bbf16b8.webm",
-    "file_path": "/Users/pierre.grothe/Developer/now-workbench/bundles/sample-ai-assistant/media/cap-9bbf16b8.webm",
-    "url": "/api/demos/sample-ai-assistant/captures/cap-9bbf16b8.webm",
-    "engine": "google-chrome-native",
-    "created_at": "2026-11-01T14:49:12.421077+00:00",
-    "live_authenticated": true,
+    "label": "Full Walkthrough Demo (20s)",
+    "filename": "cap-06d9b77b.webm",
+    "file_path": "/Users/pierre.grothe/Developer/now-workbench/bundles/sample-ai-assistant/media/cap-06d9b77b.webm",
+    "url": "/api/demos/sample-ai-assistant/captures/cap-06d9b77b.webm",
+    "engine": "playwright-simulated",
+    "created_at": "2026-11-01T15:02:22.861234+00:00",
+    "live_authenticated": false,
     "step_results": [
       {
         "step_id": "step-1",
         "action": "authenticate",
         "description": "Authenticate user session against ServiceNow instance",
         "status": "passed",
-        "duration_ms": 1486,
+        "duration_ms": 50,
         "error_message": null,
         "screenshot_file": null
       },
@@ -27,7 +27,7 @@
         "action": "navigate",
         "description": "Navigate to the unassigned incident queue",
         "status": "passed",
-        "duration_ms": 3252,
+        "duration_ms": 50,
         "error_message": null,
         "screenshot_file": null
       },
@@ -36,7 +36,7 @@
         "action": "move_and_click",
         "description": "Select the target VPN connection incident",
         "status": "passed",
-        "duration_ms": 21845,
+        "duration_ms": 50,
         "error_message": null,
         "screenshot_file": null
       },
@@ -45,7 +45,7 @@
         "action": "wait_for",
         "description": "Wait for incident detail and Now Assist triage panel to load",
         "status": "passed",
-        "duration_ms": 2149,
+        "duration_ms": 50,
         "error_message": null,
         "screenshot_file": null
       },
@@ -54,7 +54,7 @@
         "action": "ai_triage",
         "description": "Inspect Now Assist entity extraction and routing confidence",
         "status": "passed",
-        "duration_ms": 1867,
+        "duration_ms": 50,
         "error_message": null,
         "screenshot_file": null
       },
@@ -63,7 +63,7 @@
         "action": "type",
         "description": "Log autonomous AI routing recommendation into Work Notes",
         "status": "passed",
-        "duration_ms": 2967,
+        "duration_ms": 50,
         "error_message": null,
         "screenshot_file": null
       },
@@ -72,165 +72,7 @@
         "action": "move_and_click",
         "description": "Save incident with verified AI routing decision",
         "status": "passed",
-        "duration_ms": 21900,
-        "error_message": null,
-        "screenshot_file": null
-      }
-    ]
-  },
-  {
-    "id": "cap-7041f2e6",
-    "bundle_id": "sample-ai-assistant",
-    "instance_url": "https://demoalectriallwfau164179.service-now.com",
-    "target_path": "/incident_list.do",
-    "media_type": "video",
-    "label": "Verified Demo Execution Proof - sample-ai-assistant",
-    "filename": "cap-7041f2e6.webm",
-    "file_path": "/Users/pierre.grothe/Developer/now-workbench/bundles/sample-ai-assistant/media/cap-7041f2e6.webm",
-    "url": "/api/demos/sample-ai-assistant/captures/cap-7041f2e6.webm",
-    "engine": "google-chrome-native",
-    "created_at": "2026-11-01T14:42:13.396392+00:00",
-    "live_authenticated": true,
-    "step_results": [
-      {
-        "step_id": "step-1",
-        "action": "authenticate",
-        "description": "Authenticate user session against ServiceNow instance",
-        "status": "passed",
-        "duration_ms": 1485,
-        "error_message": null,
-        "screenshot_file": null
-      },
-      {
-        "step_id": "step-2",
-        "action": "navigate",
-        "description": "Navigate to the unassigned incident queue",
-        "status": "passed",
-        "duration_ms": 9183,
-        "error_message": null,
-        "screenshot_file": null
-      },
-      {
-        "step_id": "step-3",
-        "action": "move_and_click",
-        "description": "Select the target VPN connection incident",
-        "status": "passed",
-        "duration_ms": 21917,
-        "error_message": null,
-        "screenshot_file": null
-      },
-      {
-        "step_id": "step-4",
-        "action": "wait_for",
-        "description": "Wait for incident detail and Now Assist triage panel to load",
-        "status": "passed",
-        "duration_ms": 2197,
-        "error_message": null,
-        "screenshot_file": null
-      },
-      {
-        "step_id": "step-5",
-        "action": "ai_triage",
-        "description": "Inspect Now Assist entity extraction and routing confidence",
-        "status": "passed",
-        "duration_ms": 1885,
-        "error_message": null,
-        "screenshot_file": null
-      },
-      {
-        "step_id": "step-6",
-        "action": "type",
-        "description": "Log autonomous AI routing recommendation into Work Notes",
-        "status": "passed",
-        "duration_ms": 3065,
-        "error_message": null,
-        "screenshot_file": null
-      },
-      {
-        "step_id": "step-7",
-        "action": "move_and_click",
-        "description": "Save incident with verified AI routing decision",
-        "status": "passed",
-        "duration_ms": 21932,
-        "error_message": null,
-        "screenshot_file": null
-      }
-    ]
-  },
-  {
-    "id": "cap-bae88120",
-    "bundle_id": "sample-ai-assistant",
-    "instance_url": "https://demoalectriallwfau164179.service-now.com",
-    "target_path": "/now/nav/ui/classic/params/target/incident_list.do",
-    "media_type": "video",
-    "label": "Live ServiceNow Incident Triage Demonstration",
-    "filename": "cap-bae88120.webm",
-    "file_path": "/Users/pierre.grothe/Developer/now-workbench/bundles/sample-ai-assistant/media/cap-bae88120.webm",
-    "url": "/api/demos/sample-ai-assistant/captures/cap-bae88120.webm",
-    "engine": "google-chrome-native",
-    "created_at": "2026-10-31T18:53:52.631824+00:00",
-    "live_authenticated": true,
-    "step_results": [
-      {
-        "step_id": "step-1",
-        "action": "authenticate",
-        "description": "Authenticate user session against ServiceNow instance",
-        "status": "passed",
-        "duration_ms": 1463,
-        "error_message": null,
-        "screenshot_file": null
-      },
-      {
-        "step_id": "step-2",
-        "action": "navigate",
-        "description": "Navigate to the unassigned incident queue",
-        "status": "passed",
-        "duration_ms": 3301,
-        "error_message": null,
-        "screenshot_file": null
-      },
-      {
-        "step_id": "step-3",
-        "action": "move_and_click",
-        "description": "Select the target VPN connection incident",
-        "status": "passed",
-        "duration_ms": 21849,
-        "error_message": null,
-        "screenshot_file": null
-      },
-      {
-        "step_id": "step-4",
-        "action": "wait_for",
-        "description": "Wait for incident detail and Now Assist triage panel to load",
-        "status": "passed",
-        "duration_ms": 2134,
-        "error_message": null,
-        "screenshot_file": null
-      },
-      {
-        "step_id": "step-5",
-        "action": "ai_triage",
-        "description": "Inspect Now Assist entity extraction and routing confidence",
-        "status": "passed",
-        "duration_ms": 1866,
-        "error_message": null,
-        "screenshot_file": null
-      },
-      {
-        "step_id": "step-6",
-        "action": "type",
-        "description": "Log autonomous AI routing recommendation into Work Notes",
-        "status": "passed",
-        "duration_ms": 2935,
-        "error_message": null,
-        "screenshot_file": null
-      },
-      {
-        "step_id": "step-7",
-        "action": "move_and_click",
-        "description": "Save incident with verified AI routing decision",
-        "status": "passed",
-        "duration_ms": 21913,
+        "duration_ms": 50,
         "error_message": null,
         "screenshot_file": null
       }
