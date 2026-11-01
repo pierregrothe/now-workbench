@@ -1,0 +1,6 @@
+{
+  "glide.ui.polaris.experience": "true",
+  "glide.ui.polaris.theme.custom_primary": "#23a17e",
+  "x_snc_hr_onboarding_ai_case.ai_triage.enabled": "true",
+  "x_snc_hr_onboarding_ai_case.customer_org": "Acme Corp"
+}

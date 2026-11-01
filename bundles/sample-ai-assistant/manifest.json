@@ -4,6 +4,7 @@
   "version": "1.0.0",
   "description": "Autonomous AI routing and triage application for IT incidents leveraging Now Assist and custom Fluent tables.",
   "author": "Pierre Grothe",
+  "min_release": "Xanadu",
   "sn_release": "Xanadu",
   "required_plugins": [
     "com.glide.now.assist",

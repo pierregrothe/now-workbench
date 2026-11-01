@@ -478,6 +478,7 @@ async def create_demo_capture(bundle_id: str, req: CaptureRequest) -> CaptureArt
         wait_timeout_ms=prefs.capture_wait_timeout_ms,
         username=username,
         password=password,
+        release=inst.release if inst else "Xanadu",
     )
 
 

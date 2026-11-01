@@ -1,0 +1,33 @@
+{
+  "id": "hr-onboarding-ai",
+  "name": "Acme Corp: Automated HR Onboarding and Equipment Provisioning with Empl",
+  "version": "1.0.0",
+  "description": "Automated HR Onboarding and Equipment Provisioning with Employee Center (Tailored for Acme Corp - Human Resources)",
+  "author": "Now Workbench Synthesizer",
+  "min_release": "Utah",
+  "sn_release": "Utah",
+  "required_plugins": [
+    "com.glide.now.assist",
+    "com.snc.itsm"
+  ],
+  "tags": [
+    "Human Resources",
+    "Utah",
+    "Synthesized",
+    "GenAI"
+  ],
+  "personas": [
+    {
+      "name": "Sarah Jenkins",
+      "role": "Sarah Jenkins (Service Desk Lead)",
+      "email": "presenter@example.com",
+      "notes": "Primary presenter persona for Acme Corp"
+    },
+    {
+      "name": "Marcus Vance",
+      "role": "Marcus Vance (Platform Architect)",
+      "email": "architect@example.com",
+      "notes": "Technical platform persona"
+    }
+  ]
+}

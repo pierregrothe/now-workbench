@@ -47,6 +47,14 @@ def evaluate_demo_cmd(
     table.add_column("Details", style="white")
     table.add_column("Status", style="bold")
 
+    rel_status = (
+        "[green]COMPATIBLE[/green]" if res.release_compatible else "[red]INCOMPATIBLE[/red]"
+    )
+    rel_detail = (
+        f"Minimum Required: {res.min_release} | Target: {inst.release}\n{res.release_reason}"
+    )
+    table.add_row("Platform Release", rel_detail, rel_status)
+
     plug_status = (
         "[green]SATISFIED[/green]" if not res.missing_plugins else "[yellow]MISSING[/yellow]"
     )
@@ -65,12 +73,17 @@ def evaluate_demo_cmd(
     walk_detail = f"{res.walkthrough_stages_count} walkthrough demonstration stages"
     table.add_row("Runbook Script", walk_detail, "[green]READY[/green]")
 
-    overall = (
-        "[bold green]READY TO DEPLOY[/bold green]"
-        if res.is_ready
-        else "[bold yellow]MODULES REQUIRED[/bold yellow]"
+    if not res.release_compatible:
+        overall = "[bold red]PLATFORM INCOMPATIBLE[/bold red]"
+    elif res.is_ready:
+        overall = "[bold green]READY TO DEPLOY[/bold green]"
+    else:
+        overall = "[bold yellow]MODULES REQUIRED[/bold yellow]"
+    table.add_row(
+        "Overall Readiness",
+        f"Minimum Release: {res.min_release} (Instance: {inst.release})",
+        overall,
     )
-    table.add_row("Overall Readiness", f"Target ServiceNow Release: {res.sn_release}", overall)
 
     console.print(table)
 

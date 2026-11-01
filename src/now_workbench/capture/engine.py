@@ -14,6 +14,7 @@ from typing import Any
 from now_workbench.capture.driver import PlaywrightPlaybookDriver, load_playbook
 from now_workbench.capture.models import CaptureArtifact, CaptureRequest
 from now_workbench.db.models import InstanceRecord
+from now_workbench.releases import translate_workspace_url
 
 _HEADER = [3, 45, 66]  # ServiceNow header (#032d42)
 _NAV = [11, 31, 48]  # Nav rail (#0b1f30)
@@ -316,6 +317,7 @@ class PlaywrightCaptureEngine:
         wait_timeout_ms: int = 1500,
         username: str = "",
         password: str = "",
+        release: str = "Xanadu",
     ) -> CaptureArtifact:
         """Capture a screenshot or video of the target ServiceNow instance."""
         capture_id = f"cap-{uuid.uuid4().hex[:8]}"
@@ -325,7 +327,8 @@ class PlaywrightCaptureEngine:
         output_file = media_dir / filename
 
         base_url = instance_url.rstrip("/")
-        path_part = req.target_path if req.target_path.startswith("/") else f"/{req.target_path}"
+        raw_path = req.target_path if req.target_path.startswith("/") else f"/{req.target_path}"
+        path_part = translate_workspace_url(raw_path, release)
         full_url = f"{base_url}{path_part}"
 
         used_engine = "playwright-simulated"
@@ -374,8 +377,20 @@ class PlaywrightCaptureEngine:
                         used_engine = "playwright-chromium"
 
         if not output_file.exists():
-            payload = _PLACEHOLDER_WEBM if ext == "webm" else _generate_simulated_png()
-            output_file.write_bytes(payload)
+            if not req.fake_mode:
+                sim_ok = await _run_chrome_capture(
+                    full_url,
+                    output_file,
+                    req.media_type,
+                    req.viewport_width,
+                    req.viewport_height,
+                    fake_mode=True,
+                )
+                if sim_ok:
+                    used_engine = "playwright-simulated"
+            if not output_file.exists():
+                payload = _PLACEHOLDER_WEBM if ext == "webm" else _generate_simulated_png()
+                output_file.write_bytes(payload)
 
         artifact = CaptureArtifact(
             id=capture_id,

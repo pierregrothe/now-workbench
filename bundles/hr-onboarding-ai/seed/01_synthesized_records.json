@@ -1,0 +1,33 @@
+[
+  {
+    "table": "incident",
+    "data": {
+      "short_description": "[Acme Corp] Automated HR Onboarding and Equipment Provisioning with Employee Center - Primary Escalation",
+      "description": "Customer context (Human Resources): Automated HR Onboarding and Equipment Provisioning with Employee Center. Detected anomalous telemetry requiring Now Assist agentic triage.",
+      "urgency": "1",
+      "impact": "1",
+      "category": "inquiry"
+    }
+  },
+  {
+    "table": "incident",
+    "data": {
+      "short_description": "[Acme Corp] Proactive workflow validation for Human Resources",
+      "description": "Secondary correlated event for Acme Corp validating automated playbook resolution.",
+      "urgency": "2",
+      "impact": "2",
+      "category": "software"
+    }
+  },
+  {
+    "table": "x_snc_hr_onboarding_ai_case",
+    "data": {
+      "correlation_id": "AI-ACME-001",
+      "use_case_summary": "Automated HR Onboarding and Equipment Provisioning with Employee Center",
+      "customer_context": "Acme Corp (Human Resources) - Utah",
+      "source_incident": "INC0010001",
+      "ai_confidence": 96,
+      "automated_remediation": true
+    }
+  }
+]

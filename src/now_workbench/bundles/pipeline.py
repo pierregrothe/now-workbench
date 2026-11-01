@@ -15,6 +15,7 @@ from now_workbench.db.repository import DatabaseRepository
 from now_workbench.plugins.manager import PluginManager
 from now_workbench.plugins.models import PluginRecord
 from now_workbench.properties.engine import PropertyEngine
+from now_workbench.releases import evaluate_release_prerequisites
 from now_workbench.runbooks.engine import RunbookEngine
 from now_workbench.runbooks.models import RunbookTestResult
 from now_workbench.sdk.runner import NowSdkRunner
@@ -30,6 +31,9 @@ class DemoEvaluationResult(BaseModel):
     instance_id: str
     instance_name: str
     sn_release: str
+    min_release: str = "Xanadu"
+    release_compatible: bool = True
+    release_reason: str = ""
     required_plugins: list[str]
     missing_plugins: list[str]
     installed_plugins: list[str]
@@ -112,13 +116,22 @@ class DemoPipelineEngine:
         guide = self.runbook_engine.load_runbook(bundle_path, bundle_id=bundle_id)
         stages_count = len(guide.stages) if guide else 0
 
-        is_ready = plugin_eval.all_satisfied
+        rel_eval = evaluate_release_prerequisites(
+            instance_release=instance.release,
+            min_release=info.manifest.min_release,
+            tags=info.manifest.tags,
+        )
+
+        is_ready = plugin_eval.all_satisfied and rel_eval.is_compatible
 
         return DemoEvaluationResult(
             bundle_id=bundle_id,
             instance_id=instance.id,
             instance_name=instance.name,
             sn_release=info.manifest.sn_release,
+            min_release=info.manifest.min_release,
+            release_compatible=rel_eval.is_compatible,
+            release_reason=rel_eval.reason,
             required_plugins=info.manifest.required_plugins,
             missing_plugins=plugin_eval.missing,
             installed_plugins=plugin_eval.installed,
@@ -230,6 +243,7 @@ class DemoPipelineEngine:
             instance_url=instance.url,
             username=instance.username,
             password=instance.password,
+            release=instance.release,
         )
 
     async def run_full_pipeline(
@@ -240,6 +254,17 @@ class DemoPipelineEngine:
         record_video: bool = True,
     ) -> DemoPipelineSummary:
         """Execute the full end-to-end demo lifecycle and record video proof."""
+        # 0. Evaluate platform release compatibility
+        eval_res = self.evaluate_bundle(bundle_id, instance, fake_mode=fake_mode)
+        if not eval_res.release_compatible:
+            return DemoPipelineSummary(
+                bundle_id=bundle_id,
+                instance_name=instance.name,
+                status="incompatible",
+                message=f"Pipeline aborted: {eval_res.release_reason}",
+                test_passed=False,
+            )
+
         # 1. Evaluate & install modules
         installed_plugins = self.install_required_modules(bundle_id, instance, fake_mode=fake_mode)
 

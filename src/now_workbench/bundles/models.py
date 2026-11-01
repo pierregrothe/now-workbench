@@ -3,7 +3,7 @@
 from datetime import UTC, datetime
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class DemoPersona(BaseModel):
@@ -28,13 +28,28 @@ class DemoManifest(BaseModel):
     version: str = Field(default="1.0.0", description="Semantic or CalVer version")
     description: str = Field(default="", description="Summary of the demo narrative")
     author: str = Field(default="", description="Creator or team")
-    sn_release: str = Field(default="Xanadu", description="Target ServiceNow release")
+    min_release: str = Field(
+        default="Xanadu", description="Minimum ServiceNow release required for this demo"
+    )
+    sn_release: str = Field(
+        default="Xanadu", description="Target/tested ServiceNow release (legacy compatibility)"
+    )
     required_plugins: list[str] = Field(default_factory=list, description="Plugin dependency IDs")
     tags: list[str] = Field(default_factory=list, description="Categorization tags")
     personas: list[DemoPersona] = Field(
         default_factory=list, description="Key walkthrough personas"
     )
     created_at: str = Field(default_factory=lambda: datetime.now(UTC).isoformat())
+
+    @model_validator(mode="before")
+    @classmethod
+    def _sync_release_fields(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            if "min_release" in data and "sn_release" not in data:
+                data["sn_release"] = data["min_release"]
+            elif "sn_release" in data and "min_release" not in data:
+                data["min_release"] = data["sn_release"]
+        return data
 
 
 class DemoBundleInfo(BaseModel):

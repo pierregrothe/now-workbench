@@ -80,6 +80,7 @@ def capture_demo_cmd(
             instance_url=inst_url,
             username=username,
             password=password,
+            release=inst.release if inst else "Xanadu",
         )
     )
     msg = (
