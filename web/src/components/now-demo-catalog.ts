@@ -8,6 +8,7 @@ export interface DemoBundle {
     version: string
     description: string
     sn_release: string
+    min_release?: string
     required_plugins: string[]
     tags: string[]
     author?: string
@@ -744,7 +745,7 @@ export class NowDemoCatalog extends LitElement {
           <div class="demo-card">
             <div class="card-top">
               <span class="demo-title">${d.manifest.name}</span>
-              <span class="release-badge">${d.manifest.sn_release}</span>
+              <span class="release-badge" title="Minimum required ServiceNow platform version">Min: ${d.manifest.min_release || d.manifest.sn_release}</span>
             </div>
 
             <div class="card-date-badge">
@@ -967,7 +968,7 @@ export class NowDemoCatalog extends LitElement {
                       Media Proofs: ${this.viewingMediaBundle.manifest.name}
                     </h2>
                     <div style="font-size: 12px; color: var(--now-text-secondary, #64748b); margin-top: 4px;">
-                      Package created: ${this.formatBundleDate(this.viewingMediaBundle.manifest.created_at)} | Target: ${this.viewingMediaBundle.manifest.sn_release}
+                      Package created: ${this.formatBundleDate(this.viewingMediaBundle.manifest.created_at)} | Min Platform: ${this.viewingMediaBundle.manifest.min_release || this.viewingMediaBundle.manifest.sn_release}
                     </div>
                   </div>
                   <div style="display: flex; gap: 8px; align-items: center;">
