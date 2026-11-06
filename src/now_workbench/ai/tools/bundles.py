@@ -1,5 +1,6 @@
 """Demo bundle catalog tools for the Otto agent (mirrors `workbench demo ...`/`template ...`)."""
 
+import base64
 from pathlib import Path
 from typing import Any
 
@@ -37,6 +38,7 @@ from now_workbench.synthesizer.release import resolve_synthesis_release
 from now_workbench.templates import TemplateEngine
 
 _BUNDLE = {"type": "string", "description": "Demo bundle id (slug)"}
+_MAX_IMAGE_BYTES = 3_500_000
 
 
 def bundle_access(repo: DatabaseRepository, bundle_id: str, write: bool = False) -> BundleAccess:
@@ -306,8 +308,26 @@ def _capture(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
             password=inst.password,
         )
     )
+    simulated = art.engine == "playwright-simulated"
+    quality = (
+        "SIMULATED placeholder (capture fake mode is on), not a real view of the instance"
+        if simulated
+        else "live capture; the browser signed in and the page was not a sign-in screen"
+    )
+    picture = Path(art.file_path)
+    if art.media_type == "video":
+        picture = picture.with_suffix(".png")
+    images = (
+        [base64.standard_b64encode(picture.read_bytes()).decode("ascii")]
+        if not simulated and picture.exists() and picture.stat().st_size < _MAX_IMAGE_BYTES
+        else []
+    )
     return ToolResult(
-        summary=f"Captured {art.media_type} '{art.filename}' for bundle '{bundle_id}'.",
+        summary=(
+            f"Captured {art.media_type} '{art.filename}' for bundle '{bundle_id}' ({quality})."
+            + (" The image is attached: check it shows what was asked." if images else "")
+        ),
+        images=images,
         data={"filename": art.filename, "url": art.url},
         tiles=[
             media_tile(

@@ -25,6 +25,9 @@ class ToolResult(BaseModel):
     data: dict[str, Any] = Field(default_factory=dict)
     tiles: list[UITileSpec] = Field(default_factory=list)
     layout: TileLayout = "1-col"
+    # Images Claude should see with the result (base64 PNG/JPEG), so Otto can check its own
+    # work, e.g. that a screenshot shows the requested page and not a sign-in screen.
+    images: list[str] = Field(default_factory=list, max_length=4)
 
 
 @dataclass

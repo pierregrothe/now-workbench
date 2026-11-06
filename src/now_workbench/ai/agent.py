@@ -14,7 +14,8 @@ from now_workbench.ai.tools import ToolContext, ToolResult, execute_tool, tool_d
 from now_workbench.ai.tools.base import model_to_text, text_tile
 from now_workbench.db import ChatMessageRecord, DatabaseRepository
 
-MAX_STEPS = 6
+# Room to detect a problem, fix it and verify the fix within one request.
+MAX_STEPS = 12
 MAX_TILES = 12
 
 AGENT_SYSTEM_PROMPT = """You are Otto, the operator of the now-workbench ServiceNow demo tool.
@@ -28,6 +29,13 @@ Rules:
 - Chain tools when needed (e.g. test instances, then delete the failing ones).
 - When asked to test, drive, or run a demo, use 'run_demo_pipeline' (or follow testing
   with 'capture_media') so that live proof artifacts are recorded and returned as media tiles.
+- Work autonomously and check your own work. After an action, verify it with a read-only
+  tool (re-evaluate, test the instance, list what was created) and look at any image a tool
+  attaches. When something fails or looks wrong, find the cause with read-only tools, fix it
+  when the fix is within what was asked and not destructive, then verify again. Report what
+  you found and fixed, and say plainly what still does not work and why.
+- Never present simulated output as real: if a tool says its result is simulated or could
+  not be verified, say so.
 - Destructive tools (delete, rollback, reset, restore) are gated: the tool returns a pending
   confirmation shown to the user as a Confirm button. Say that you are waiting for
   confirmation; never claim it was done.
@@ -76,6 +84,25 @@ type FileBlocks = list[dict[str, Any]]
 
 def _as_blocks(content: str | FileBlocks) -> FileBlocks:
     return [{"type": "text", "text": content}] if isinstance(content, str) else content
+
+
+def _result_content(res: ToolResult) -> str | list[dict[str, Any]]:
+    """Tool result text, plus any images the tool attached (sent as image blocks)."""
+    text = f"{res.summary}\n{model_to_text(res.data)}"
+    if not res.images:
+        return text
+    images: list[dict[str, Any]] = [
+        {
+            "type": "image",
+            "source": {
+                "type": "base64",
+                "media_type": "image/jpeg" if data.startswith("/9j/") else "image/png",
+                "data": data,
+            },
+        }
+        for data in res.images
+    ]
+    return [{"type": "text", "text": text}, *images]
 
 
 def _content(text: str, blocks: FileBlocks) -> str | FileBlocks:
@@ -257,7 +284,7 @@ def _execute_turn_calls(
             {
                 "type": "tool_result",
                 "tool_use_id": call.id,
-                "content": f"{res.summary}\n{model_to_text(res.data)}",
+                "content": _result_content(res),
                 "is_error": not res.ok,
             }
         )
@@ -308,7 +335,7 @@ class ClaudeAgentRunner:
                 resp = await _call_client_create(
                     self.client,
                     model=self.model,
-                    max_tokens=1500,
+                    max_tokens=4000,
                     system=system,
                     tools=tools,
                     messages=messages,
@@ -424,7 +451,7 @@ def _run_agent_sync(
         for _ in range(MAX_STEPS):
             resp = client.messages.create(
                 model=model,
-                max_tokens=1500,
+                max_tokens=4000,
                 system=system,
                 tools=tools,
                 messages=messages,

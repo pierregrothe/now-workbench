@@ -234,3 +234,15 @@ def test_assemble_without_tools_has_no_steps() -> None:
     from now_workbench.ai.agent import _assemble
 
     assert _assemble("Hello.", []).steps == []
+
+
+def test_result_content_sends_attached_images_to_claude() -> None:
+    """A tool can show Claude what it produced (e.g. a screenshot), not just describe it."""
+    from now_workbench.ai.agent import _result_content
+    from now_workbench.ai.tools import ToolResult
+
+    assert _result_content(ToolResult(summary="done")) == "done\n{}"
+    blocks = _result_content(ToolResult(summary="shot", images=["iVBORw0KGgo=", "/9j/4AAQ"]))
+    assert isinstance(blocks, list)
+    assert blocks[0] == {"type": "text", "text": "shot\n{}"}
+    assert [b["source"]["media_type"] for b in blocks[1:]] == ["image/png", "image/jpeg"]
