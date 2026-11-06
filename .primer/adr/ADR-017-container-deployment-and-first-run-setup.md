@@ -2,6 +2,7 @@
 
 **Status:** accepted
 **Date:** 2026-11-06
+**Amended:** 2026-11-06 (Claude key may come from `.env`; home DNS override)
 
 ## Context
 
@@ -49,3 +50,6 @@
   the host is the place to protect it further, not a database cipher.
 - A person needs both an Access policy entry (outer gate) and a Team entry (inner gate).
 - Testers spend the owner's Claude key; usage shows on the owner's Anthropic bill.
+- Home users must go through Cloudflare too (Access is the only sign-in). The NAS DNS
+  (split-horizon `grothe.ca` zone with a wildcard to the LAN proxy) carries explicit
+  `workbench` A/AAAA records pointing at Cloudflare's public addresses; see `docs/deploy.md`.

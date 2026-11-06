@@ -324,3 +324,28 @@ created with a one-time setup code written only to the server log (more secure t
 first-come password form); roles then live in the database and are managed on a Team screen.
 Secrets are entered in the UI only and sealed; the master key and the database are in separate
 volumes. Runbook: `docs/deploy.md`. Details: `.primer/adr/ADR-017-container-deployment-and-first-run-setup.md`.
+
+### 2026-11-06 -- ADR-017 amendment: Claude key from the server .env
+
+At the owner's request the shared Claude key may be set as `WORKBENCH_ANTHROPIC_API_KEY` in the
+server's `.env` (mode 600, never committed). When set, it wins over a key entered in Settings,
+is never written to the database, and shows read-only in the UI. Home users reach the
+workbench through Cloudflare via split-horizon A/AAAA overrides on the NAS DNS (runbook).
+Details: `.primer/adr/ADR-017-container-deployment-and-first-run-setup.md`.
+
+### 2026-11-06 -- ADR-018: Owner-scoped repository, groups and versioned sharing
+
+Everything (instances with credentials, conversations, seed runs, preferences, demo bundles)
+belongs to one person. The verified email is an ambient owner set by the access middleware;
+owner-scoped queries fail closed without it. Groups (region, territory, business unit) have
+group admins who accept members and approve group shares; global shares need an administrator.
+Each version is an immutable snapshot and needs its own approval. Product decisions: PRD-003.
+Details: `.primer/adr/ADR-018-owner-scoped-repository-groups-and-versioned-sharing.md`.
+
+### 2026-11-06 -- ADR-019: Otto look and feel matched to EmployeeWorks
+
+Light only (dark theme removed). Sizes and colors are measured on the owner's EmployeeWorks
+instance (768px two-layer prompt box, warm canvas, Learn more chip). Icons are our own
+drawings in that style, never copied ServiceNow assets. Navigation follows EmployeeWorks
+(Recent header with compose, left-menu Settings).
+Details: `.primer/adr/ADR-019-otto-look-and-feel-alignment.md`.
