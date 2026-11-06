@@ -15,6 +15,15 @@ import type { UITileSpec } from '../tiles/now-tile-renderer.js';
 @customElement('now-chat-view')
 export class NowChatView extends LitElement {
   private threadCtrl = new ThreadController(this);
+
+  constructor() {
+    super();
+    this.threadCtrl.onThreadCreated = (threadId) => {
+      this.dispatchEvent(
+        new CustomEvent('thread-created', { detail: { threadId }, bubbles: true, composed: true })
+      );
+    };
+  }
   private unsubscribeStore?: () => void;
 
   @state() private currentStoreState: WorkbenchState = workbenchStore.state;

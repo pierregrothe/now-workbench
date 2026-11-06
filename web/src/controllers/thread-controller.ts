@@ -36,6 +36,8 @@ export class ThreadController implements ReactiveController {
   public messages: ChatMessage[] = [];
   public isStreaming: boolean = false;
   public error: string | null = null;
+  /** Called after a conversation was created implicitly by the first message. */
+  public onThreadCreated: ((threadId: string) => void) | null = null;
 
   constructor(host: ReactiveControllerHost) {
     this.host = host;
@@ -87,8 +89,10 @@ export class ThreadController implements ReactiveController {
     this.host.requestUpdate();
 
     try {
+      let createdThreadId = '';
       if (!this.threadId) {
-        throw new Error('No active thread selected');
+        createdThreadId = await this.createThread(promptText);
+        this.threadId = createdThreadId;
       }
       const res = await fetch(`/api/threads/${encodeURIComponent(this.threadId)}/messages`, {
         method: 'POST',
@@ -104,6 +108,9 @@ export class ThreadController implements ReactiveController {
       const history = mapThreadRecords(await res.json());
       const agentMsg = [...history].reverse().find((m) => m.sender === 'agent') ?? null;
       this.messages = history;
+      if (createdThreadId) {
+        this.onThreadCreated?.(createdThreadId);
+      }
       return agentMsg;
     } catch (err: any) {
       this.error = `Could not send message: ${err.message || 'unknown error'}`;
@@ -118,6 +125,22 @@ export class ThreadController implements ReactiveController {
       this.isStreaming = false;
       this.host.requestUpdate();
     }
+  }
+
+  private async createThread(firstPrompt: string): Promise<string> {
+    const res = await fetch('/api/threads', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: firstPrompt.slice(0, 40) }),
+    });
+    if (!res.ok) {
+      throw new Error(`could not start a conversation (HTTP ${res.status})`);
+    }
+    const created = (await res.json()) as { id?: string };
+    if (!created.id) {
+      throw new Error('unexpected response when starting a conversation');
+    }
+    return created.id;
   }
 
   clear(): void {

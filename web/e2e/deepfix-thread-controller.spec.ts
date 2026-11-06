@@ -57,3 +57,13 @@ test('chat view shows an explicit error when thread history fails to load', asyn
 
   await expect(page.getByText('Could not load thread messages')).toBeVisible();
 });
+
+test('first message on Home starts a conversation instead of failing', async ({ page }) => {
+  await page.goto('/');
+  const box = page.getByRole('textbox').last();
+  await box.fill('How many instances do I have?');
+  await box.press('Enter');
+  await expect(page.getByText('Otto AI Copilot').first()).toBeVisible({ timeout: 30000 });
+  await expect(page.getByText(/No active thread/)).toHaveCount(0);
+  await expect(page.getByText(/Could not send message/)).toHaveCount(0);
+});
