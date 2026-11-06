@@ -3,6 +3,7 @@ import '../views/now-team-settings.js';
 import '../views/now-groups-settings.js';
 import '../views/now-approvals-settings.js';
 import '../views/now-impersonation.js';
+import '../views/now-limits-settings.js';
 import { LitElement, html, css } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import './now-admin-panel.js';
@@ -65,6 +66,7 @@ type SettingsSection =
   | 'approvals'
   | 'impersonate'
   | 'claude'
+  | 'limits'
   | 'capture'
   | 'synthesis'
   | 'workspace'
@@ -77,6 +79,7 @@ const SECTIONS: { id: SettingsSection; label: string; adminOnly?: boolean }[] = 
   { id: 'approvals', label: 'Approvals' },
   { id: 'impersonate', label: 'View as someone' },
   { id: 'claude', label: 'Claude and Otto', adminOnly: true },
+  { id: 'limits', label: 'Conversation limits', adminOnly: true },
   { id: 'capture', label: 'Media capture' },
   { id: 'synthesis', label: 'Synthesis defaults' },
   { id: 'workspace', label: 'Workspace' },
@@ -720,7 +723,7 @@ export class NowWorkbenchSettings extends LitElement {
 
       <div class="prefs-layout">
         <nav class="pref-nav" aria-label="Settings sections">
-          ${SECTIONS.filter((sec) => !sec.adminOnly || isAdmin(this.profile)).map(
+          ${(this.profile ? SECTIONS : []).filter((sec) => !sec.adminOnly || isAdmin(this.profile)).map(
             (sec) => html`
               <button
                 type="button"
@@ -745,6 +748,8 @@ export class NowWorkbenchSettings extends LitElement {
         ? html`<div class="scroll-body"><div class="settings-container"><now-approvals-settings></now-approvals-settings></div></div>`
         : this.activeSection === 'impersonate'
         ? html`<div class="scroll-body"><div class="settings-container"><now-impersonation-settings></now-impersonation-settings></div></div>`
+        : this.activeSection === 'limits'
+        ? html`<div class="scroll-body"><div class="settings-container"><now-limits-settings></now-limits-settings></div></div>`
         : this.activeSection === 'instances'
         ? html`
             <now-admin-panel

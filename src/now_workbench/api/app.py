@@ -17,6 +17,7 @@ from now_workbench.ai.actions import execute_autonomous_action
 from now_workbench.ai.agent import AgentEventType, ClaudeAgentRunner, make_async_client
 from now_workbench.ai.client import OttoClient
 from now_workbench.ai.tiles import GenerativeUIResponse, resolve_query_to_tiles
+from now_workbench.api.attachments import attachments_router, limits_router
 from now_workbench.api.demos import router as demos_router
 from now_workbench.api.impersonation import router as impersonation_router
 from now_workbench.api.instances import router as instances_router
@@ -34,6 +35,7 @@ from now_workbench.auth.impersonation import effective_user
 from now_workbench.auth.models import AuthUser, Role
 from now_workbench.auth.owner import operator_owner, owner_scope
 from now_workbench.auth.setup import SetupCodes
+from now_workbench.chat.files import LimitReachedError, check_can_ask
 from now_workbench.config.origins import is_origin_allowed
 from now_workbench.config.paths import UnsafePathError
 from now_workbench.config.settings import settings
@@ -218,6 +220,8 @@ def create_app(
     app.include_router(artifacts_router)
     app.include_router(approvals_router)
     app.include_router(impersonation_router)
+    app.include_router(attachments_router)
+    app.include_router(limits_router)
 
     sdk_runner = NowSdkRunner(now_sdk_bin=settings.now_sdk_bin, node_bin=settings.node_bin)
     log_broadcaster = LogBroadcaster()
@@ -419,6 +423,16 @@ async def _stream_agent_to_ws(
 ) -> None:
     """Stream Claude agent lifecycle events to WebSocket and persist to SQLite."""
     history = repo.list_messages(str(thread_id)) if thread_id else []
+    thread = repo.get_thread(str(thread_id)) if thread_id else None
+    if thread_id and thread is None:
+        await websocket.send_json({"type": "error", "message": "Thread not found."})
+        return
+    if thread is not None:
+        try:
+            check_can_ask(thread, history, repo.get_conversation_limits())
+        except LimitReachedError as exc:
+            await websocket.send_json({"type": "error", "message": str(exc)})
+            return
     final_resp: dict[str, Any] | None = None
     async for event in runner.stream_run(str(prompt), history):
         await websocket.send_json({"type": event.event_type.value, **event.payload})

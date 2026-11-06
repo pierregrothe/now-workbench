@@ -5,6 +5,7 @@ from typing import Any, Self
 
 from now_workbench.db.repos import (
     ArtifactRepositoryMixin,
+    ChatRepositoryMixin,
     GroupRepositoryMixin,
     InstanceRepositoryMixin,
     PreferencesRepositoryMixin,
@@ -26,6 +27,7 @@ class DatabaseRepository(
     UserRepositoryMixin,
     GroupRepositoryMixin,
     ArtifactRepositoryMixin,
+    ChatRepositoryMixin,
 ):
     """Encapsulates SQLite queries for instances, templates, threads, seeds, and preferences."""
 

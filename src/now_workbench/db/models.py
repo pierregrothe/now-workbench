@@ -215,6 +215,7 @@ class ChatMessageCreate(BaseModel):
     role: str = "user"
     widget_type: str | None = None
     widget_data: dict[str, Any] | None = None
+    attachment_ids: list[str] = Field(default_factory=list, max_length=50)
 
 
 class ChatMessageRecord(BaseModel):

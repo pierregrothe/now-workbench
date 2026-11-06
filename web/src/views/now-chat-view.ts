@@ -8,7 +8,7 @@ import { customElement, property, state } from 'lit/decorators.js';
 import { ThreadController } from '../controllers/thread-controller.js';
 import { workbenchStore } from '../context/workbench-context.js';
 import type { WorkbenchState } from '../context/workbench-context.js';
-import { openArrowIcon, ottoGlyph, sendIcon, tapIcon } from '../icons.js';
+import { attachIcon, openArrowIcon, ottoGlyph, sendIcon, tapIcon } from '../icons.js';
 import { renderAvatar } from '../profile/avatars.js';
 import { bundlePanel, instancePanel } from './panel-items.js';
 import type { PanelItem } from './panel-items.js';
@@ -116,11 +116,11 @@ export class NowChatView extends LitElement {
 
   private async submitPrompt(overrideText?: string): Promise<void> {
     const text = (overrideText ?? this.chatInput).trim();
-    if (!text) return;
+    if (!text && this.threadCtrl.pending.length === 0) return;
 
     this.chatInput = '';
     this.activeMode = 'thread';
-    this.threadTitle = text.slice(0, 40);
+    this.threadTitle = (text || 'Attached files').slice(0, 40);
 
     const result = await this.threadCtrl.sendMessage(text);
 
@@ -183,8 +183,45 @@ export class NowChatView extends LitElement {
           @input=${(e: Event) => (this.chatInput = (e.target as HTMLInputElement).value)}
           @keydown=${this.handleKeyDown}
         />
+        ${this.threadCtrl.pending.length
+          ? html`<div class="attach-chips">
+              ${this.threadCtrl.pending.map(
+                (a) => html`<span class="attach-chip">
+                  ${a.filename} <span class="attach-size">${Math.max(1, Math.round(a.size_bytes / 1024))} KB</span>
+                  <button aria-label="Remove ${a.filename}" @click=${() => void this.threadCtrl.detach(a.id)}>&times;</button>
+                </span>`
+              )}
+            </div>`
+          : ''}
+        ${this.threadCtrl.attachError
+          ? html`<div class="attach-error" role="alert">${this.threadCtrl.attachError}</div>`
+          : ''}
         <div class="prompt-foot">
-          <span>${this.currentStoreState.instances.find((i) => i.id === this.currentStoreState.selectedInstanceId)?.name ?? 'No instance'}</span>
+          <span class="prompt-foot-left">
+            <button
+              class="attach-btn"
+              aria-label="Attach files"
+              title="Attach PDFs, images or text files"
+              ?disabled=${this.threadCtrl.isUploading}
+              @click=${() => this.renderRoot.querySelector<HTMLInputElement>('#attach-input')?.click()}
+            >
+              ${attachIcon(18)}
+            </button>
+            <input
+              id="attach-input"
+              type="file"
+              multiple
+              hidden
+              accept=".pdf,.png,.jpg,.jpeg,.gif,.webp,.txt,.md,.csv,.json,.log,.xml,.yaml,.yml"
+              @change=${(e: Event) => {
+                const input = e.target as HTMLInputElement;
+                void this.threadCtrl.attach(Array.from(input.files ?? []));
+                input.value = '';
+              }}
+            />
+            ${this.threadCtrl.isUploading ? html`<span>Uploading...</span>` : ''}
+            <span>${this.currentStoreState.instances.find((i) => i.id === this.currentStoreState.selectedInstanceId)?.name ?? 'No instance'}</span>
+          </span>
           <button class="prompt-send-btn" aria-label="Send" @click=${() => void this.submitPrompt()}>
             ${sendIcon(16)}
           </button>

@@ -1,6 +1,7 @@
 """Modular repository mixin exports."""
 
 from now_workbench.db.repos.artifacts import ArtifactRepositoryMixin
+from now_workbench.db.repos.chat import ChatRepositoryMixin
 from now_workbench.db.repos.groups import GroupRepositoryMixin
 from now_workbench.db.repos.instances import InstanceRepositoryMixin, row_to_instance
 from now_workbench.db.repos.preferences import PreferencesRepositoryMixin
@@ -12,6 +13,7 @@ from now_workbench.db.repos.users import UserRepositoryMixin
 
 __all__ = [
     "ArtifactRepositoryMixin",
+    "ChatRepositoryMixin",
     "GroupRepositoryMixin",
     "InstanceRepositoryMixin",
     "PreferencesRepositoryMixin",

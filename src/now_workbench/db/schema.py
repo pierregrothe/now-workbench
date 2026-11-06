@@ -321,7 +321,31 @@ CREATE TABLE impersonation_log (
 ) STRICT;
 """
 
-MIGRATIONS: tuple[str, ...] = (_V1, _V2, _V3, _V4, _V5, _V6, _V7, _V8, _V9)
+# v10 (ADR-021): global settings administrators edit (conversation limits), and files attached
+# to conversations. Attachment bytes live under the data directory; rows go with their thread.
+_V10 = f"""
+CREATE TABLE app_settings (
+    key         TEXT PRIMARY KEY,
+    payload     TEXT NOT NULL CHECK (json_valid(payload)),
+    updated_by  TEXT NOT NULL DEFAULT '',
+    updated_at  TEXT NOT NULL DEFAULT {_NOW}
+) STRICT, WITHOUT ROWID;
+
+CREATE TABLE chat_attachments (
+    id           TEXT PRIMARY KEY,
+    thread_id    TEXT NOT NULL REFERENCES chat_threads (id) ON DELETE CASCADE,
+    owner_email  TEXT NOT NULL,
+    message_id   TEXT,
+    filename     TEXT NOT NULL,
+    media_type   TEXT NOT NULL,
+    size_bytes   INTEGER NOT NULL CHECK (size_bytes > 0),
+    created_at   TEXT NOT NULL DEFAULT {_NOW}
+) STRICT;
+
+CREATE INDEX ix_chat_attachments_thread ON chat_attachments (thread_id, created_at);
+"""
+
+MIGRATIONS: tuple[str, ...] = (_V1, _V2, _V3, _V4, _V5, _V6, _V7, _V8, _V9, _V10)
 SCHEMA_VERSION = len(MIGRATIONS)
 
 

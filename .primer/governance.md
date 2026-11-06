@@ -70,7 +70,7 @@ local git hooks and harness hooks are the primary gates.
 
 ## ADR Catalog
 
-<!-- govtable:adr-catalog:start (count=20) -->
+<!-- govtable:adr-catalog:start (count=21) -->
 | ADR | Title | Enforcement | Status |
 |-----|-------|-------------|--------|
 | 001 | Hybrid Runtime with Python Core & Lit Web Components | hook | accepted |
@@ -93,6 +93,7 @@ local git hooks and harness hooks are the primary gates.
 | 018 | Owner-Scoped Repository, Groups and Versioned Sharing | architecture | accepted |
 | 019 | Otto Look and Feel Matched to EmployeeWorks | convention | accepted |
 | 020 | Impersonation (View as Someone) | architecture | accepted |
+| 021 | File Attachments and Conversation Limits | architecture | accepted |
 <!-- govtable:adr-catalog:end -->
 
 Full ADR files: `.primer/adr/`

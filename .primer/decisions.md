@@ -357,3 +357,11 @@ workbench administrator. The impersonation is held server-side per signed-in per
 by the access middleware, so every workload runs as the target. Rights are re-checked on each
 request (revoked when lost); starts, stops and revocations are logged; a banner offers Stop.
 Details: `.primer/adr/ADR-020-impersonation.md`.
+
+### 2026-11-06 -- ADR-021: File attachments and conversation limits
+
+People attach PDFs, images and text files to a question; Claude receives them as document and
+image blocks. Administrators set one global limit set: question and age caps per conversation,
+per-file size, and per-conversation file count and total (defaults 20 questions, 30 days,
+10 MB, 10 files, 25 MB). Types are detected from the bytes; enforcement is server-side on every
+path. Details: `.primer/adr/ADR-021-attachments-and-conversation-limits.md`.

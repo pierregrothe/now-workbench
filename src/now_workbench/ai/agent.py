@@ -2,6 +2,7 @@
 
 import inspect
 from collections.abc import AsyncIterator
+from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any
 
@@ -70,23 +71,79 @@ def make_async_client(api_key: str) -> Any:
     return anthropic.AsyncAnthropic(api_key=api_key)
 
 
-def _history_to_messages(history: list[ChatMessageRecord], user_text: str) -> list[dict[str, Any]]:
-    """Convert chat history to alternating Claude messages ending with the new user turn."""
-    raw: list[tuple[str, str]] = [
-        (m.role, m.content)
+type FileBlocks = list[dict[str, Any]]
+
+
+def _as_blocks(content: str | FileBlocks) -> FileBlocks:
+    return [{"type": "text", "text": content}] if isinstance(content, str) else content
+
+
+def _content(text: str, blocks: FileBlocks) -> str | FileBlocks:
+    """Plain text, or the files followed by the text (a text block may not be empty)."""
+    if not blocks:
+        return text
+    return [*blocks, {"type": "text", "text": text.strip() or "(see the attached files)"}]
+
+
+def _join(previous: str | FileBlocks, content: str | FileBlocks) -> str | FileBlocks:
+    """Merge two consecutive same-role contents (the API needs alternating roles)."""
+    if isinstance(previous, str) and isinstance(content, str):
+        return previous + "\n" + content
+    return _as_blocks(previous) + _as_blocks(content)
+
+
+def _history_to_messages(
+    history: list[ChatMessageRecord],
+    user_text: str,
+    files: dict[str, FileBlocks] | None = None,
+    current_files: FileBlocks | None = None,
+) -> list[dict[str, Any]]:
+    """Convert chat history to alternating Claude messages ending with the new user turn.
+
+    Args:
+        history: Earlier messages, oldest first.
+        user_text: The new question.
+        files: Attachment content blocks per earlier message id (ADR-021).
+        current_files: Attachment content blocks sent with the new question.
+    """
+    files = files or {}
+    raw: list[tuple[str, str, FileBlocks]] = [
+        (m.role, m.content, files.get(m.id, []))
         for m in history
-        if m.role in ("user", "assistant") and m.content.strip()
+        if m.role in ("user", "assistant") and (m.content.strip() or files.get(m.id))
     ]
-    raw.append(("user", user_text))
+    raw.append(("user", user_text, current_files or []))
     merged: list[dict[str, Any]] = []
-    for role, content in raw:
+    for role, text, blocks in raw:
+        content = _content(text, blocks)
         if merged and merged[-1]["role"] == role:
-            merged[-1]["content"] += "\n" + content
+            merged[-1]["content"] = _join(merged[-1]["content"], content)
         else:
             merged.append({"role": role, "content": content})
     while merged and merged[0]["role"] != "user":
         merged.pop(0)
     return merged
+
+
+@dataclass(frozen=True)
+class ConversationFiles:
+    """Attachment content blocks for one agent run (ADR-021).
+
+    Attributes:
+        by_message: Blocks attached to earlier messages, by message id.
+        current: Blocks sent with the new question.
+    """
+
+    by_message: dict[str, FileBlocks]
+    current: FileBlocks
+
+
+def _messages_for(
+    history: list[ChatMessageRecord], user_text: str, files: ConversationFiles | None
+) -> list[dict[str, Any]]:
+    if files is None:
+        return _history_to_messages(history, user_text)
+    return _history_to_messages(history, user_text, files.by_message, files.current)
 
 
 def _block_to_dict(block: Any) -> dict[str, Any] | None:
@@ -227,9 +284,10 @@ class ClaudeAgentRunner:
         self,
         user_text: str,
         history: list[ChatMessageRecord],
+        files: ConversationFiles | None = None,
     ) -> AsyncIterator[AgentEvent]:
         """Stream granular lifecycle events through the Claude tool loop."""
-        messages = _history_to_messages(history, user_text)
+        messages = _messages_for(history, user_text, files)
         tools = tool_definitions()
         if tools:
             tools[-1]["cache_control"] = {"type": "ephemeral"}
@@ -298,10 +356,11 @@ class ClaudeAgentRunner:
         self,
         user_text: str,
         history: list[ChatMessageRecord],
+        files: ConversationFiles | None = None,
     ) -> GenerativeUIResponse:
         """Execute the agent run and return the final assembled GenerativeUIResponse."""
         final_resp: GenerativeUIResponse | None = None
-        async for event in self.stream_run(user_text, history):
+        async for event in self.stream_run(user_text, history, files):
             if event.event_type == AgentEventType.DONE:
                 raw_resp = event.payload.get("response", {})
                 final_resp = GenerativeUIResponse.model_validate(raw_resp)
@@ -317,6 +376,7 @@ def run_agent(
     client: Any,
     model: str,
     fake_mode: bool = False,
+    files: ConversationFiles | None = None,
 ) -> GenerativeUIResponse:
     """Synchronous adapter for backward compatibility running ClaudeAgentRunner."""
     import asyncio
@@ -330,8 +390,8 @@ def run_agent(
         in_running_loop = False
 
     if in_running_loop:
-        return _run_agent_sync(user_text, history, repo, client, model, fake_mode)
-    return asyncio.run(runner.run(user_text, history))
+        return _run_agent_sync(user_text, history, repo, client, model, fake_mode, files)
+    return asyncio.run(runner.run(user_text, history, files))
 
 
 def _run_agent_sync(
@@ -341,10 +401,11 @@ def _run_agent_sync(
     client: Any,
     model: str,
     fake_mode: bool = False,
+    files: ConversationFiles | None = None,
 ) -> GenerativeUIResponse:
     """Direct synchronous runner for tests and sync execution contexts."""
     ctx = ToolContext(repo=repo, fake_mode=fake_mode)
-    messages = _history_to_messages(history, user_text)
+    messages = _messages_for(history, user_text, files)
     tools = tool_definitions()
     if tools:
         tools[-1]["cache_control"] = {"type": "ephemeral"}

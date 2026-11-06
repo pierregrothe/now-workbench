@@ -122,6 +122,63 @@ export const chatViewStyles = css`
         color: var(--now-text-secondary, #4b5563);
       }
 
+      .prompt-foot-left {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .attach-btn {
+        width: 32px;
+        height: 32px;
+        border: none;
+        border-radius: 50%;
+        background: transparent;
+        color: #4a4e58;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+      }
+
+      .attach-btn:hover {
+        background: #f1efeb;
+      }
+
+      .attach-chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+
+      .attach-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 6px 4px 10px;
+        border-radius: 10px;
+        background: #f1efeb;
+        font-size: 12.5px;
+      }
+
+      .attach-chip button {
+        border: none;
+        background: none;
+        cursor: pointer;
+        font-size: 14px;
+        color: #4a4e58;
+      }
+
+      .attach-error {
+        font-size: 12.5px;
+        color: #b42318;
+      }
+
+      .attach-size {
+        color: #6b7280;
+        font-size: 11.5px;
+      }
+
       .prompt-send-btn {
         width: 34px;
         height: 34px;

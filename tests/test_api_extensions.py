@@ -581,7 +581,9 @@ def test_api_threads_and_messages_endpoints(tmp_path: Path) -> None:
         active_only = client.get("/api/threads?include_archived=false").json()
         assert all(t["id"] != "otto-conv-1" for t in active_only)
 
-        # Fill up to 20 messages (9 more user+assistant pairs = 18 more messages -> total 20)
+        # The question limit is an admin setting (ADR-021): 10 questions per conversation.
+        limits = client.put("/api/limits", json={"max_turns": 10})
+        assert limits.status_code == 200
         for idx in range(9):
             fill_res = client.post(
                 "/api/threads/otto-conv-1/messages",
@@ -589,13 +591,13 @@ def test_api_threads_and_messages_endpoints(tmp_path: Path) -> None:
             )
             assert fill_res.status_code == 200
 
-        # 21st message exceeds context limit (MAX_THREAD_CONTEXT_MESSAGES = 20) -> 400
+        # The 11th question is refused.
         over_limit = client.post(
             "/api/threads/otto-conv-1/messages",
-            json={"content": "One message past the 20-message limit"},
+            json={"content": "One question past the limit"},
         )
-        assert over_limit.status_code == 400
-        assert "context limit reached" in over_limit.json()["detail"].lower()
+        assert over_limit.status_code == 409
+        assert "limit of 10 questions" in over_limit.json()["detail"]
 
         # Delete conversation permanently
         del_res = client.delete("/api/threads/otto-conv-1")

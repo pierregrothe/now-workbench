@@ -6,12 +6,23 @@ from typing import Any
 from fastapi import APIRouter, HTTPException
 
 from now_workbench.ai.actions import execute_autonomous_action
-from now_workbench.ai.agent import _build_diagnostic_error_tiles, make_client, run_agent
+from now_workbench.ai.agent import (
+    ConversationFiles,
+    _build_diagnostic_error_tiles,
+    make_client,
+    run_agent,
+)
 from now_workbench.ai.tiles import GenerativeUIResponse, resolve_query_to_tiles
 from now_workbench.ai.tools import ToolContext, execute_tool
 from now_workbench.ai.tools.base import text_tile
 from now_workbench.bundles.manager import BundleManager
-from now_workbench.config.settings import settings
+from now_workbench.chat.files import (
+    LimitReachedError,
+    check_can_ask,
+    claude_blocks,
+    delete_files,
+)
+from now_workbench.chat.models import Attachment
 from now_workbench.connectivity import check_and_record_instance
 from now_workbench.db import (
     MAX_THREAD_CONTEXT_MESSAGES,
@@ -24,6 +35,7 @@ from now_workbench.db import (
     db_session,
     get_db_path,
 )
+from now_workbench.sharing.access import list_accessible
 
 router = APIRouter(prefix="/api/threads", tags=["threads"])
 
@@ -78,11 +90,11 @@ def _ensure_default_thread(repo: DatabaseRepository) -> list[ChatThreadRecord]:
     return repo.list_threads(include_archived=True)
 
 
-def _load_live_bundles_dict() -> list[dict[str, Any]]:
-    """Load installed demo bundles as dictionaries for Generative UI tile resolution."""
-    manager = BundleManager(settings.bundles_dir)
+def _load_live_bundles_dict(repo: DatabaseRepository) -> list[dict[str, Any]]:
+    """Load the person's own and shared bundles as dictionaries for tile resolution."""
+    infos = [BundleManager(a.root).inspect_bundle(a.path) for a in list_accessible(repo)]
     result: list[dict[str, Any]] = []
-    for info in manager.list_bundles():
+    for info in infos:
         manifest = info.manifest
         result.append(
             {
@@ -153,6 +165,7 @@ def _agent_reply(
     user_text: str,
     repo: DatabaseRepository,
     history: list[ChatMessageRecord],
+    files: ConversationFiles | None = None,
 ) -> tuple[str, str | None, dict[str, Any]] | None:
     """Answer with the Claude tool-calling agent when an API key is configured."""
     api_key = repo.get_decrypted_anthropic_api_key()
@@ -167,6 +180,7 @@ def _agent_reply(
             client=make_client(api_key),
             model=prefs.claude_model,
             fake_mode=prefs.sdk_fake_mode,
+            files=files,
         )
     except Exception as exc:
         if not prefs.sdk_fake_mode:
@@ -199,11 +213,19 @@ def _build_contextual_reply(
     user_text: str,
     repo: DatabaseRepository,
     history: list[ChatMessageRecord],
+    files: ConversationFiles | None = None,
 ) -> tuple[str, str | None, dict[str, Any]]:
     """Determine assistant response text and structured Generative UI tiles with context."""
-    agent = _agent_reply(user_text, repo, history)
+    agent = _agent_reply(user_text, repo, history, files)
     if agent is not None:
         return agent
+    if files is not None and files.current:
+        return (
+            "Otto needs a Claude API key to read attached files. "
+            "Ask an administrator to configure one.",
+            None,
+            {},
+        )
 
     lower = user_text.lower()
     effective_query = _resolve_effective_query(user_text, history)
@@ -213,7 +235,7 @@ def _build_contextual_reply(
         tile_resp = action_resp
     else:
         inst_dicts = _load_verified_instances_dict(repo)
-        bundle_dicts = _load_live_bundles_dict()
+        bundle_dicts = _load_live_bundles_dict(repo)
         tile_resp = resolve_query_to_tiles(
             query=effective_query,
             instances=inst_dicts or None,
@@ -300,9 +322,11 @@ def update_thread(thread_id: str, req: ChatThreadUpdate) -> ChatThreadRecord:
 def delete_thread(thread_id: str) -> dict[str, Any]:
     """Permanently delete a conversational thread and its messages from SQLite."""
     with db_session() as repo:
+        attachments = repo.list_attachments(thread_id)
         deleted = repo.delete_thread(thread_id)
         if not deleted:
             raise HTTPException(status_code=404, detail="Thread not found.")
+        delete_files(attachments)
         _DELETED_DEFAULT_DBS.add(str(get_db_path()))
         return {"deleted_thread_id": thread_id, "status": "deleted"}
 
@@ -318,6 +342,38 @@ def list_thread_messages(thread_id: str) -> list[ChatMessageRecord]:
         return repo.list_messages(thread_id)
 
 
+def _auto_title(repo: DatabaseRepository, thread: ChatThreadRecord, first_prompt: str) -> None:
+    """Name a generically titled thread after its first question."""
+    if thread.title not in GENERIC_TITLES:
+        return
+    clean_title = first_prompt.strip()
+    short_title = f"{clean_title[:38]}..." if len(clean_title) > 38 else clean_title
+    if short_title:
+        repo.update_thread(thread.id, ChatThreadUpdate(title=short_title))
+
+
+def _require_unsent(attachments: list[Attachment], wanted: list[str]) -> None:
+    """Refuse ids that are not unsent attachments of this thread."""
+    unsent = {a.id for a in attachments if a.message_id is None}
+    if any(a not in unsent for a in wanted):
+        raise HTTPException(status_code=404, detail="Attachment not found in this thread.")
+
+
+def _conversation_files(
+    attachments: list[Attachment], window: list[ChatMessageRecord], current_ids: list[str]
+) -> ConversationFiles:
+    """Claude blocks for files sent earlier in the window and with the new question."""
+    window_ids = {m.id for m in window}
+    earlier: dict[str, list[dict[str, Any]]] = {}
+    for att in attachments:
+        if att.message_id in window_ids:
+            earlier.setdefault(str(att.message_id), []).extend(claude_blocks([att]))
+    by_id = {a.id: a for a in attachments}
+    return ConversationFiles(
+        by_message=earlier, current=claude_blocks([by_id[a] for a in current_ids])
+    )
+
+
 @router.post("/{thread_id}/messages", response_model=list[ChatMessageRecord])
 def post_thread_message(thread_id: str, req: ChatMessageCreate) -> list[ChatMessageRecord]:
     """Append a user message to a thread and generate a contextual assistant reply."""
@@ -330,21 +386,16 @@ def post_thread_message(thread_id: str, req: ChatMessageCreate) -> list[ChatMess
             raise HTTPException(status_code=404, detail="Thread not found.")
 
         existing_msgs = repo.list_messages(thread_id)
-        if len(existing_msgs) >= MAX_THREAD_CONTEXT_MESSAGES:
-            raise HTTPException(
-                status_code=400,
-                detail=(
-                    f"Conversation context limit reached ({MAX_THREAD_CONTEXT_MESSAGES} "
-                    "messages max). Please start a new conversation."
-                ),
-            )
+        if req.role == "user":
+            try:
+                check_can_ask(thread, existing_msgs, repo.get_conversation_limits())
+            except LimitReachedError as exc:
+                raise HTTPException(status_code=409, detail=str(exc)) from exc
+        attachments = repo.list_attachments(thread_id)
+        _require_unsent(attachments, req.attachment_ids)
 
-        # Auto-title thread if this is the first user prompt on a generic title
-        if req.role == "user" and thread.title in GENERIC_TITLES:
-            clean_title = req.content.strip()
-            short_title = f"{clean_title[:38]}..." if len(clean_title) > 38 else clean_title
-            if short_title:
-                repo.update_thread(thread_id, ChatThreadUpdate(title=short_title))
+        if req.role == "user":
+            _auto_title(repo, thread, req.content)
 
         user_msg = ChatMessageRecord(
             id=f"msg-{uuid.uuid4().hex[:8]}",
@@ -355,14 +406,16 @@ def post_thread_message(thread_id: str, req: ChatMessageCreate) -> list[ChatMess
             widget_data=req.widget_data,
         )
         repo.add_message(user_msg)
+        repo.attach_to_message(req.attachment_ids, user_msg.id)
 
         if req.role == "user":
             context_window = existing_msgs[-MAX_THREAD_CONTEXT_MESSAGES:]
             if req.widget_type == "tool_confirm":
                 reply_text, w_type, w_data = _confirmed_tool_reply(req, repo, context_window)
             else:
+                files = _conversation_files(attachments, context_window, req.attachment_ids)
                 reply_text, w_type, w_data = _build_contextual_reply(
-                    req.content, repo, context_window
+                    req.content, repo, context_window, files
                 )
             assistant_msg = ChatMessageRecord(
                 id=f"msg-{uuid.uuid4().hex[:8]}",
