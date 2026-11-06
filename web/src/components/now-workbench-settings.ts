@@ -64,7 +64,7 @@ const SECTIONS: { id: SettingsSection; label: string; adminOnly?: boolean }[] = 
   { id: 'capture', label: 'Media capture' },
   { id: 'synthesis', label: 'Synthesis defaults' },
   { id: 'workspace', label: 'Workspace' },
-  { id: 'instances', label: 'ServiceNow instances', adminOnly: true },
+  { id: 'instances', label: 'ServiceNow instances' },
 ];
 
 @customElement('now-workbench-settings')

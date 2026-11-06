@@ -49,3 +49,11 @@ export const menuToggleIcon = (collapsed: boolean, size = 20): TemplateResult =>
     ${collapsed ? html`<path d="m14 7 3 3-3 3" />` : html`<path d="m17 7-3 3 3 3" />`}
   </svg>
 `;
+
+/** Tap glyph (a pointing finger with a press ring), as on the Otto "Learn more" pill. */
+export const tapIcon = (size = 14): TemplateResult => html`
+  <svg viewBox="0 0 16 16" width=${size} height=${size} aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M6.5 8.5V3.25a1 1 0 0 1 2 0V7.5l2.6.45a1.6 1.6 0 0 1 1.3 1.8l-.4 2.6a1.8 1.8 0 0 1-1.8 1.65H8.4a2 2 0 0 1-1.6-.8L4.6 10.3a.95.95 0 0 1 1.4-1.25z" />
+    <path d="M4.4 4.6a3.2 3.2 0 0 1 6.2 0" />
+  </svg>
+`;

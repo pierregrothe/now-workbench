@@ -8,7 +8,7 @@ import { customElement, property, state } from 'lit/decorators.js';
 import { ThreadController } from '../controllers/thread-controller.js';
 import { workbenchStore } from '../context/workbench-context.js';
 import type { WorkbenchState } from '../context/workbench-context.js';
-import { openArrowIcon, ottoGlyph, sendIcon } from '../icons.js';
+import { openArrowIcon, ottoGlyph, sendIcon, tapIcon } from '../icons.js';
 import { renderAvatar } from '../profile/avatars.js';
 import { bundlePanel, instancePanel } from './panel-items.js';
 import type { PanelItem } from './panel-items.js';
@@ -337,8 +337,11 @@ export class NowChatView extends LitElement {
           ${this.activeMode === 'thread'
             ? html`<button class="pill-btn" @click=${() => (this.activeMode = 'overview')}>&larr; Back to Home</button>`
             : ''}
-          <button class="pill-btn" @click=${() => this.dispatchEvent(new CustomEvent('open-welcome', { bubbles: true, composed: true }))}>
-            Guide
+          <button
+            class="learn-more-pill"
+            @click=${() => this.dispatchEvent(new CustomEvent('open-welcome', { bubbles: true, composed: true }))}
+          >
+            ${tapIcon(14)}<span>Learn more</span>
           </button>
         </div>
       </div>

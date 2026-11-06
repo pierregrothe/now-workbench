@@ -46,6 +46,27 @@ export const workspaceStyles = css`
     gap: 12px;
   }
 
+  /* Otto's "Learn more" chip: warm grey, softly rounded, small tap glyph. */
+  .learn-more-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 30px;
+    padding: 0 12px;
+    border: none;
+    border-radius: 10px;
+    background: #e4e1db;
+    color: #2b2d31;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+  }
+
+  .learn-more-pill:hover {
+    background: #dad6cf;
+  }
+
   .instance-picker-pill {
     display: inline-flex;
     align-items: center;

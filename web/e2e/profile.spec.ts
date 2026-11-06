@@ -84,7 +84,8 @@ test('a consultant sees no admin sections in Settings', async ({ page }) => {
   await expect(nav.getByRole('button', { name: 'Profile' })).toBeVisible();
   await expect(nav.getByRole('button', { name: 'Media capture' })).toBeVisible();
   await expect(nav.getByRole('button', { name: 'Claude and Otto' })).toHaveCount(0);
-  await expect(nav.getByRole('button', { name: 'ServiceNow instances' })).toHaveCount(0);
+  // Instances are per user (ADR-018): everyone manages their own.
+  await expect(nav.getByRole('button', { name: 'ServiceNow instances' })).toBeVisible();
   await expect(page.locator('now-nav-rail').getByText('Solution Consultant')).toBeVisible();
 });
 
@@ -95,4 +96,14 @@ test('the chat send button is the paper-plane icon on a pale-green circle', asyn
   await expect(send.locator('svg path').first()).toHaveAttribute('d', /^M21\.6 2\.4/);
   const bg = await send.evaluate((el) => getComputedStyle(el).backgroundColor);
   expect(bg).toBe('rgb(201, 240, 193)');
+});
+
+test('the Learn more pill at the top right opens the welcome guide', async ({ page }) => {
+  await page.goto('/');
+  const pill = page.getByRole('button', { name: 'Learn more' });
+  await expect(pill).toBeVisible();
+  const bg = await pill.evaluate((el) => getComputedStyle(el).backgroundColor);
+  expect(bg).toBe('rgb(228, 225, 219)');
+  await pill.click();
+  await expect(page.locator('now-welcome-modal').getByRole('dialog')).toBeVisible();
 });
