@@ -67,3 +67,71 @@ test('first message on Home starts a conversation instead of failing', async ({ 
   await expect(page.getByText(/No active thread/)).toHaveCount(0);
   await expect(page.getByText(/Could not send message/)).toHaveCount(0);
 });
+
+const confirmRecord = {
+  id: 'm-confirm',
+  thread_id: 'default-thread',
+  role: 'assistant',
+  content: 'Waiting for your confirmation.',
+  widget_type: 'generative_tiles',
+  widget_data: {
+    tiles: [
+      {
+        id: 'tile-confirm-delete_bundle',
+        type: 'rich-text',
+        title: 'Confirm action',
+        props: {
+          body: 'Permanently delete demo bundle x.',
+          actions: [
+            {
+              id: 'confirm_tool',
+              label: 'Confirm',
+              variant: 'primary',
+              tool: 'delete_bundle',
+              tool_input: { bundle_id: 'x' },
+              plan: 'Delete bundle x',
+            },
+            { id: 'cancel_tool', label: 'Cancel', variant: 'secondary' },
+          ],
+        },
+      },
+    ],
+  },
+  created_at: '2026-11-06T12:00:00Z',
+};
+
+test('Confirm on a tool confirmation tile posts the tool call to the backend', async ({ page }) => {
+  let posted: Record<string, unknown> | null = null;
+  await page.route('**/api/threads/default-thread/messages', async (route) => {
+    if (route.request().method() === 'POST') {
+      posted = route.request().postDataJSON();
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify([confirmRecord, { ...confirmRecord, id: 'm-done', content: 'Bundle x deleted.', widget_data: null }]),
+      });
+      return;
+    }
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([confirmRecord]) });
+  });
+  await page.goto('/');
+  await selectThread(page);
+  await page.getByRole('button', { name: 'Confirm', exact: true }).click();
+  await expect(page.getByText('Bundle x deleted.')).toBeVisible();
+  const body = posted as unknown as Record<string, any>;
+  expect(body.widget_type).toBe('tool_confirm');
+  expect(body.widget_data).toEqual({ tool: 'delete_bundle', input: { bundle_id: 'x' } });
+});
+
+test('Cancel on a tool confirmation tile sends nothing and says so', async ({ page }) => {
+  let posts = 0;
+  await page.route('**/api/threads/default-thread/messages', async (route) => {
+    if (route.request().method() === 'POST') posts += 1;
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([confirmRecord]) });
+  });
+  await page.goto('/');
+  await selectThread(page);
+  await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await expect(page.getByText('Action cancelled. Nothing was changed.')).toBeVisible();
+  expect(posts).toBe(0);
+});

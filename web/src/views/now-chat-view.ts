@@ -212,9 +212,7 @@ export class NowChatView extends LitElement {
     this.activeMode = 'thread';
     this.threadTitle = text.slice(0, 40);
 
-    const result = await this.threadCtrl.sendMessage(text, {
-      instance_id: this.currentStoreState.selectedInstanceId,
-    });
+    const result = await this.threadCtrl.sendMessage(text);
 
     if (result?.tiles && result.tiles.length > 0) {
       this.activeTiles = result.tiles;
@@ -232,10 +230,24 @@ export class NowChatView extends LitElement {
     workbenchStore.setState({ selectedInstanceId: val });
   }
 
+  private async confirmTool(props: Record<string, any>): Promise<void> {
+    const result = await this.threadCtrl.sendMessage(`Confirmed: ${props.plan ?? props.tool}`, {
+      widget_type: 'tool_confirm',
+      widget_data: { tool: props.tool, input: props.tool_input ?? {} },
+    });
+    if (result?.tiles && result.tiles.length > 0) {
+      this.activeTiles = result.tiles;
+    }
+  }
+
   private handleTileAction(e: CustomEvent): void {
     const { actionId, props } = e.detail;
     if (actionId === 'probe' || actionId === 'probe_all') {
       void this.submitPrompt('Run full diagnostic health check on ServiceNow instances');
+    } else if (actionId === 'confirm_tool') {
+      void this.confirmTool(props);
+    } else if (actionId === 'cancel_tool') {
+      this.threadCtrl.addSystemNote('Action cancelled. Nothing was changed.');
     } else if (actionId === 'synthesize') {
       this.dispatchEvent(new CustomEvent('nav-change', { detail: { tab: 'synthesizer' }, bubbles: true, composed: true }));
     }

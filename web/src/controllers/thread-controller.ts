@@ -25,7 +25,10 @@ function mapThreadRecords(data: unknown): ChatMessage[] {
     id: m.id,
     sender: m.role === 'assistant' ? 'agent' : m.role || 'user',
     text: m.content || '',
-    timestamp: m.created_at || new Date().toISOString(),
+    timestamp: new Date(m.created_at || Date.now()).toLocaleTimeString([], {
+      hour: '2-digit',
+      minute: '2-digit',
+    }),
     tiles: m.widget_data?.tiles || [],
   }));
 }
@@ -74,7 +77,10 @@ export class ThreadController implements ReactiveController {
     }
   }
 
-  async sendMessage(promptText: string, metadata: Record<string, any> = {}): Promise<ChatMessage | null> {
+  async sendMessage(
+    promptText: string,
+    widget?: { widget_type: string; widget_data: Record<string, unknown> }
+  ): Promise<ChatMessage | null> {
     if (!promptText.trim()) return null;
 
     const userMsg: ChatMessage = {
@@ -97,7 +103,7 @@ export class ThreadController implements ReactiveController {
       const res = await fetch(`/api/threads/${encodeURIComponent(this.threadId)}/messages`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: promptText }),
+        body: JSON.stringify({ content: promptText, ...widget }),
       });
 
       if (!res.ok) {
@@ -125,6 +131,12 @@ export class ThreadController implements ReactiveController {
       this.isStreaming = false;
       this.host.requestUpdate();
     }
+  }
+
+  /** Show a local note in the conversation without calling the backend. */
+  addSystemNote(text: string): void {
+    this.messages = [...this.messages, { sender: 'system', text }];
+    this.host.requestUpdate();
   }
 
   private async createThread(firstPrompt: string): Promise<string> {
