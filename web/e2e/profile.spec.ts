@@ -107,3 +107,27 @@ test('the Learn more pill at the top right opens the welcome guide', async ({ pa
   await pill.click();
   await expect(page.locator('now-welcome-modal').getByRole('dialog')).toBeVisible();
 });
+
+test('the sidebar can be resized by dragging or with the arrow keys, and remembers it', async ({ page }) => {
+  await page.goto('/');
+  await page.evaluate(() => localStorage.removeItem('now-workbench-sidebar-width'));
+  await page.reload();
+  const handle = page.getByRole('separator', { name: 'Resize sidebar' });
+  const nav = page.getByRole('navigation', { name: 'Now Workbench Navigation' });
+  const before = (await nav.boundingBox())!.width;
+  const box = (await handle.boundingBox())!;
+  await page.mouse.move(box.x + box.width / 2, box.y + 200);
+  await page.mouse.down();
+  await page.mouse.move(box.x + 80, box.y + 200, { steps: 5 });
+  await page.mouse.up();
+  const dragged = (await nav.boundingBox())!.width;
+  expect(dragged).toBeGreaterThan(before + 60);
+  await handle.focus();
+  await page.keyboard.press('ArrowLeft');
+  await expect(handle).toHaveAttribute('aria-valuenow', String(Math.round(dragged) - 16));
+  await page.reload();
+  await expect(page.getByRole('separator', { name: 'Resize sidebar' })).toHaveAttribute(
+    'aria-valuenow',
+    String(Math.round(dragged) - 16),
+  );
+});

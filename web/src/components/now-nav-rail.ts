@@ -15,11 +15,22 @@ export interface NavThreadItem {
   prompt?: string;
 }
 
+const SIDEBAR_WIDTH_KEY = 'now-workbench-sidebar-width';
+const SIDEBAR_MIN = 200;
+const SIDEBAR_MAX = 420;
+const SIDEBAR_DEFAULT = 248;
+
+function readSidebarWidth(): number {
+  const stored = Number(localStorage.getItem(SIDEBAR_WIDTH_KEY));
+  return stored >= SIDEBAR_MIN && stored <= SIDEBAR_MAX ? stored : SIDEBAR_DEFAULT;
+}
+
 @customElement('now-nav-rail')
 export class NowNavRail extends LitElement {
   static styles = css`
     :host {
       display: block;
+      position: relative;
       height: 100%;
       background-color: var(--otto-canvas, #efece7);
       border-right: 1px solid var(--now-border-subtle, #ececeb);
@@ -39,6 +50,28 @@ export class NowNavRail extends LitElement {
       box-sizing: border-box;
       overflow-y: auto;
       transition: width 0.18s ease;
+    }
+
+    .rail-container.resizing {
+      transition: none;
+    }
+
+    /* Drag handle on the right edge, like the EmployeeWorks sidebar. */
+    .resize-handle {
+      position: absolute;
+      top: 0;
+      right: -3px;
+      width: 6px;
+      height: 100%;
+      cursor: col-resize;
+      z-index: 5;
+    }
+
+    .resize-handle:hover,
+    .resize-handle:focus-visible,
+    .resize-handle.active {
+      background: rgba(22, 24, 29, 0.12);
+      outline: none;
     }
 
     .rail-container.collapsed {
@@ -448,6 +481,10 @@ export class NowNavRail extends LitElement {
   @property({ type: Array }) threads: NavThreadItem[] = [];
   @property({ type: Boolean }) collapsed = false;
 
+  /** Expanded width in pixels, chosen by dragging the edge (kept across visits). */
+  @state() private width = readSidebarWidth();
+  @state() private resizing = false;
+
   @state() private showArchived = false;
   @state() private profile: ProfileData | null = workbenchStore.state.profile;
   private unsubscribeProfile?: () => void;
@@ -569,9 +606,43 @@ export class NowNavRail extends LitElement {
     `;
   }
 
+  private setWidth(px: number): void {
+    this.width = Math.round(Math.min(SIDEBAR_MAX, Math.max(SIDEBAR_MIN, px)));
+    localStorage.setItem(SIDEBAR_WIDTH_KEY, String(this.width));
+  }
+
+  private startResize = (e: PointerEvent): void => {
+    const handle = e.currentTarget as HTMLElement;
+    const startX = e.clientX;
+    const startWidth = this.width;
+    handle.setPointerCapture(e.pointerId);
+    this.resizing = true;
+    const move = (ev: PointerEvent) => this.setWidth(startWidth + ev.clientX - startX);
+    const end = () => {
+      this.resizing = false;
+      handle.removeEventListener('pointermove', move);
+      handle.removeEventListener('pointerup', end);
+      handle.removeEventListener('pointercancel', end);
+    };
+    handle.addEventListener('pointermove', move);
+    handle.addEventListener('pointerup', end);
+    handle.addEventListener('pointercancel', end);
+  };
+
+  private keyResize = (e: KeyboardEvent): void => {
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+      e.preventDefault();
+      this.setWidth(this.width + (e.key === 'ArrowRight' ? 16 : -16));
+    }
+  };
+
   render() {
     return html`
-      <nav class="rail-container ${this.collapsed ? 'collapsed' : ''}" aria-label="Now Workbench Navigation">
+      <nav
+        class="rail-container ${this.collapsed ? 'collapsed' : ''} ${this.resizing ? 'resizing' : ''}"
+        style=${this.collapsed ? '' : `width: ${this.width}px`}
+        aria-label="Now Workbench Navigation"
+      >
         <div class="top-chrome">
           <button
             class="collapse-btn"
@@ -783,6 +854,21 @@ export class NowNavRail extends LitElement {
           </div>
         </div>
       </nav>
+      ${this.collapsed
+        ? ''
+        : html`<div
+            class="resize-handle ${this.resizing ? 'active' : ''}"
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Resize sidebar"
+            aria-valuemin=${SIDEBAR_MIN}
+            aria-valuemax=${SIDEBAR_MAX}
+            aria-valuenow=${this.width}
+            tabindex="0"
+            @pointerdown=${this.startResize}
+            @keydown=${this.keyResize}
+            @dblclick=${() => this.setWidth(SIDEBAR_DEFAULT)}
+          ></div>`}
     `;
   }
 }
