@@ -8,7 +8,7 @@ from typing import Any
 import anthropic
 from pydantic import BaseModel, ConfigDict
 
-from now_workbench.ai.tiles import GenerativeUIResponse, TileLayout, UITileSpec
+from now_workbench.ai.tiles import AgentStep, GenerativeUIResponse, TileLayout, UITileSpec
 from now_workbench.ai.tools import ToolContext, ToolResult, execute_tool, tool_definitions
 from now_workbench.ai.tools.base import model_to_text, text_tile
 from now_workbench.db import ChatMessageRecord, DatabaseRepository
@@ -122,7 +122,10 @@ def _assemble(text: str, results: list[ToolResult]) -> GenerativeUIResponse:
     summary = text.strip() or (results[-1].summary if results else "Done.")
     if not tiles:
         tiles = [text_tile("tile-otto-reply", "Otto", summary)]
-    return GenerativeUIResponse(summary=summary, layout=_pick_layout(tiles), tiles=tiles)
+    steps = [AgentStep(label=r.summary.strip().splitlines()[0][:120], ok=r.ok) for r in results]
+    return GenerativeUIResponse(
+        summary=summary, layout=_pick_layout(tiles), tiles=tiles, steps=steps
+    )
 
 
 def _build_diagnostic_error_tiles(err_msg: str) -> GenerativeUIResponse:

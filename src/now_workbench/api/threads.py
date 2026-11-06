@@ -143,6 +143,7 @@ def _widget_payload(
         "summary": resp.summary,
         "layout": resp.layout,
         "tiles": [t.model_dump() for t in resp.tiles],
+        "steps": [s.model_dump() for s in resp.steps],
         "context_used": min(history_len + 2, MAX_THREAD_CONTEXT_MESSAGES),
         "context_limit": MAX_THREAD_CONTEXT_MESSAGES,
     }

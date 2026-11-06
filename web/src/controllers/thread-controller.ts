@@ -11,6 +11,8 @@ export interface ChatMessage {
   text: string;
   timestamp?: string;
   tiles?: any[];
+  /** Tool runs Otto performed for this reply (from the backend, never invented). */
+  steps?: { label: string; ok: boolean }[];
   tokens_in?: number;
   tokens_out?: number;
   cost_estimate?: number;
@@ -30,6 +32,7 @@ function mapThreadRecords(data: unknown): ChatMessage[] {
       minute: '2-digit',
     }),
     tiles: m.widget_data?.tiles || [],
+    steps: m.widget_data?.steps || [],
   }));
 }
 

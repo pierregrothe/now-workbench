@@ -118,7 +118,7 @@ export const workspaceStyles = css`
     flex: 1;
     overflow-y: auto;
     padding: 24px 36px;
-    background: var(--now-bg-surface-1, #f8fafc);
+    background: var(--otto-canvas, #efece7);
   }
 
   .canvas-container {
@@ -127,8 +127,8 @@ export const workspaceStyles = css`
   }
 
   .section-title {
-    font-size: 18px;
-    font-weight: 700;
+    font-size: 24px;
+    font-weight: 500;
     margin: 0 0 16px 0;
     color: var(--now-text-primary, #16181d);
   }
@@ -141,10 +141,10 @@ export const workspaceStyles = css`
 
   .card {
     background: var(--now-bg-surface-0, #ffffff);
-    border: 1px solid var(--now-border-subtle, #e5e7eb);
-    border-radius: 8px;
-    padding: 20px;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    border: 1px solid rgba(0, 0, 0, 0.05);
+    border-radius: 16px;
+    padding: 24px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
   }
 
   .badge {

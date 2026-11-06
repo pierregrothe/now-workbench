@@ -208,3 +208,28 @@ async def test_agent_live_mode_diagnostic_tile_on_error() -> None:
         assert len(resp.tiles) == 1
         assert resp.tiles[0].type == "security-alert"
         assert "401" in resp.tiles[0].props["issue"]
+
+
+def test_assemble_records_one_step_per_tool_result() -> None:
+    """Otto's visible steps are the tool runs that actually happened, in order."""
+    from now_workbench.ai.agent import _assemble
+    from now_workbench.ai.tools.base import ToolResult
+
+    resp = _assemble(
+        "Done.",
+        [
+            ToolResult(summary="Found 1 instance\nextra detail"),
+            ToolResult(summary="Could not reach the instance", ok=False),
+        ],
+    )
+    assert [(s.label, s.ok) for s in resp.steps] == [
+        ("Found 1 instance", True),
+        ("Could not reach the instance", False),
+    ]
+
+
+def test_assemble_without_tools_has_no_steps() -> None:
+    """A plain answer shows no invented steps."""
+    from now_workbench.ai.agent import _assemble
+
+    assert _assemble("Hello.", []).steps == []

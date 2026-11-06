@@ -3,14 +3,42 @@
 // Author: Pierre Grothe
 // Date: 2026-10-31
 
-import { LitElement, html, css } from 'lit';
+import { LitElement, html } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { ThreadController } from '../controllers/thread-controller.js';
 import { workbenchStore } from '../context/workbench-context.js';
 import type { WorkbenchState } from '../context/workbench-context.js';
+import type { ChatMessage } from '../controllers/thread-controller.js';
 import { workspaceStyles } from '../styles/workspace-styles.js';
+import { chatViewStyles } from './chat-view-styles.js';
 import '../tiles/now-tile-renderer.js';
 import type { UITileSpec } from '../tiles/now-tile-renderer.js';
+
+/** Time-of-day greeting, like the Otto home screen. */
+const greeting = (): string => {
+  const hour = new Date().getHours();
+  return hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
+};
+
+/** Tile actions that ask Otto something. */
+const TILE_PROMPTS: Record<string, (name: string) => string> = {
+  probe: (name) => `Check authentication for ${name}`,
+  probe_all: () => 'Run full diagnostic health check on ServiceNow instances',
+  show_instances: () => 'How many instances do I have?',
+  show_bundles: () => 'Show demo recipe bundles',
+  activate: (name) => `Make ${name} my default instance`,
+};
+
+/** Tile actions that open another workbench area (destructive work is confirmed there). */
+const TILE_NAV: Record<string, string> = {
+  synthesize: 'synthesizer',
+  inspect: 'fluent',
+  manage: 'admin',
+  delete_instance: 'admin',
+  delete_unauthenticated: 'admin',
+};
+
+const SPARKLE = html`<svg viewBox="0 0 24 24" style="width: 16px; height: 16px; fill: #16a34a;"><path d="M12 0L14.59 9.41L24 12L14.59 14.59L12 24L9.41 14.59L0 12L9.41 9.41L12 0Z"/></svg>`;
 
 @customElement('now-chat-view')
 export class NowChatView extends LitElement {
@@ -31,6 +59,9 @@ export class NowChatView extends LitElement {
   @state() private activeMode: 'overview' | 'thread' = 'overview';
   @state() private threadTitle: string = 'Otto Assistant Conversation';
   @state() private activeTiles: UITileSpec[] = [];
+  /** Approval cards decided in this session, keyed by message key and tile id. */
+  @state() private decisions: Record<string, 'confirmed' | 'cancelled'> = {};
+  private lastMessageCount = 0;
 
   @property({ type: String })
   set activeThreadId(val: string) {
@@ -48,147 +79,7 @@ export class NowChatView extends LitElement {
     }
   }
 
-  static styles = [
-    workspaceStyles,
-    css`
-      .hero-section {
-        background: var(--now-bg-surface-0, #ffffff);
-        border: 1px solid var(--now-border-subtle, #e5e7eb);
-        border-radius: 12px;
-        padding: 32px 28px;
-        margin-bottom: 24px;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-      }
-
-      .hero-title {
-        font-size: 20px;
-        font-weight: 800;
-        margin: 0 0 16px 0;
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        color: var(--now-text-primary, #111827);
-      }
-
-      .prompt-box {
-        display: flex;
-        align-items: center;
-        background: var(--now-bg-surface-1, #f9fafb);
-        border: 2px solid var(--now-border-subtle, #e5e7eb);
-        border-radius: 9999px;
-        padding: 4px 6px 4px 16px;
-        gap: 8px;
-        transition: border-color 0.15s ease;
-      }
-
-      .prompt-box:focus-within {
-        border-color: var(--now-color-primary, #032d42);
-        background: #ffffff;
-      }
-
-      .prompt-input {
-        flex: 1;
-        border: none;
-        background: transparent;
-        font-size: 14px;
-        outline: none;
-        color: var(--now-text-primary, #111827);
-        font-family: inherit;
-      }
-
-      .prompt-send-btn {
-        width: 36px;
-        height: 36px;
-        border-radius: 50%;
-        background: var(--now-color-primary, #032d42);
-        color: #ffffff;
-        border: none;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        cursor: pointer;
-      }
-
-      .chips-row {
-        display: flex;
-        gap: 8px;
-        flex-wrap: wrap;
-        margin-top: 14px;
-      }
-
-      .chip-btn {
-        padding: 6px 12px;
-        border-radius: 9999px;
-        border: 1px solid var(--now-border-subtle, #e5e7eb);
-        background: var(--now-bg-surface-0, #ffffff);
-        font-size: 12px;
-        font-weight: 500;
-        color: var(--now-text-secondary, #4b5563);
-        cursor: pointer;
-        transition: all 0.15s ease;
-      }
-
-      .chip-btn:hover {
-        background: var(--now-bg-surface-1, #f3f4f6);
-        color: var(--now-text-primary, #111827);
-      }
-
-      .chat-thread-container {
-        display: flex;
-        flex-direction: column;
-        gap: 16px;
-        margin-bottom: 24px;
-      }
-
-      .message-bubble {
-        padding: 16px 20px;
-        border-radius: 12px;
-        max-width: 85%;
-        font-size: 13.5px;
-        line-height: 1.55;
-      }
-
-      .message-bubble.user {
-        align-self: flex-end;
-        background: var(--now-color-primary, #032d42);
-        color: #ffffff;
-      }
-
-      .message-bubble.agent {
-        align-self: flex-start;
-        background: var(--now-bg-surface-0, #ffffff);
-        border: 1px solid var(--now-border-subtle, #e5e7eb);
-        color: var(--now-text-primary, #111827);
-      }
-
-      .tiles-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-        gap: 16px;
-        margin-top: 16px;
-      }
-
-      .dashboard-cards {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-        gap: 16px;
-      }
-
-      .dash-card {
-        background: var(--now-bg-surface-0, #ffffff);
-        border: 1px solid var(--now-border-subtle, #e5e7eb);
-        border-radius: 8px;
-        padding: 20px;
-      }
-
-      .dash-metric {
-        font-size: 28px;
-        font-weight: 800;
-        margin: 8px 0;
-        color: var(--now-text-primary, #111827);
-      }
-    `,
-  ];
+  static styles = [workspaceStyles, chatViewStyles];
 
   connectedCallback(): void {
     super.connectedCallback();
@@ -230,6 +121,100 @@ export class NowChatView extends LitElement {
     workbenchStore.setState({ selectedInstanceId: val });
   }
 
+  private renderPrompt() {
+    return html`
+      <div class="prompt-box">
+        <input
+          class="prompt-input"
+          type="text"
+          placeholder="Find answers, automate tasks, or create content instantly"
+          .value=${this.chatInput}
+          @input=${(e: Event) => (this.chatInput = (e.target as HTMLInputElement).value)}
+          @keydown=${this.handleKeyDown}
+        />
+        <div class="prompt-foot">
+          <span>${this.currentStoreState.instances.find((i) => i.id === this.currentStoreState.selectedInstanceId)?.name ?? 'No instance'}</span>
+          <button class="prompt-send-btn" aria-label="Send" @click=${() => void this.submitPrompt()}>
+            <svg viewBox="0 0 24 24" style="width: 16px; height: 16px; fill: currentColor;"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+          </button>
+        </div>
+      </div>
+    `;
+  }
+
+  private renderTile(tile: UITileSpec, msgKey: string, isLastMessage: boolean) {
+    const isApproval = tile.id.startsWith('tile-confirm-');
+    if (isApproval) {
+      const decisionKey = `${msgKey}:${tile.id}`;
+      const decision = this.decisions[decisionKey];
+      if (decision || !isLastMessage) {
+        const cancelled = decision === 'cancelled';
+        return html`
+          <div class="outcome-card ${cancelled ? 'cancelled' : ''}">
+            <span class="mark">${cancelled ? '-' : '\u2713'}</span>
+            <div>
+              <div class="outcome-title">
+                ${decision === 'confirmed' ? 'Approved' : cancelled ? 'Cancelled' : 'Already handled'}
+              </div>
+              <div class="outcome-body">${(tile.props as any)?.body ?? tile.title}</div>
+            </div>
+          </div>
+        `;
+      }
+    }
+    return html`
+      <now-tile-renderer
+        .tile=${tile}
+        @tile-action=${(e: CustomEvent) => this.handleTileAction(e, `${msgKey}:${tile.id}`)}
+      ></now-tile-renderer>
+    `;
+  }
+
+  private renderMessage(msg: ChatMessage, isLast: boolean, index: number) {
+    const msgKey = msg.id ?? `idx-${index}`;
+    const tiles =
+      msg.tiles && msg.tiles.length > 0
+        ? html`<div class="tiles-grid">
+            ${msg.tiles.map((tile) => this.renderTile(tile, msgKey, isLast))}
+          </div>`
+        : '';
+    const stepList = msg.steps ?? [];
+    const steps =
+      stepList.length > 0
+        ? html`<details class="steps">
+            <summary>Thought for a moment \u00b7 ${stepList.length} ${stepList.length === 1 ? 'step' : 'steps'}</summary>
+            <ul>
+              ${stepList.map(
+                (st) => html`<li class=${st.ok ? 'done' : 'failed'}>${st.ok ? '\u2713' : '\u2717'} ${st.label}</li>`
+              )}
+            </ul>
+          </details>`
+        : '';
+    if (msg.sender === 'user') {
+      return html`<div class="message-bubble user">
+        <div class="agent-head"><span class="avatar">PG</span><span>Pierre Grothe</span><span class="when">${msg.timestamp}</span></div>
+        <div style="white-space: pre-wrap;">${msg.text}</div>
+      </div>`;
+    }
+    if (msg.sender === 'system') {
+      return html`<div class="message-bubble system">${msg.text}</div>`;
+    }
+    return html`<div class="message-bubble agent">
+      <div class="agent-head">${SPARKLE}<span>Otto</span><span class="when">${msg.timestamp}</span></div>
+      ${steps}
+      <div style="white-space: pre-wrap;">${msg.text}</div>
+      ${tiles}
+    </div>`;
+  }
+
+  updated(): void {
+    const count = this.threadCtrl.messages.length;
+    if (count !== this.lastMessageCount) {
+      this.lastMessageCount = count;
+      this.renderRoot.querySelector('#thread-end')?.scrollIntoView({ block: 'end', behavior: 'smooth' });
+    }
+  }
+
   private async confirmTool(props: Record<string, any>): Promise<void> {
     const result = await this.threadCtrl.sendMessage(`Confirmed: ${props.plan ?? props.tool}`, {
       widget_type: 'tool_confirm',
@@ -240,16 +225,21 @@ export class NowChatView extends LitElement {
     }
   }
 
-  private handleTileAction(e: CustomEvent): void {
+  private handleTileAction(e: CustomEvent, decisionKey: string): void {
     const { actionId, props } = e.detail;
-    if (actionId === 'probe' || actionId === 'probe_all') {
-      void this.submitPrompt('Run full diagnostic health check on ServiceNow instances');
+    const name = props?.name ?? props?.title ?? 'this instance';
+    const prompt = TILE_PROMPTS[actionId]?.(name);
+    const tab = TILE_NAV[actionId];
+    if (prompt) {
+      void this.submitPrompt(prompt);
+    } else if (tab) {
+      this.dispatchEvent(new CustomEvent('nav-change', { detail: { tab }, bubbles: true, composed: true }));
     } else if (actionId === 'confirm_tool') {
+      this.decisions = { ...this.decisions, [decisionKey]: 'confirmed' };
       void this.confirmTool(props);
     } else if (actionId === 'cancel_tool') {
+      this.decisions = { ...this.decisions, [decisionKey]: 'cancelled' };
       this.threadCtrl.addSystemNote('Action cancelled. Nothing was changed.');
-    } else if (actionId === 'synthesize') {
-      this.dispatchEvent(new CustomEvent('nav-change', { detail: { tab: 'synthesizer' }, bubbles: true, composed: true }));
     }
   }
 
@@ -286,73 +276,35 @@ export class NowChatView extends LitElement {
 
       <div class="scroll-canvas">
         <div class="canvas-container">
-          <div class="hero-section">
-            <h1 class="hero-title">
-              <svg viewBox="0 0 24 24" style="width: 22px; height: 22px; fill: #16a34a;"><path d="M12 0L14.59 9.41L24 12L14.59 14.59L12 24L9.41 14.59L0 12L9.41 9.41L12 0Z"/></svg>
-              <span>Hey Pierre, how can Otto help with your ServiceNow demos today?</span>
-            </h1>
-
-            <div class="prompt-box">
-              <input
-                class="prompt-input"
-                type="text"
-                placeholder="Ask Otto a question (e.g. 'How many instances do I have?' or 'Show demo recipe bundles')..."
-                .value=${this.chatInput}
-                @input=${(e: Event) => (this.chatInput = (e.target as HTMLInputElement).value)}
-                @keydown=${this.handleKeyDown}
-              />
-              <button class="prompt-send-btn" @click=${() => void this.submitPrompt()}>
-                <svg viewBox="0 0 24 24" style="width: 16px; height: 16px; fill: currentColor;"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
-              </button>
-            </div>
-
-            <div class="chips-row">
-              <button class="chip-btn" @click=${() => void this.submitPrompt('How many instances do I have?')}>
-                How many instances do I have?
-              </button>
-              <button class="chip-btn" @click=${() => void this.submitPrompt('Show demo recipe bundles')}>
-                Explore recipe bundles
-              </button>
-              <button class="chip-btn" @click=${() => void this.submitPrompt('Inspect ServiceNow Zurich Fluent SDK schema contracts')}>
-                Inspect Fluent SDK schemas
-              </button>
-              <button class="chip-btn" @click=${() => void this.submitPrompt('Run full diagnostic health check')}>
-                Run instance health check
-              </button>
-            </div>
-          </div>
+          ${this.activeMode === 'overview'
+            ? html`
+                <div class="hero">
+                  <h1 class="hero-title">${greeting()}, Pierre!</h1>
+                  ${this.renderPrompt()}
+                  <div class="chips-row">
+                    <button class="chip-btn" @click=${() => void this.submitPrompt('How many instances do I have?')}>How many instances do I have?</button>
+                    <button class="chip-btn" @click=${() => void this.submitPrompt('Show demo recipe bundles')}>Explore recipe bundles</button>
+                    <button class="chip-btn" @click=${() => void this.submitPrompt('Inspect the Fluent SDK schema contracts')}>Inspect Fluent SDK schemas</button>
+                    <button class="chip-btn" @click=${() => void this.submitPrompt('Run full diagnostic health check')}>Run instance health check</button>
+                  </div>
+                </div>
+              `
+            : ''}
 
           ${this.activeMode === 'thread'
             ? html`
                 <div class="chat-thread-container">
-                  ${this.threadCtrl.messages.map(
-                    (msg) => html`
-                      <div class="message-bubble ${msg.sender}">
-                        <div style="font-weight: 700; font-size: 11px; margin-bottom: 4px; opacity: 0.8;">
-                          ${msg.sender === 'user' ? 'You' : 'Otto AI Copilot'} - ${msg.timestamp}
-                        </div>
-                        <div style="white-space: pre-wrap;">${msg.text}</div>
-
-                        ${msg.tiles && msg.tiles.length > 0
-                          ? html`
-                              <div class="tiles-grid">
-                                ${msg.tiles.map(
-                                  (tile) => html`
-                                    <now-tile-renderer
-                                      .tile=${tile}
-                                      @tile-action=${this.handleTileAction}
-                                    ></now-tile-renderer>
-                                  `
-                                )}
-                              </div>
-                            `
-                          : ''}
-                      </div>
-                    `
+                  ${this.threadCtrl.messages.map((msg, index) =>
+                    this.renderMessage(msg, index === this.threadCtrl.messages.length - 1, index)
                   )}
                   ${this.threadCtrl.isStreaming
-                    ? html`<div class="message-bubble agent">Otto is thinking and executing tools...</div>`
+                    ? html`<div class="message-bubble agent"><div class="agent-head">${SPARKLE}<span>Otto</span><span class="when">is working...</span></div></div>`
                     : ''}
+                  <div id="thread-end"></div>
+                </div>
+                <div class="dock">
+                  ${this.renderPrompt()}
+                  <div class="ai-footnote">Some answers are generated by AI. Check them for accuracy.</div>
                 </div>
               `
             : html`

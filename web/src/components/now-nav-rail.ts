@@ -17,7 +17,7 @@ export class NowNavRail extends LitElement {
     :host {
       display: block;
       height: 100%;
-      background-color: var(--now-bg-surface-0, #fbfbfa);
+      background-color: var(--otto-canvas, #efece7);
       border-right: 1px solid var(--now-border-subtle, #ececeb);
       user-select: none;
       font-family: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -72,7 +72,7 @@ export class NowNavRail extends LitElement {
     }
 
     .collapse-btn:hover {
-      background: #ededeb;
+      background: var(--otto-canvas-active, #e3dfd8);
       color: #16181d;
     }
 
@@ -145,12 +145,12 @@ export class NowNavRail extends LitElement {
     }
 
     .nav-row:hover {
-      background-color: var(--now-bg-surface-1, #f1f1ef);
+      background-color: var(--otto-canvas-active, #e3dfd8);
       color: var(--now-text-primary, #0b0f19);
     }
 
     .nav-row.active {
-      background-color: var(--now-bg-surface-1, #ececea);
+      background-color: var(--otto-canvas-active, #e3dfd8);
       color: var(--now-text-primary, #0b0f19);
       font-weight: 600;
     }

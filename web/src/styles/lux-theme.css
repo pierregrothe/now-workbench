@@ -6,6 +6,10 @@
   --now-bg-surface-2: #e2e8f0;
   --now-bg-surface-elevated: #ffffff;
 
+  /* Otto-style warm canvas (observed on the Otto home and conversation screens) */
+  --otto-canvas: #efece7;
+  --otto-canvas-active: #e3dfd8;
+
   /* ServiceNow Accents */
   --now-color-brand-green: #23a17e;
   --now-color-brand-green-hover: #1b8567;
@@ -48,6 +52,8 @@
 :root[data-theme="dark"],
 body.now-lux-dark,
 [data-theme="dark"] {
+  --otto-canvas: #090d16;
+  --otto-canvas-active: #1e293b;
   --now-bg-canvas: #090d16;
   --now-bg-surface-0: #0f172a;
   --now-bg-surface-1: #1e293b;

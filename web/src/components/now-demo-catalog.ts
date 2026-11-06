@@ -97,18 +97,18 @@ export class NowDemoCatalog extends LitElement {
 
     .demo-card {
       background-color: var(--now-bg-surface-0, #ffffff);
-      border: 1px solid var(--now-border-subtle);
-      border-radius: var(--now-radius-md);
-      padding: 20px;
+      border: 1px solid rgba(0, 0, 0, 0.05);
+      border-radius: 16px;
+      padding: 24px;
       display: flex;
       flex-direction: column;
-      box-shadow: 0 1px 3px 0 rgba(15, 23, 42, 0.05);
+      box-shadow: 0 1px 2px 0 rgba(15, 23, 42, 0.03);
       transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
       position: relative;
     }
 
     .demo-card:hover {
-      border-color: var(--now-color-brand-green);
+      border-color: rgba(0, 0, 0, 0.12);
       box-shadow: 0 8px 16px -2px rgba(15, 23, 42, 0.08);
       transform: translateY(-2px);
     }
