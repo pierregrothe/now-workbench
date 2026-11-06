@@ -1,5 +1,6 @@
 import { LitElement, html, css } from 'lit'
 import { customElement, property, state } from 'lit/decorators.js'
+import '../views/now-share-dialog.js'
 
 export interface DemoBundle {
   manifest: {
@@ -16,6 +17,9 @@ export interface DemoBundle {
     personas?: Array<{ name: string; role: string; email: string }>
   }
   bundle_path: string
+  owner_email?: string
+  access?: 'owner' | 'shared'
+  version?: number
   fluent_files: string[]
   seed_files: string[]
   has_walkthrough: boolean
@@ -238,6 +242,24 @@ export class NowDemoCatalog extends LitElement {
       background-color: #f3e8ff;
     }
 
+    .ownership-row {
+      margin: -2px 0 6px;
+    }
+
+    .own-chip {
+      display: inline-block;
+      font-size: 11.5px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: #efece7;
+      color: #3f4148;
+    }
+
+    .own-chip.shared {
+      background: #e3eefc;
+      color: #1f3a5f;
+    }
+
     .icon-btn {
       position: relative;
       display: inline-flex;
@@ -430,6 +452,7 @@ export class NowDemoCatalog extends LitElement {
   @state() private lastOperationId = ''
   @state() private catalogNotification = ''
   @state() private viewingMediaBundle: DemoBundle | null = null
+  @state() private sharingBundle: DemoBundle | null = null
 
   private formatBundleDate(isoString?: string): string {
     if (!isoString) return 'Active Package';
@@ -748,6 +771,12 @@ export class NowDemoCatalog extends LitElement {
               <span class="release-badge" title="Minimum required ServiceNow platform version">Min: ${d.manifest.min_release || d.manifest.sn_release}</span>
             </div>
 
+            <div class="ownership-row">
+              ${d.access === 'shared'
+                ? html`<span class="own-chip shared">Shared by ${d.owner_email} &middot; v${d.version}</span>`
+                : html`<span class="own-chip">Yours &middot; v${d.version ?? 0}</span>`}
+            </div>
+
             <div class="card-date-badge">
               <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2">
                 <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
@@ -818,13 +847,29 @@ export class NowDemoCatalog extends LitElement {
               <button class="btn-otto icon-btn" title="Ask Otto Copilot about this demo" data-tooltip="Otto AI" @click=${() => this.askOtto(d)}>
                 <svg viewBox="0 0 24 24"><path d="M19 9l1.25-2.75L23 5l-2.75-1.25L19 1l-1.25 2.75L15 5l2.75 1.25L19 9zm-7.5.5L9 4 6.5 9.5 1 12l5.5 2.5L9 20l2.5-5.5L17 12l-5.5-2.5zM19 15l-1.25 2.75L15 19l2.75 1.25L19 23l1.25-2.75L23 19l-2.75-1.25L19 15z"/></svg>
               </button>
-              <button class="btn-secondary icon-btn btn-danger" title="Delete Demonstration Artifact" data-tooltip="Delete" @click=${() => this.handleDeleteBundle(d)}>
-                <svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
-              </button>
+              ${d.access === 'shared'
+                ? ''
+                : html`
+                    <button class="btn-secondary icon-btn" title="Versions and sharing" aria-label="Share ${d.manifest.name}" data-tooltip="Share" @click=${() => (this.sharingBundle = d)}>
+                      <svg viewBox="0 0 24 24"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92 1.61 0 2.92-1.31 2.92-2.92s-1.31-2.92-2.92-2.92z"/></svg>
+                    </button>
+                    <button class="btn-secondary icon-btn btn-danger" title="Delete Demonstration Artifact" data-tooltip="Delete" @click=${() => this.handleDeleteBundle(d)}>
+                      <svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+                    </button>
+                  `}
             </div>
           </div>
         `)}
       </div>
+
+      ${this.sharingBundle
+        ? html`<now-share-dialog
+            .artifactId=${this.sharingBundle.manifest.id}
+            .artifactName=${this.sharingBundle.manifest.name}
+            @close=${() => (this.sharingBundle = null)}
+            @sharing-changed=${() => void this.loadDemos()}
+          ></now-share-dialog>`
+        : ''}
 
       ${this.cloningBundle
         ? html`
