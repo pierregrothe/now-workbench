@@ -278,6 +278,10 @@ export class NowCaptureStudio extends LitElement {
         </div>
       </div>
 
+      ${this.currentStoreState.loadError
+        ? html`<div class="badge error" role="alert" style="margin:12px 24px; display:block;">${this.currentStoreState.loadError}</div>`
+        : ''}
+
       <div class="scroll-canvas">
         <div class="canvas-container">
           <h2 class="section-title">Playwright Media Capture Studio</h2>

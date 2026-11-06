@@ -58,3 +58,35 @@ test('synthesize and seed hit the real demo routes with backend-shaped payloads'
   await expect(page.getByText(/Successfully seeded/)).toBeVisible();
   expect(seedUrl).toContain('/api/demos/acme-bundle/seed');
 });
+
+test('a rejected synthesize shows the backend reason in the view', async ({ page }) => {
+  await page.route('**/api/demos/synthesize', async (route) => {
+    await route.fulfill({
+      status: 409,
+      contentType: 'application/json',
+      body: JSON.stringify({ detail: 'No release to build for: register an instance.' }),
+    });
+  });
+  await page.goto('/#synthesizer');
+  await page.getByRole('button', { name: 'Synthesize Demo Bundle' }).click();
+  await expect(page.getByRole('alert')).toContainText('No release to build for');
+});
+
+test('a failed seed is styled as an error, not a success', async ({ page }) => {
+  await page.route('**/api/demos/synthesize', async (route) => {
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(RESULT) });
+  });
+  await page.route('**/api/demos/*/seed', async (route) => {
+    await route.fulfill({
+      status: 500,
+      contentType: 'application/json',
+      body: JSON.stringify({ detail: 'seed exploded' }),
+    });
+  });
+  await page.goto('/#synthesizer');
+  await page.getByRole('button', { name: 'Synthesize Demo Bundle' }).click();
+  await page.getByRole('button', { name: '1-Click Seed Target' }).click();
+  const badge = page.getByText(/Seed error: seed exploded/);
+  await expect(badge).toBeVisible();
+  await expect(badge).toHaveClass(/error/);
+});

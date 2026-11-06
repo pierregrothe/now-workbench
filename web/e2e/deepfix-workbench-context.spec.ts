@@ -22,3 +22,13 @@ test('synthesizer instance picker lists registered instances from the bare list 
   await expect(picker.locator('option')).toHaveCount(1);
   await expect(picker.locator('option').first()).toContainText('Ctx Dev Instance');
 });
+
+test('a failing instances route shows an error banner instead of an empty picker', async ({
+  page,
+}) => {
+  await page.route('**/api/instances', async (route) => {
+    await route.fulfill({ status: 500, contentType: 'application/json', body: '{"detail":"db down"}' });
+  });
+  await page.goto('/#synthesizer');
+  await expect(page.getByRole('alert')).toContainText('Could not load instances (HTTP 500)');
+});

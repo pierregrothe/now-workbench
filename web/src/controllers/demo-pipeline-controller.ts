@@ -41,6 +41,7 @@ export class DemoPipelineController implements ReactiveController {
   public synthesizedResult: SynthesizedDemoResult | null = null;
   public activeResultTab: 'narrative' | 'datasets' | 'customizations' = 'narrative';
   public seedStatusMessage: string = '';
+  public seedFailed: boolean = false;
   public error: string | null = null;
 
   constructor(host: ReactiveControllerHost) {
@@ -55,6 +56,7 @@ export class DemoPipelineController implements ReactiveController {
     this.isSynthesizing = true;
     this.error = null;
     this.seedStatusMessage = '';
+    this.seedFailed = false;
     this.host.requestUpdate();
 
     try {
@@ -92,11 +94,13 @@ export class DemoPipelineController implements ReactiveController {
     const targetBundle = bundleId || this.synthesizedResult?.bundle_id;
     if (!targetBundle) {
       this.seedStatusMessage = 'No demo bundle selected to seed.';
+      this.seedFailed = true;
       this.host.requestUpdate();
       return false;
     }
 
     this.isSeeding = true;
+    this.seedFailed = false;
     this.seedStatusMessage = `Seeding ${targetBundle} to target instance...`;
     this.host.requestUpdate();
 
@@ -126,6 +130,7 @@ export class DemoPipelineController implements ReactiveController {
       return true;
     } catch (err: any) {
       this.seedStatusMessage = `Seed error: ${err.message || 'Failed to seed'}`;
+      this.seedFailed = true;
       return false;
     } finally {
       this.isSeeding = false;

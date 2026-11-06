@@ -200,6 +200,10 @@ export class NowSynthesizerView extends LitElement {
         </div>
       </div>
 
+      ${this.currentStoreState.loadError
+        ? html`<div class="badge error" role="alert" style="margin:12px 24px; display:block;">${this.currentStoreState.loadError}</div>`
+        : ''}
+
       <div class="scroll-canvas">
         <div class="canvas-container">
           <h2 class="section-title">AI Use-Case Synthesizer</h2>
@@ -262,6 +266,9 @@ export class NowSynthesizerView extends LitElement {
                   ${this.pipeline.isSynthesizing ? 'Synthesizing Bundle...' : 'Synthesize Demo Bundle'}
                 </button>
               </div>
+              ${this.pipeline.error
+                ? html`<div class="badge error" role="alert" style="margin-top:12px; display:block;">${this.pipeline.error}</div>`
+                : ''}
             </div>
 
             <div class="card">
@@ -282,7 +289,7 @@ export class NowSynthesizerView extends LitElement {
                     </div>
 
                     ${this.pipeline.seedStatusMessage
-                      ? html`<div class="badge success" style="margin-bottom:12px; display:block;">${this.pipeline.seedStatusMessage}</div>`
+                      ? html`<div class="badge ${this.pipeline.seedFailed ? 'error' : this.pipeline.isSeeding ? 'info' : 'success'}" style="margin-bottom:12px; display:block;">${this.pipeline.seedStatusMessage}</div>`
                       : ''}
 
                     <div class="tabs-bar">
