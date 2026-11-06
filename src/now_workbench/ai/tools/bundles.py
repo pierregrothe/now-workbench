@@ -345,7 +345,7 @@ def _evaluate_demo(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
         ["Runbook Script", f"{res.walkthrough_stages_count} demonstration stages", "Ready"],
         [
             "Overall Readiness",
-            f"Target: {inst.name} ({res.sn_release})",
+            f"Target: {inst.name} ({inst.release}, needs {res.min_release} or later)",
             "Ready" if res.is_ready else "Modules Needed",
         ],
     ]
