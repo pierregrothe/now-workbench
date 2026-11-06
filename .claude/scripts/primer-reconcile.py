@@ -90,7 +90,8 @@ _ROW_QUALIFIER = re.compile(r"\s*\(.*\)\s*$")
 #: (`capability-map` -> .primer/capabilities.md), not a check. Its enforcement
 #: is a separate pre-commit-hook check (`capability-map-freshness`) that owes
 #: a row in its own right, so exempting the artifact loses no coverage.
-_GATE_KINDS = frozenset({"pre-commit-hook", "ratchet", "cc-hook", "import-contract"})
+_GATE_KINDS = frozenset(
+    {"pre-commit-hook", "ratchet", "cc-hook", "import-contract"})
 
 # cc-hook checks declare a `stage` drawn from this vocabulary (distinct
 # from other kinds' per-edit|commit|push|ci|scheduled stage enum): the
@@ -206,8 +207,7 @@ def _ci_job_present(wf: Path, job: str) -> bool:
             # Allow a single- or double-quoted job key (`"build":`), a valid
             # YAML style a formatter may emit or a numeric-like name requires.
             if indent == job_indent and re.match(
-                rf"^(['\"]?){re.escape(job)}\1:(?:\s|$)", stripped
-            ):
+                    rf"^(['\"]?){re.escape(job)}\1:(?:\s|$)", stripped):
                 return True
             idx += 1
     return False
@@ -258,14 +258,8 @@ def parse_registry(text: str) -> tuple[list[dict], set[str], str]:
             baselines = _scalar(line.split(":", 1)[1])
         elif re.match(r"^  - slug:", line):
             slug = _scalar(line.split(":", 1)[1])
-            pol = {
-                "slug": slug,
-                "adrs": [],
-                "checks": [],
-                "status": "",
-                "constitutional": False,
-                "gaps": [],
-            }
+            pol = {"slug": slug, "adrs": [], "checks": [], "status": "",
+                   "constitutional": False, "gaps": []}
             policies.append(pol)
             in_checks = in_gaps = False
         elif pol is not None and re.match(r"^    justifying_adrs:", line):
@@ -300,7 +294,8 @@ def live_precommit_ids() -> set[str]:
     if not PRECOMMIT.is_file():
         return set()
     text = PRECOMMIT.read_text(encoding="utf-8-sig", errors="replace")
-    return {mid.strip("'\"") for mid in re.findall(r"^\s*-\s*id:\s*(\S+)", text, re.M)}
+    return {mid.strip("'\"")
+            for mid in re.findall(r"^\s*-\s*id:\s*(\S+)", text, re.M)}
 
 
 def _collect_keys(obj: object) -> set[str]:
@@ -345,7 +340,7 @@ def live_ratchet_keys(baseline_path: str) -> set[str]:
     if path.is_file():
         try:
             data = json.loads(path.read_text(encoding="utf-8-sig"))
-        except json.JSONDecodeError, UnicodeDecodeError, OSError:
+        except (json.JSONDecodeError, UnicodeDecodeError, OSError):
             data = None
         if data is not None:
             keys = _collect_keys(data)
@@ -395,7 +390,7 @@ def numeric_ratchet_keys(baseline_path: str) -> set[str]:
         return set()
     try:
         data = json.loads(path.read_text(encoding="utf-8-sig"))
-    except json.JSONDecodeError, UnicodeDecodeError, OSError:
+    except (json.JSONDecodeError, UnicodeDecodeError, OSError):
         return set()
     return _collect_numeric_keys(data)
 
@@ -413,7 +408,7 @@ def settings_commands_by_event() -> dict[str, str]:
         return {}
     try:
         data = json.loads(SETTINGS.read_text(encoding="utf-8-sig"))
-    except json.JSONDecodeError, UnicodeDecodeError, OSError:
+    except (json.JSONDecodeError, UnicodeDecodeError, OSError):
         return {}
     # Tolerate any malformed shape (hooks null, a list, non-dict entries):
     # degrade to no commands rather than crash the whole governance check.
@@ -441,9 +436,8 @@ def settings_commands_by_event() -> dict[str, str]:
     return {event: "\n".join(cmds) for event, cmds in out.items()}
 
 
-def resolve(
-    chk: dict, pc_ids: set[str], ratchets: set[str], commands_by_event: dict[str, str]
-) -> bool:
+def resolve(chk: dict, pc_ids: set[str], ratchets: set[str],
+            commands_by_event: dict[str, str]) -> bool:
     """Apply the per-kind resolution rule for one registry check.
 
     Args:
@@ -472,40 +466,36 @@ def resolve(
         # gated nothing -- the one hook breakage this checker could not see.
         # Only path-shaped ids are checked; see _SCRIPT_SUFFIXES.
         if cid.endswith(_SCRIPT_SUFFIXES) and not Path(cid).is_file():
-            print(
-                f"MISSING-SCRIPT (warn): cc-hook '{cid}' is wired in "
-                f"settings.json but the script does not exist; the shell "
-                f"guard around it exits 0, so the hook silently does "
-                f"nothing"
-            )
+            print(f"MISSING-SCRIPT (warn): cc-hook '{cid}' is wired in "
+                  f"settings.json but the script does not exist; the shell "
+                  f"guard around it exits 0, so the hook silently does "
+                  f"nothing")
             return False
         declared_stage = chk.get("stage", "")
         stage_events = CC_HOOK_STAGE_EVENTS.get(declared_stage)
         if stage_events is None:
             if declared_stage:
-                print(
-                    f"UNKNOWN-STAGE (warn): cc-hook '{cid}' declares stage "
-                    f"'{declared_stage}', which is not one of "
-                    f"{sorted(CC_HOOK_STAGE_EVENTS)}; its stage cannot be "
-                    f"verified and STAGE-DRIFT will not fire for it"
-                )
+                print(f"UNKNOWN-STAGE (warn): cc-hook '{cid}' declares stage "
+                      f"'{declared_stage}', which is not one of "
+                      f"{sorted(CC_HOOK_STAGE_EVENTS)}; its stage cannot be "
+                      f"verified and STAGE-DRIFT will not fire for it")
             # No declared stage, or a value outside the known vocabulary:
             # fall back to a flat search across every event (unchanged
             # prior behavior -- resolution never depended on stage before).
-            return _token_present(cid, "\n".join(commands_by_event.values()))
-        declared_text = "\n".join(commands_by_event.get(evt, "") for evt in stage_events)
+            return _token_present(
+                cid, "\n".join(commands_by_event.values()))
+        declared_text = "\n".join(
+            commands_by_event.get(evt, "") for evt in stage_events)
         if _token_present(cid, declared_text):
             return True
         for evt, text in commands_by_event.items():
             if evt in stage_events:
                 continue
             if _token_present(cid, text):
-                print(
-                    f"STAGE-DRIFT (warn): cc-hook '{cid}' declared stage "
-                    f"'{chk.get('stage')}' (events "
-                    f"{sorted(stage_events)}) but found live under "
-                    f"event '{evt}' instead"
-                )
+                print(f"STAGE-DRIFT (warn): cc-hook '{cid}' declared stage "
+                      f"'{chk.get('stage')}' (events "
+                      f"{sorted(stage_events)}) but found live under "
+                      f"event '{evt}' instead")
                 return True
         return False  # absent everywhere -> MISSING
     if kind == "ci-job":
@@ -523,8 +513,7 @@ def resolve(
             return True
         cfg = Path(".importlinter")
         return cfg.is_file() and _token_present(
-            cid, cfg.read_text(encoding="utf-8-sig", errors="replace")
-        )
+            cid, cfg.read_text(encoding="utf-8-sig", errors="replace"))
     if kind == "agent-rule":
         return Path(cid).is_file()
     if kind == "generated-artifact":
@@ -548,7 +537,10 @@ def _listed_gate_rows() -> set[str]:
     text = GOVERNANCE.read_text(encoding="utf-8-sig", errors="replace")
     listed: set[str] = set()
     for match in _GOV_GATE_TABLE.finditer(text):
-        rows = [line for line in match.group(2).splitlines() if line.startswith("|")]
+        rows = [
+            line for line in match.group(2).splitlines()
+            if line.startswith("|")
+        ]
         # rows[0] is the column header, rows[1] the |---| separator.
         for line in rows[2:]:
             cell = line.split("|")[1].strip()
@@ -602,8 +594,7 @@ def gate_table_problems(policies: list[dict]) -> list[str]:
             problems.append(
                 f"{pol['slug']}: {kind} '{cid}' is enforced but has no row in "
                 "governance.md's gate tables -- add the row and bump the "
-                "marker count"
-            )
+                "marker count")
     return problems
 
 
@@ -624,7 +615,8 @@ def adr_catalog_warnings() -> list[str]:
     """
     if not GOVERNANCE.is_file() or not ADR_DIR.is_dir():
         return []
-    match = _ADR_CATALOG.search(GOVERNANCE.read_text(encoding="utf-8-sig", errors="replace"))
+    match = _ADR_CATALOG.search(
+        GOVERNANCE.read_text(encoding="utf-8-sig", errors="replace"))
     if match is None:
         return []
     declared = int(match.group(1))
@@ -640,13 +632,11 @@ def adr_catalog_warnings() -> list[str]:
         warnings.append(
             f"ADR-CATALOG (warn): ADR-{num} has a file but no row in "
             "governance.md's adr-catalog table -- add the row and bump the "
-            "marker count"
-        )
+            "marker count")
     if declared != len(listed):
         warnings.append(
             f"ADR-CATALOG (warn): adr-catalog marker says count={declared} "
-            f"but the table has {len(listed)} rows"
-        )
+            f"but the table has {len(listed)} rows")
     return warnings
 
 
@@ -685,17 +675,14 @@ def constitutional_count_problems() -> list[str]:
     if rows != declared:
         problems.append(
             f"constitutional-compliance.md: header says {declared} project rules "
-            f"but the table has {rows} rows"
-        )
+            f"but the table has {rows} rows")
     if claude_md.is_file():
-        stated = re.search(
-            r"\((\d+) project rules", claude_md.read_text(encoding="utf-8", errors="replace")
-        )
+        stated = re.search(r"\((\d+) project rules", claude_md.read_text(
+            encoding="utf-8", errors="replace"))
         if stated is not None and int(stated.group(1)) != declared:
             problems.append(
                 f".claude/CLAUDE.md says {stated.group(1)} project rules but "
-                f"constitutional-compliance.md declares {declared}"
-            )
+                f"constitutional-compliance.md declares {declared}")
     return problems
 
 
@@ -724,7 +711,8 @@ def policy_gap_notes(policies: list[dict]) -> list[str]:
         if pol["status"] == "retired":
             continue
         for gap in pol["gaps"]:
-            notes.append(f"DECLARED-GAP (warn): {pol['slug']} -- {gap}")
+            notes.append(
+                f"DECLARED-GAP (warn): {pol['slug']} -- {gap}")
     return notes
 
 
@@ -738,8 +726,7 @@ def main() -> int:
         return 0  # no registry -> nothing to enforce yet
     _ratchet_key_cache.clear()  # fresh disk reads per run (in-process safe)
     policies, gaps, baselines = parse_registry(
-        REGISTRY.read_text(encoding="utf-8-sig", errors="replace")
-    )
+        REGISTRY.read_text(encoding="utf-8-sig", errors="replace"))
     pc_ids = live_precommit_ids()
     ratchets = live_ratchet_keys(baselines)
     commands_by_event = settings_commands_by_event()
@@ -765,19 +752,21 @@ def main() -> int:
                 claimed_pc.add(chk.get("bundled_into", ""))
             elif kind == "ratchet" and chk.get("baseline_path", baselines) == baselines:
                 claimed_ratchet.add(cid)
-            if not retired and not resolve(chk, pc_ids, ratchets, commands_by_event):
+            if not retired and not resolve(
+                    chk, pc_ids, ratchets, commands_by_event):
                 blocking.append(
                     f"{pol['slug']}: {chk.get('kind')} '{chk.get('id')}' "
-                    "does not resolve to live config (STALE)"
-                )
+                    "does not resolve to live config (STALE)")
         if retired:
             continue
         for adr in pol["adrs"]:
             num = adr.replace("ADR-", "")
             if num in gaps:
                 continue
-            if not (any(ADR_DIR.glob(f"ADR-{num}.md")) or any(ADR_DIR.glob(f"ADR-{num}-*.md"))):
-                blocking.append(f"{pol['slug']}: {adr} has no file in .primer/adr/")
+            if not (any(ADR_DIR.glob(f"ADR-{num}.md"))
+                    or any(ADR_DIR.glob(f"ADR-{num}-*.md"))):
+                blocking.append(
+                    f"{pol['slug']}: {adr} has no file in .primer/adr/")
     # The orphan scan uses ONLY the default baseline, NOT per-check
     # `baseline_path` override baselines: those are large project DATA
     # (coverage, file-size -- e.g. 131 nested per-module keys plus metadata),
@@ -789,12 +778,12 @@ def main() -> int:
     # to numeric thresholds, so container/metadata keys (a 'counts'
     # wrapper, an 'updated' timestamp) are structure, not checks (seen on
     # mds: 2 permanent false warns on every commit).
-    orphans = sorted((pc_ids - claimed_pc) | (numeric_ratchet_keys(baselines) - claimed_ratchet))
+    orphans = sorted(
+        (pc_ids - claimed_pc)
+        | (numeric_ratchet_keys(baselines) - claimed_ratchet))
     for orphan in orphans:
-        print(
-            f"ORPHANED-CHECK (warn): '{orphan}' is live but claimed by "
-            "no registry policy -- register it via /primer reconcile"
-        )
+        print(f"ORPHANED-CHECK (warn): '{orphan}' is live but claimed by "
+              "no registry policy -- register it via /primer reconcile")
     blocking.extend(gate_table_problems(policies))
     blocking.extend(constitutional_count_problems())
     for note in policy_gap_notes(policies):
@@ -802,10 +791,8 @@ def main() -> int:
     for warning in adr_catalog_warnings():
         print(warning)
     if blocking:
-        print(
-            "PRIMER-RECONCILE: governance drift -- fix before commit (run /primer reconcile):",
-            file=sys.stderr,
-        )
+        print("PRIMER-RECONCILE: governance drift -- fix before commit "
+              "(run /primer reconcile):", file=sys.stderr)
         for item in blocking:
             print(f"  {item}", file=sys.stderr)
         return 2

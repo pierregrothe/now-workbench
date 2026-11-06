@@ -29,6 +29,5 @@ EPIC-014/015/016 are done. Capability inventory lives in progress.md.
 ## Next Steps
 
 1. Fix the network-dependent settings test (use an `sk-ant-test` key or inject a fake client).
-2. Run `/primer reconcile` to register the `.claude/settings.json` Stop hooks as cc-hook checks.
-3. Decide next product direction: no roadmap.md or epics/ exist yet -- consider
+2. Decide next product direction: no roadmap.md or epics/ exist yet -- consider
    `/primer roadmap` or `/primer brainstorm`.

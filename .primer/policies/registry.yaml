@@ -1,7 +1,7 @@
 # Policy registry -- source of truth for enforcement governance.
 # Schema: see the primer skill's reference/registry-schema.md.
 # Slugs are immutable; checks/status are managed by /primer reconcile.
-generated: 2026-10-29
+generated: 2026-11-06
 known_gaps: []
 baselines: .ratchet/baselines.json
 
@@ -105,6 +105,9 @@ policies:
       - kind: ratchet
         id: async-subprocess
         stage: commit
+      - kind: cc-hook
+        id: .ratchet/ratchet_check.py
+        stage: session-stop
     status: enforced
 
   - slug: governance-reconciliation
@@ -116,6 +119,9 @@ policies:
       - kind: pre-commit-hook
         id: primer-reconcile
         stage: commit
+      - kind: cc-hook
+        id: .claude/scripts/primer-reconcile.py
+        stage: session-stop
     status: enforced
 
   - slug: claude-code-hooks
@@ -146,7 +152,7 @@ policies:
     constitutional: false
     justifying_adrs: [ADR-002, ADR-011]
     checks: []
-    status: enforced
+    status: unguarded
 
   - slug: demo-bundles
     name: Declarative demo bundle specification (.sn-demo.zip)
@@ -154,7 +160,7 @@ policies:
     constitutional: false
     justifying_adrs: [ADR-003, ADR-007, ADR-008, ADR-009]
     checks: []
-    status: enforced
+    status: unguarded
 
   - slug: sqlite-persistence
     name: Scoped SQLite WAL persistence and repository pattern
@@ -162,4 +168,4 @@ policies:
     constitutional: true
     justifying_adrs: [ADR-006]
     checks: []
-    status: enforced
+    status: unguarded

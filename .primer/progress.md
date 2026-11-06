@@ -77,6 +77,5 @@ Last updated: 2026-11-06
   its key `sk-ant-api03-...` triggers a live Anthropic probe in `validate_api_key`; online it gets
   401 -> PUT /api/settings returns 400 and the test fails (passes only offline). Blocks pre-push
   while online. Fix: use an `sk-ant-test` prefixed key or inject a fake client.
-- Registry drift (report only): `.claude/settings.json` Stop hooks (`ratchet_check.py all`,
-  `primer-reconcile.py`) are not registered as cc-hook checks; the cc-hooks table lists only
-  `per_edit_check.py`. Resolve with `/primer reconcile`.
+- Architecture policies `otto-copilot`, `demo-bundles`, `sqlite-persistence` are `unguarded`
+  (no mechanical checks; agent-enforced via CLAUDE.md only).
