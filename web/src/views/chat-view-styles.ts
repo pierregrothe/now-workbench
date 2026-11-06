@@ -72,7 +72,7 @@ export const chatViewStyles = css`
       }
 
       .hero {
-        max-width: 600px;
+        max-width: 768px;
         margin: 8vh auto 32px;
         text-align: center;
       }
@@ -91,19 +91,23 @@ export const chatViewStyles = css`
       .prompt-box {
         display: flex;
         flex-direction: column;
-        gap: 10px;
+        gap: 12px;
         background: #ffffff;
-        border: 1px solid rgba(0, 0, 0, 0.06);
-        border-radius: 20px;
-        padding: 16px 16px 12px 20px;
-        box-shadow: 0 0 0 6px rgba(255, 255, 255, 0.55), 0 2px 8px rgba(0, 0, 0, 0.05);
+        border-radius: 32px;
+        padding: 20px 16px 14px 24px;
+        box-shadow:
+          0 0 0 8px #f4f3f0,
+          0 0 8px 8px rgba(0, 0, 0, 0.05),
+          0 20px 25px 3px rgba(0, 0, 0, 0.1);
         text-align: left;
+        margin: 8px;
       }
 
       .prompt-input {
         border: none;
         background: transparent;
-        font-size: 15px;
+        font-size: 16px;
+        line-height: 24px;
         outline: none;
         color: var(--now-text-primary, #111827);
         font-family: inherit;
@@ -158,7 +162,7 @@ export const chatViewStyles = css`
         position: sticky;
         bottom: 0;
         width: 100%;
-        max-width: 720px;
+        max-width: 768px;
         margin: auto auto 0;
         padding: 12px 0 8px;
         background: linear-gradient(to bottom, rgba(239, 236, 231, 0), var(--otto-canvas, #efece7) 28%);

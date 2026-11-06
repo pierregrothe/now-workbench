@@ -38,3 +38,14 @@ export const libraryIcon = (): TemplateResult => html`
     <path d="M9 3v18M12.5 8.5h3M12.5 12h3"></path>
   </svg>
 `;
+
+/**
+ * Sidebar toggle in the Otto style: three left-aligned lines with a chevron that points
+ * toward the direction the sidebar will move (left to collapse, right to expand).
+ */
+export const menuToggleIcon = (collapsed: boolean, size = 20): TemplateResult => html`
+  <svg viewBox="0 0 20 20" width=${size} height=${size} aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M3 5h9M3 10h6M3 15h9" />
+    ${collapsed ? html`<path d="m14 7 3 3-3 3" />` : html`<path d="m17 7-3 3 3 3" />`}
+  </svg>
+`;

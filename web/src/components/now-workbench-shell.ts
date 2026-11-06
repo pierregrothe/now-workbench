@@ -88,7 +88,7 @@ export class NowWorkbenchShell extends LitElement {
     /* Docked Bottom Chat Bar (shown whenever activeTab !== 'home') */
     .bottom-chat-dock {
       flex-shrink: 0;
-      padding: 8px 36px 14px 36px;
+      padding: 10px 36px 14px 36px;
       background: var(--otto-canvas, #efece7);
       display: flex;
       flex-direction: column;
@@ -99,34 +99,42 @@ export class NowWorkbenchShell extends LitElement {
 
     .intent-route-caption {
       width: 100%;
-      max-width: 720px;
+      max-width: 768px;
       font-size: 11.5px;
       color: var(--now-text-secondary, #6b7280);
       text-align: center;
     }
 
     .bottom-prompt-box {
-      width: 100%;
-      max-width: 720px;
+      width: calc(100% - 16px);
+      max-width: 752px;
       display: flex;
-      align-items: center;
+      flex-direction: column;
       gap: 10px;
       background: #ffffff;
-      border: 1px solid rgba(0, 0, 0, 0.06);
-      border-radius: 20px;
-      padding: 10px 10px 10px 20px;
+      border-radius: 32px;
+      padding: 18px 14px 12px 24px;
+      margin: 8px 0 4px;
       box-sizing: border-box;
-      box-shadow: 0 0 0 6px rgba(255, 255, 255, 0.55), 0 2px 8px rgba(0, 0, 0, 0.05);
+      box-shadow:
+        0 0 0 8px #f4f3f0,
+        0 0 8px 8px rgba(0, 0, 0, 0.05),
+        0 20px 25px 3px rgba(0, 0, 0, 0.1);
     }
 
     .bottom-prompt-box input {
-      flex: 1;
       border: none;
       background: transparent;
       font-family: inherit;
-      font-size: 14px;
+      font-size: 16px;
+      line-height: 24px;
       color: var(--now-text-primary, #16181d);
       outline: none;
+    }
+
+    .bottom-prompt-foot {
+      display: flex;
+      justify-content: flex-end;
     }
 
     .bottom-send-btn {
@@ -738,15 +746,17 @@ export class NowWorkbenchShell extends LitElement {
                       }
                     }}
                   />
-                  <button
-                    class="bottom-send-btn"
-                    @click=${this.handleBottomChatSubmit}
-                    title="Send prompt to Now Workbench"
-                    aria-label="Send prompt"
-                    data-tooltip="Send"
-                  >
-                    ${sendIcon(16)}
-                  </button>
+                  <div class="bottom-prompt-foot">
+                    <button
+                      class="bottom-send-btn"
+                      @click=${this.handleBottomChatSubmit}
+                      title="Send prompt to Now Workbench"
+                      aria-label="Send prompt"
+                      data-tooltip="Send"
+                    >
+                      ${sendIcon(16)}
+                    </button>
+                  </div>
                 </div>
                 <div class="intent-route-caption">${this.lastIntentExplanation}</div>
               </div>

@@ -1,7 +1,7 @@
 import { LitElement, html, css } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { workbenchStore } from '../context/workbench-context.js';
-import { libraryIcon } from '../icons.js';
+import { libraryIcon, menuToggleIcon } from '../icons.js';
 import { renderAvatar, roleSummary } from '../profile/avatars.js';
 import type { ProfileData } from '../profile/avatars.js';
 
@@ -81,11 +81,8 @@ export class NowNavRail extends LitElement {
     }
 
     .collapse-btn svg {
-      width: 16px;
-      height: 16px;
-      stroke: currentColor;
-      stroke-width: 1.75;
-      fill: none;
+      width: 20px;
+      height: 20px;
     }
 
     .brand-header {
@@ -579,18 +576,13 @@ export class NowNavRail extends LitElement {
           <button
             class="collapse-btn"
             title=${this.collapsed ? 'Expand navigation' : 'Collapse navigation'}
+            aria-label=${this.collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
             data-tooltip=${this.collapsed ? 'Expand' : 'Collapse'}
             @click=${() => {
               this.collapsed = !this.collapsed;
             }}
           >
-            <svg viewBox="0 0 24 24">
-              <rect x="3" y="4" width="18" height="16" rx="2"></rect>
-              <line x1="9" y1="4" x2="9" y2="20"></line>
-              ${this.collapsed
-                ? html`<polyline points="13 9 16 12 13 15"></polyline>`
-                : html`<polyline points="15 9 12 12 15 15"></polyline>`}
-            </svg>
+            ${menuToggleIcon(this.collapsed)}
           </button>
         </div>
 
