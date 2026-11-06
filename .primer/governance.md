@@ -6,12 +6,12 @@ and /primer sync. Prose outside the markers is user-owned.
 
 ## Enforcement Gates
 
-### Pre-commit & Pre-push -- blocking (9 checks)
+### Pre-commit & Pre-push -- blocking (10 checks)
 
 Hooks that block commits and pushes locally. There is no GitHub Actions CI;
 local git hooks and harness hooks are the primary gates.
 
-<!-- govtable:gates-blocking:start (count=9) -->
+<!-- govtable:gates-blocking:start (count=10) -->
 | Hook | Description | Scope | ADR | Tool |
 |------|-------------|-------|-----|------|
 | conventional-pre-commit | Conventional Commits message validation | global | [ADR-005] | conventional-pre-commit |
@@ -22,6 +22,7 @@ local git hooks and harness hooks are the primary gates.
 | ratchet-all | Run metric ratchets parallel pool | project | [ADR-005] | .ratchet/ratchet_check.py all |
 | ruff | Fast Python linting (0 violations) | global | [ADR-005] | ruff |
 | ruff-format | Code formatting verification | global | [ADR-005] | ruff format |
+| web-e2e | Playwright end-to-end UI suite against real backend (pre-push) | project | [ADR-013] | @playwright/test |
 | web-typecheck | Frontend TypeScript strict check (tsc --noEmit) | project | [ADR-001] | tsc |
 <!-- govtable:gates-blocking:end -->
 
@@ -69,7 +70,7 @@ local git hooks and harness hooks are the primary gates.
 
 ## ADR Catalog
 
-<!-- govtable:adr-catalog:start (count=12) -->
+<!-- govtable:adr-catalog:start (count=13) -->
 | ADR | Title | Enforcement | Status |
 |-----|-------|-------------|--------|
 | 001 | Hybrid Runtime with Python Core & Lit Web Components | hook | accepted |
@@ -84,6 +85,7 @@ local git hooks and harness hooks are the primary gates.
 | 010 | Lit 3 Reactive Controllers, Lit Context, and Modular Web Component Hierarchy | hook | accepted |
 | 011 | Unified Async Claude Agent Loop with Streaming Tool Events and Diagnostic Transparency | architecture | accepted |
 | 012 | Versioned SQLite Schema and AES-256-GCM Credential Sealing | architecture | accepted |
+| 013 | Playwright End-to-End UI Testing Against the Real Backend | hook | accepted |
 <!-- govtable:adr-catalog:end -->
 
 Full ADR files: `.primer/adr/`

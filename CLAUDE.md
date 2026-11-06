@@ -64,6 +64,9 @@ uv run workbench serve --host 127.0.0.1 --port 8080
 
 # Frontend development (web/)
 cd web && npm run dev
+
+# End-to-end UI tests (Playwright on local Chrome, real backend; ADR-013)
+cd web && npm run test:e2e
 ```
 
 ## Architectural Rules

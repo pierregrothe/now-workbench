@@ -75,5 +75,7 @@ Last updated: 2026-11-06
 
 - Coverage is 90% against the pre-push gate's `--cov-fail-under=100`: pushes are blocked until
   untested legacy paths (e.g. `api/instances.py` test-all/cleanup, `api/app.py` WS routes) are covered.
+- UI "offline fallback" branches in several components may fabricate state (ADR-013 audit list);
+  each needs a Playwright spec proving an explicit error/empty state instead.
 - Architecture policies `otto-copilot`, `demo-bundles`, `sqlite-persistence` are `unguarded`
   (no mechanical checks; agent-enforced via CLAUDE.md only).

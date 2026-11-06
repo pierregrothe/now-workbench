@@ -68,10 +68,13 @@ policies:
     name: In-memory test suite with pure fakes
     category: testing
     constitutional: true
-    justifying_adrs: [ADR-005]
+    justifying_adrs: [ADR-005, ADR-013]
     checks:
       - kind: pre-commit-hook
         id: pytest-pre-push
+        stage: push
+      - kind: pre-commit-hook
+        id: web-e2e
         stage: push
       - kind: ratchet
         id: no-mocks

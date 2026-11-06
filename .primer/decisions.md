@@ -240,3 +240,22 @@ passwords as plaintext on update, kept its master key beside the DB, and re-ran 
 **Consequences:**
 - A copied `workbench.db` yields no secrets; losing the master key loses stored credentials.
 
+---
+
+### 2026-11-06 -- ADR-013: Playwright End-to-End UI Testing Against the Real Backend
+
+**Status:** accepted
+
+**Context:**
+The admin panel rendered a hardcoded "authenticated" sample instance over an empty DB; no test
+could see it because the defect lived only in the rendered UI.
+
+**Decision:**
+1. `@playwright/test` on local Google Chrome; `webServer` builds the UI and runs the real
+   backend with isolated `.e2e/` data + key (no API mocks).
+2. Serial, API-reset fixtures; `web-e2e` pre-push gate; regression-first specs.
+
+**Consequences:**
+- UI regressions block push; pushes need Google Chrome. Offline-fallback branches in other
+  components are queued for e2e audit.
+
