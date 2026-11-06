@@ -4,6 +4,7 @@ import logging
 import uuid
 from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
@@ -21,6 +22,7 @@ from now_workbench.api.instances import router as instances_router
 from now_workbench.api.profile import router as profile_router
 from now_workbench.api.settings_api import router as settings_router
 from now_workbench.api.setup import router as setup_router
+from now_workbench.api.sharing import approvals_router, artifacts_router, groups_router
 from now_workbench.api.team import router as team_router
 from now_workbench.api.templates import router as templates_router
 from now_workbench.api.threads import _load_verified_instances_dict
@@ -30,9 +32,8 @@ from now_workbench.auth.guard import AccessMiddleware, assert_safe_binding
 from now_workbench.auth.models import Role
 from now_workbench.auth.owner import operator_owner, owner_scope
 from now_workbench.auth.setup import SetupCodes
-from now_workbench.capture.engine import PlaywrightCaptureEngine
 from now_workbench.config.origins import is_origin_allowed
-from now_workbench.config.paths import UnsafePathError, safe_child
+from now_workbench.config.paths import UnsafePathError
 from now_workbench.config.settings import settings
 from now_workbench.db import (
     ChatMessageRecord,
@@ -42,6 +43,7 @@ from now_workbench.db import (
     db_session,
 )
 from now_workbench.sdk.runner import NowSdkRunner
+from now_workbench.sharing.access import resolve_bundle, sync_registry
 
 
 async def _accept_if_origin_allowed(websocket: WebSocket) -> bool:
@@ -143,8 +145,10 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     assert_safe_binding(settings.get_host(), app.state.access_validator)
     configured = app.state.access_validator.configured
     with db_session() as repo:
-        with owner_scope(operator_owner(repo, local_mode=not configured)):
+        operator = operator_owner(repo, local_mode=not configured)
+        with owner_scope(operator):
             seed_database(repo)
+        sync_registry(repo, operator)
         needs_setup = configured and repo.count_admins() == 0
     if needs_setup:
         app.state.setup_codes.issue()
@@ -202,6 +206,9 @@ def create_app(
     app.include_router(profile_router)
     app.include_router(setup_router)
     app.include_router(team_router)
+    app.include_router(groups_router)
+    app.include_router(artifacts_router)
+    app.include_router(approvals_router)
 
     sdk_runner = NowSdkRunner(now_sdk_bin=settings.now_sdk_bin, node_bin=settings.node_bin)
     log_broadcaster = LogBroadcaster()
@@ -209,7 +216,6 @@ def create_app(
     _register_diagnostics(app, sdk_runner)
     _register_ai_tiles(app)
     _register_build_deploy(app, sdk_runner, log_broadcaster)
-    _register_legacy_capture_routes(app)
     _register_websockets(app, log_broadcaster)
     _mount_static_ui(app)
 
@@ -269,6 +275,15 @@ def _register_ai_tiles(app: FastAPI) -> None:
         return resolve_query_to_tiles(req.query, instances=instances)
 
 
+def _accessible_bundle(bundle_id: str) -> Path:
+    """Return a bundle the signed-in person owns or was shared (ADR-018), else 404."""
+    with db_session() as repo:
+        try:
+            return resolve_bundle(repo, bundle_id).path
+        except LookupError as exc:
+            raise HTTPException(status_code=404, detail="Demo bundle not found.") from exc
+
+
 def _register_build_deploy(
     app: FastAPI, sdk_runner: NowSdkRunner, log_broadcaster: LogBroadcaster
 ) -> None:
@@ -281,9 +296,7 @@ def _register_build_deploy(
 
     @app.post("/api/demos/{bundle_id}/build")
     async def build_demo(bundle_id: str, req: BuildRequest) -> dict[str, Any]:
-        target = safe_child(settings.get_bundles_dir(), bundle_id)
-        if not target.exists():
-            raise HTTPException(status_code=404, detail="Demo bundle not found.")
+        target = _accessible_bundle(bundle_id)
         await log_broadcaster.broadcast(f"[build:start] Building bundle '{bundle_id}'...")
         res = await sdk_runner.build(
             target,
@@ -300,9 +313,7 @@ def _register_build_deploy(
 
     @app.post("/api/demos/{bundle_id}/deploy")
     async def deploy_demo(bundle_id: str, req: BuildRequest) -> dict[str, Any]:
-        target = safe_child(settings.get_bundles_dir(), bundle_id)
-        if not target.exists():
-            raise HTTPException(status_code=404, detail="Demo bundle not found.")
+        target = _accessible_bundle(bundle_id)
 
         with db_session() as repo:
             target_inst = (
@@ -339,30 +350,6 @@ def _register_build_deploy(
             "target_instance_id": target_inst.id,
             "target_instance_name": target_inst.name,
         }
-
-
-def _register_legacy_capture_routes(app: FastAPI) -> None:
-    """Register backwards-compatible media capture aliases."""
-
-    @app.get("/api/capture/{bundle_id}/list")
-    def legacy_list_captures(bundle_id: str) -> dict[str, Any]:
-        engine = PlaywrightCaptureEngine(bundles_dir=settings.get_bundles_dir())
-        return {"captures": [c.model_dump() for c in engine.list_captures(bundle_id)]}
-
-    @app.delete("/api/capture/{bundle_id}/all")
-    def legacy_clear_bundle_captures(bundle_id: str) -> dict[str, Any]:
-        engine = PlaywrightCaptureEngine(bundles_dir=settings.get_bundles_dir())
-        count = engine.clear_all_captures(bundle_id)
-        return {"success": True, "bundle_id": bundle_id, "deleted_count": count}
-
-    @app.delete("/api/capture/{filename}")
-    def legacy_delete_capture(filename: str) -> dict[str, Any]:
-        engine = PlaywrightCaptureEngine(bundles_dir=settings.get_bundles_dir())
-        for b in settings.get_bundles_dir().iterdir():
-            if b.is_dir() and (b / "media" / filename).exists():
-                engine.delete_capture(b.name, filename)
-                return {"success": True, "bundle_id": b.name, "filename": filename}
-        raise HTTPException(status_code=404, detail="Capture artifact not found.")
 
 
 def _register_websockets(app: FastAPI, log_broadcaster: LogBroadcaster) -> None:

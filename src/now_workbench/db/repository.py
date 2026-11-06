@@ -4,6 +4,8 @@ import sqlite3
 from typing import Any, Self
 
 from now_workbench.db.repos import (
+    ArtifactRepositoryMixin,
+    GroupRepositoryMixin,
     InstanceRepositoryMixin,
     PreferencesRepositoryMixin,
     ProfileRepositoryMixin,
@@ -22,6 +24,8 @@ class DatabaseRepository(
     PreferencesRepositoryMixin,
     ProfileRepositoryMixin,
     UserRepositoryMixin,
+    GroupRepositoryMixin,
+    ArtifactRepositoryMixin,
 ):
     """Encapsulates SQLite queries for instances, templates, threads, seeds, and preferences."""
 

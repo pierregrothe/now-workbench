@@ -11,6 +11,7 @@ from now_workbench.ai.tools.base import (
     table_tile,
     text_tile,
 )
+from now_workbench.ai.tools.bundles import bundle_access
 from now_workbench.capture.engine import PlaywrightCaptureEngine
 from now_workbench.config import settings
 
@@ -22,7 +23,7 @@ _BUNDLE = {
 
 def _list_demo_captures(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
     bundle_id = str(args["bundle_id"])
-    engine = PlaywrightCaptureEngine(bundles_dir=settings.get_bundles_dir())
+    engine = PlaywrightCaptureEngine(bundles_dir=bundle_access(ctx.repo, bundle_id).root)
     captures = engine.list_captures(bundle_id)
     if not captures:
         return ToolResult(
@@ -66,6 +67,7 @@ def _update_demo_capture(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
     bundle_id = str(args["bundle_id"])
     filename = str(args["filename"])
     label = str(args["label"])
+    bundle_access(ctx.repo, bundle_id, write=True)
     engine = PlaywrightCaptureEngine(bundles_dir=settings.get_bundles_dir())
     updated = engine.update_capture(bundle_id, filename, label=label)
     return ToolResult(
@@ -91,6 +93,7 @@ def _plan_delete_demo_capture(ctx: ToolContext, args: dict[str, Any]) -> str:
 def _delete_demo_capture(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
     bundle_id = str(args["bundle_id"])
     filename = str(args["filename"])
+    bundle_access(ctx.repo, bundle_id, write=True)
     engine = PlaywrightCaptureEngine(bundles_dir=settings.get_bundles_dir())
     engine.delete_capture(bundle_id, filename)
     remaining = engine.list_captures(bundle_id)

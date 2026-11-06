@@ -64,3 +64,6 @@ class DemoBundleInfo(BaseModel):
     has_walkthrough: bool = False
     sys_properties: dict[str, Any] = Field(default_factory=dict)
     media_captures: list[dict[str, Any]] = Field(default_factory=list)
+    owner_email: str = ""
+    access: str = "owner"
+    version: int = 0

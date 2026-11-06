@@ -51,16 +51,11 @@ export class CaptureGalleryController implements ReactiveController {
 
     try {
       const res = await fetch(`/api/demos/${encodeURIComponent(bundleId)}/captures`);
-      if (res.ok) {
-        const data = await res.json();
-        this.captures = Array.isArray(data) ? data : data.captures || [];
-      } else {
-        const fallback = await fetch(`/api/capture/${encodeURIComponent(bundleId)}/list`);
-        if (fallback.ok) {
-          const data = await fallback.json();
-          this.captures = data.captures || [];
-        }
+      if (!res.ok) {
+        throw new Error(`Could not load captures (HTTP ${res.status}).`);
       }
+      const data = await res.json();
+      this.captures = Array.isArray(data) ? data : data.captures || [];
     } catch (err: any) {
       this.error = err.message || 'Failed to load captures';
     } finally {

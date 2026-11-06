@@ -165,7 +165,12 @@ class UseCaseSynthesizer:
         """
         if req.sn_release is None:
             raise ValueError("sn_release must be resolved before synthesis")
-        bundle_id = req.bundle_id or _slugify(f"{req.customer_name}-{req.use_case[:28]}")
+        base_id = req.bundle_id or _slugify(f"{req.customer_name}-{req.use_case[:28]}")
+        # Never write into an existing bundle (it may be someone else's, ADR-018).
+        bundle_id, suffix = base_id, 1
+        while safe_child(self.bundles_dir, bundle_id).exists():
+            suffix += 1
+            bundle_id = f"{base_id}-{suffix}"
         bundle_path = safe_child(self.bundles_dir, bundle_id)
         table_name = _table_slug(bundle_id, prefix=scoped_prefix)
         title = f"{req.customer_name}: {req.use_case[:60].strip()}"

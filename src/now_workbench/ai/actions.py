@@ -8,12 +8,13 @@ from now_workbench.ai.tiles import (
     build_instance_response,
 )
 from now_workbench.bundles.manager import BundleManager
-from now_workbench.config.settings import settings
 from now_workbench.connectivity import check_and_record_instance
 from now_workbench.db import (
     DatabaseRepository,
     InstanceRecord,
 )
+from now_workbench.sharing.access import list_accessible
+from now_workbench.sharing.models import AccessKind
 
 _DELETE_VERBS = ("delete", "remove", "clean", "purge", "prune", "drop", "clear")
 _UNAUTH_FILTERS = (
@@ -216,18 +217,18 @@ def _try_add_instance_action(
     )
 
 
-def _try_delete_bundle_action(lower: str) -> GenerativeUIResponse | None:
+def _try_delete_bundle_action(lower: str, repo: DatabaseRepository) -> GenerativeUIResponse | None:
     """Preview a demo bundle deletion; never deletes from free-text chat."""
     has_del = any(v in lower for v in _DELETE_VERBS)
     has_bundle = any(b in lower for b in ("bundle", "demo", "artifact", "recipe"))
     if not (has_del and has_bundle):
         return None
 
-    manager = BundleManager(settings.get_bundles_dir())
+    own = [a for a in list_accessible(repo) if a.kind is AccessKind.OWNER]
     target = next(
         (
             b
-            for b in manager.list_bundles()
+            for b in (BundleManager(a.root).inspect_bundle(a.path) for a in own)
             if b.manifest.id.lower() in lower or b.manifest.name.lower() in lower
         ),
         None,
@@ -257,7 +258,7 @@ def execute_autonomous_action(
         _try_verify_instances_action(lower, repo),
         _try_switch_default_instance_action(lower, repo),
         _try_add_instance_action(lower, query, repo),
-        _try_delete_bundle_action(lower),
+        _try_delete_bundle_action(lower, repo),
     ):
         if res is not None:
             return res

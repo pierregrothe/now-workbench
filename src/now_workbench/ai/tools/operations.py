@@ -30,7 +30,8 @@ def _seed(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
     bundle_id = str(args["bundle_id"])
     inst = resolve_instance(ctx.repo, args.get("instance"))
     engine = SeedEngine(repository=ctx.repo, fake_mode=_is_fake(ctx, inst))
-    op = run_async(engine.load_and_seed(bundle_id, bundle_path(bundle_id), instance_id=inst.id))
+    path = bundle_path(ctx.repo, bundle_id)
+    op = run_async(engine.load_and_seed(bundle_id, path, instance_id=inst.id))
     return ToolResult(
         summary=f"Seeded '{bundle_id}' to '{inst.name}': {len(op.created_records)} record(s) "
         f"(operation {op.id}).",
@@ -99,7 +100,7 @@ def _plan_reset(ctx: ToolContext, args: dict[str, Any]) -> str:
 
 def _reset(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
     bundle_id = str(args["bundle_id"])
-    bundle_path(bundle_id)
+    bundle_path(ctx.repo, bundle_id)
     inst = resolve_instance(ctx.repo, args.get("instance"))
     fake = _is_fake(ctx, inst)
     seed_engine = SeedEngine(repository=ctx.repo, fake_mode=fake)
@@ -131,7 +132,7 @@ def _reset(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
 
 def _verify_stage(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
     bundle_id = str(args["bundle_id"])
-    guide = RunbookEngine().load_runbook(bundle_path(bundle_id), bundle_id=bundle_id)
+    guide = RunbookEngine().load_runbook(bundle_path(ctx.repo, bundle_id), bundle_id=bundle_id)
     if not guide:
         return ToolResult(summary=f"'{bundle_id}' has no walkthrough guide.", ok=False)
     step = int(args["step_number"])
@@ -150,7 +151,7 @@ def _verify_stage(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
 def _get_properties(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
     bundle_id = str(args["bundle_id"])
     engine = PropertyEngine()
-    props = engine.read_bundle_properties(bundle_path(bundle_id))
+    props = engine.read_bundle_properties(bundle_path(ctx.repo, bundle_id))
     inst = resolve_instance(ctx.repo, args.get("instance"))
     snap = engine.load_snapshot(bundle_id, inst.id)
     tile = table_tile(
@@ -173,7 +174,7 @@ def _apply_properties(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
     res = run_async(
         PropertyEngine().apply_bundle_properties(
             bundle_id=bundle_id,
-            bundle_path=bundle_path(bundle_id),
+            bundle_path=bundle_path(ctx.repo, bundle_id),
             instance=inst,
             fake_mode=_is_fake(ctx, inst),
         )

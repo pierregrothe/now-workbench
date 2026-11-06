@@ -269,11 +269,6 @@ def test_api_synthesize_and_captures_routes(tmp_path: Path) -> None:
         assert clear_all_res.json()["deleted_count"] >= 1
         assert client.get(f"/api/demos/{bundle_id}/captures").json() == []
 
-        # Legacy aliases
-        legacy_list = client.get(f"/api/capture/{bundle_id}/list")
-        assert legacy_list.status_code == 200
-        assert legacy_list.json()["captures"] == []
-
         # HTTP PATCH bundle manifest
         patch_b_res = client.request(
             "PATCH",

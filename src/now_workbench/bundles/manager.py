@@ -125,13 +125,22 @@ class BundleManager:
         source_id: str,
         target_id: str,
         target_name: str | None = None,
+        source_root: Path | None = None,
     ) -> DemoBundleInfo:
-        """Clone an existing bundle to customize for a customer without mutating baseline."""
+        """Clone a bundle to customize without mutating the original.
+
+        Args:
+            source_id: Bundle to copy.
+            target_id: Id of the new bundle (in this manager's storage).
+            target_name: Display name; defaults to "<source name> (Cloned)".
+            source_root: Bundles root holding the source (a shared snapshot); defaults to this
+                manager's storage.
+        """
         clean_target_id = target_id.strip().lower()
         if not clean_target_id:
             raise ValueError("Target bundle ID cannot be empty.")
 
-        src_dir = safe_child(self.storage_dir, source_id)
+        src_dir = safe_child(source_root or self.storage_dir, source_id)
         if not src_dir.exists() or not (src_dir / "manifest.json").exists():
             raise FileNotFoundError(f"Source bundle '{source_id}' does not exist.")
 

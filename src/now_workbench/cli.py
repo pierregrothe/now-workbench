@@ -37,6 +37,7 @@ from now_workbench.remediation import (
 from now_workbench.runbooks.engine import RunbookEngine
 from now_workbench.sdk.runner import NowSdkRunner
 from now_workbench.seed.engine import SeedEngine
+from now_workbench.sharing.access import sync_registry
 from now_workbench.synthesizer.cli import capture_demo_cmd, synthesize_demo_cmd
 from now_workbench.templates.cli import template_app
 
@@ -78,6 +79,13 @@ def _act_as_operator(ctx: typer.Context) -> None:
     with db_session() as repo:
         owner = operator_owner(repo, local_mode=not settings.get_access_audience())
     ctx.with_resource(owner_scope(owner))
+    ctx.call_on_close(lambda: _register_new_bundles(owner))
+
+
+def _register_new_bundles(owner: str) -> None:
+    """Bundles a command put on disk (clone, synthesize, import) belong to the operator."""
+    with db_session() as repo:
+        sync_registry(repo, owner)
 
 
 def _render_doctor_table(probe: dict[str, str | bool]) -> None:

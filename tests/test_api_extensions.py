@@ -156,7 +156,7 @@ def test_api_demos_and_error_routes() -> None:
     assert "zip" in exp_ok.headers.get("content-type", "").lower()
 
     exp_bad = client.get("/api/demos/bundle-404/export")
-    assert exp_bad.status_code == 400
+    assert exp_bad.status_code == 404
 
     # 3. Build valid with fake runner & 404 bundle
     b_ok = client.post("/api/demos/sample-ai-assistant/build", json={"stream_logs": False})

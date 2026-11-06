@@ -14,15 +14,23 @@ from now_workbench.ai.tools.base import (
     table_tile,
     text_tile,
 )
+from now_workbench.auth.owner import current_owner
 from now_workbench.bundles.manager import BundleManager
 from now_workbench.bundles.pipeline import DemoPipelineEngine
 from now_workbench.capture.engine import PlaywrightCaptureEngine
 from now_workbench.capture.models import CaptureRequest
-from now_workbench.config.paths import safe_child
 from now_workbench.config.settings import settings
-from now_workbench.db import TemplateInstantiationRequest
+from now_workbench.db import DatabaseRepository, TemplateInstantiationRequest
 from now_workbench.fluent.engine import FluentEngine
 from now_workbench.runbooks.engine import RunbookEngine
+from now_workbench.sharing.access import (
+    BundleAccess,
+    ReadOnlyBundleError,
+    list_accessible,
+    register_new_bundle,
+    resolve_bundle,
+)
+from now_workbench.sharing.store import delete_artifact_files
 from now_workbench.synthesizer.engine import UseCaseSynthesizer
 from now_workbench.synthesizer.models import UseCaseSynthesisRequest
 from now_workbench.synthesizer.release import resolve_synthesis_release
@@ -31,12 +39,19 @@ from now_workbench.templates import TemplateEngine
 _BUNDLE = {"type": "string", "description": "Demo bundle id (slug)"}
 
 
-def bundle_path(bundle_id: str) -> Path:
-    """Resolve an installed bundle directory or raise ValueError."""
-    target = safe_child(settings.get_bundles_dir(), str(bundle_id))
-    if not target.exists():
-        raise ValueError(f"Demo bundle '{bundle_id}' was not found.")
-    return target
+def bundle_access(repo: DatabaseRepository, bundle_id: str, write: bool = False) -> BundleAccess:
+    """Resolve a bundle the signed-in person may use (ADR-018) or raise ValueError."""
+    try:
+        return resolve_bundle(repo, str(bundle_id), write=write)
+    except LookupError as exc:
+        raise ValueError(f"Demo bundle '{bundle_id}' was not found.") from exc
+    except ReadOnlyBundleError as exc:
+        raise ValueError(str(exc)) from exc
+
+
+def bundle_path(repo: DatabaseRepository, bundle_id: str) -> Path:
+    """Return the directory of a bundle the signed-in person may read."""
+    return bundle_access(repo, bundle_id).path
 
 
 def _mgr() -> BundleManager:
@@ -51,7 +66,13 @@ def _bundle_actions(bundle_id: str) -> list[dict[str, Any]]:
 
 
 def _list_bundles(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
-    bundles = _mgr().list_bundles()
+    bundles = sorted(
+        (
+            BundleManager(storage_dir=a.root).inspect_bundle(a.path)
+            for a in list_accessible(ctx.repo)
+        ),
+        key=lambda b: b.manifest.name,
+    )
     rows = [
         [b.manifest.id, b.manifest.name, b.manifest.sn_release, len(b.fluent_files)]
         for b in bundles
@@ -65,8 +86,8 @@ def _list_bundles(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
 
 
 def _inspect_bundle(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
-    path = bundle_path(args["bundle_id"])
-    info = _mgr().inspect_bundle(path)
+    access = bundle_access(ctx.repo, args["bundle_id"])
+    info = BundleManager(storage_dir=access.root).inspect_bundle(access.path)
     m = info.manifest
     body = (
         f"{m.description or 'No description.'}\n"
@@ -84,11 +105,14 @@ def _inspect_bundle(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
 
 
 def _clone_bundle(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
+    source = bundle_access(ctx.repo, args["source_bundle_id"])
     info = _mgr().clone_bundle(
         source_id=args["source_bundle_id"],
         target_id=args["new_bundle_id"],
         target_name=args.get("new_name"),
+        source_root=source.root,
     )
+    register_new_bundle(ctx.repo, info.manifest.id, current_owner())
     return ToolResult(
         summary=f"Cloned '{args['source_bundle_id']}' to '{info.manifest.id}'.",
         data={"bundle_id": info.manifest.id},
@@ -105,9 +129,9 @@ def _clone_bundle(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
 
 def _export_bundle(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
     bundle_id = str(args["bundle_id"])
-    bundle_path(bundle_id)
+    access = bundle_access(ctx.repo, bundle_id)
     out = settings.workspace_dir / f"{bundle_id}.sn-demo.zip"
-    _mgr().export_bundle(bundle_id, out)
+    BundleManager(storage_dir=access.root).export_bundle(bundle_id, out)
     return ToolResult(
         summary=f"Exported '{bundle_id}' to {out}.",
         data={"archive": str(out)},
@@ -121,8 +145,11 @@ def _plan_delete_bundle(ctx: ToolContext, args: dict[str, Any]) -> str:
 
 def _delete_bundle(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
     bundle_id = str(args["bundle_id"])
+    bundle_access(ctx.repo, bundle_id, write=True)
     _mgr().delete_bundle(bundle_id)
-    remaining = _mgr().list_bundles()
+    ctx.repo.forget_artifact(bundle_id)
+    delete_artifact_files(bundle_id)
+    remaining = list_accessible(ctx.repo)
     return ToolResult(
         summary=f"Deleted bundle '{bundle_id}'. {len(remaining)} bundle(s) remain.",
         data={"remaining": len(remaining)},
@@ -149,6 +176,7 @@ def _synthesize(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
     result = UseCaseSynthesizer(bundles_dir=settings.get_bundles_dir()).synthesize(
         req, author_name=prefs.sc_author_name, scoped_prefix=prefs.default_scoped_prefix
     )
+    register_new_bundle(ctx.repo, result.bundle_id, current_owner())
     return ToolResult(
         summary=f"Synthesized bundle '{result.bundle_id}' for {result.customer_name} "
         f"({len(result.seed_records)} seed records, table {result.fluent_table_name}).",
@@ -168,7 +196,7 @@ def _synthesize(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
 
 def _get_runbook(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
     bundle_id = str(args["bundle_id"])
-    guide = RunbookEngine().load_runbook(bundle_path(bundle_id), bundle_id=bundle_id)
+    guide = RunbookEngine().load_runbook(bundle_path(ctx.repo, bundle_id), bundle_id=bundle_id)
     if not guide:
         return ToolResult(summary=f"'{bundle_id}' has no walkthrough guide.", ok=False)
     rows = [[s.step_number, s.title, s.persona or "-", len(s.talking_points)] for s in guide.stages]
@@ -185,7 +213,7 @@ def _get_runbook(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
 
 def _fluent_schema(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
     bundle_id = str(args["bundle_id"])
-    tables = FluentEngine().load_bundle_schemas(bundle_path(bundle_id))
+    tables = FluentEngine().load_bundle_schemas(bundle_path(ctx.repo, bundle_id))
     rows = [[t.name, t.label, ", ".join(c.name for c in t.columns)] for t in tables]
     tile = table_tile(
         f"tile-fluent-{bundle_id}", "Fluent tables", ["Table", "Label", "Columns"], rows
@@ -199,8 +227,8 @@ def _fluent_schema(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
 
 def _fluent_diff(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
     engine = FluentEngine()
-    a = engine.load_bundle_schemas(bundle_path(args["bundle_id"]))
-    b = engine.load_bundle_schemas(bundle_path(args["compare_bundle_id"]))
+    a = engine.load_bundle_schemas(bundle_path(ctx.repo, args["bundle_id"]))
+    b = engine.load_bundle_schemas(bundle_path(ctx.repo, args["compare_bundle_id"]))
     diff = engine.compute_diff(a, b)
     rows = [["added", ", ".join(diff.added_tables) or "-"]]
     rows.append(["removed", ", ".join(diff.removed_tables) or "-"])
@@ -256,6 +284,7 @@ def _capture(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
     prefs = ctx.repo.get_workbench_preferences()
     inst = resolve_instance(ctx.repo, args.get("instance"))
     bundle_id = str(args.get("bundle_id") or "sample-ai-assistant")
+    bundle_access(ctx.repo, bundle_id, write=True)
     req = CaptureRequest(
         bundle_id=bundle_id,
         instance_id=inst.id,
@@ -298,7 +327,8 @@ def _capture(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
 def _evaluate_demo(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
     bundle_id = str(args.get("bundle_id") or "")
     inst = resolve_instance(ctx.repo, args.get("instance"))
-    engine = DemoPipelineEngine(bundles_dir=settings.get_bundles_dir(), repo=ctx.repo)
+    root = bundle_access(ctx.repo, bundle_id).root
+    engine = DemoPipelineEngine(bundles_dir=root, repo=ctx.repo)
     res = engine.evaluate_bundle(bundle_id, inst, fake_mode=ctx.fake_mode)
 
     columns = ["Requirement", "Details", "Status"]
@@ -334,7 +364,8 @@ def _evaluate_demo(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
 def _install_demo_modules(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
     bundle_id = str(args.get("bundle_id") or "")
     inst = resolve_instance(ctx.repo, args.get("instance"))
-    engine = DemoPipelineEngine(bundles_dir=settings.get_bundles_dir(), repo=ctx.repo)
+    root = bundle_access(ctx.repo, bundle_id).root
+    engine = DemoPipelineEngine(bundles_dir=root, repo=ctx.repo)
     installed = engine.install_required_modules(bundle_id, inst, fake_mode=ctx.fake_mode)
 
     if not installed:
@@ -367,7 +398,8 @@ def _install_demo_modules(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
 def _test_demo_script(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
     bundle_id = str(args.get("bundle_id") or "")
     inst = resolve_instance(ctx.repo, args.get("instance"))
-    engine = DemoPipelineEngine(bundles_dir=settings.get_bundles_dir(), repo=ctx.repo)
+    root = bundle_access(ctx.repo, bundle_id).root
+    engine = DemoPipelineEngine(bundles_dir=root, repo=ctx.repo)
     res = run_async(engine.test_demo_script(bundle_id, inst, fake_mode=ctx.fake_mode))
 
     columns = ["Stage #", "Title", "Target Table", "Result"]
@@ -389,6 +421,7 @@ def _run_demo_pipeline(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
     bundle_id = str(args.get("bundle_id") or "")
     inst = resolve_instance(ctx.repo, args.get("instance"))
     no_video = bool(args.get("no_video", False))
+    bundle_access(ctx.repo, bundle_id, write=True)
     engine = DemoPipelineEngine(bundles_dir=settings.get_bundles_dir(), repo=ctx.repo)
     summary = run_async(
         engine.run_full_pipeline(
@@ -432,6 +465,7 @@ def _run_demo_pipeline(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
 
 def _update_bundle(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
     bundle_id = str(args["bundle_id"])
+    bundle_access(ctx.repo, bundle_id, write=True)
     tags_arg = args.get("tags")
     tags_list = (
         [t.strip() for t in tags_arg.split(",") if t.strip()]
