@@ -55,7 +55,7 @@ def _ensure_default_thread(repo: DatabaseRepository) -> list[ChatThreadRecord]:
     thread = repo.create_thread(
         ChatThreadCreate(
             id=DEFAULT_THREAD_ID,
-            title="Zurich Demo & Customization Session",
+            title="Workspace Orchestration Session",
             target_tab="home",
         )
     )

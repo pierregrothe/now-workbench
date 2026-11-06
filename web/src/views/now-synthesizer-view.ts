@@ -20,7 +20,6 @@ export class NowSynthesizerView extends LitElement {
     'Build an Enterprise Clinical Trial Patient Adverse Event Tracking application with strict HIPAA auditing, safety review workflows, and automatic FDA medwatch escalation.';
   @state() private customerName = 'Novartis BioHealth';
   @state() private industry = 'Healthcare & Life Sciences';
-  @state() private releaseTarget = 'Zurich';
   @state() private personaPrimary = 'Amelia Chen (Clinical Operations Lead)';
   @state() private personaSecondary = 'Marcus Vance (Field Reliability Architect)';
 
@@ -160,7 +159,7 @@ export class NowSynthesizerView extends LitElement {
       prompt: this.useCasePrompt,
       customerName: this.customerName,
       industry: this.industry,
-      releaseTarget: this.releaseTarget,
+      instanceId: this.currentStoreState.selectedInstanceId,
       personas: [this.personaPrimary, this.personaSecondary],
     });
   }
@@ -242,16 +241,6 @@ export class NowSynthesizerView extends LitElement {
                   <option value="Manufacturing">Manufacturing</option>
                   <option value="Public Sector">Public Sector</option>
                 </select>
-              </div>
-
-              <div class="form-group">
-                <label class="form-label">Release Target</label>
-                <input
-                  type="text"
-                  class="text-input"
-                  .value=${this.releaseTarget}
-                  @input=${(e: Event) => (this.releaseTarget = (e.target as HTMLInputElement).value)}
-                />
               </div>
 
               <div class="form-group">

@@ -49,7 +49,7 @@ test('synthesize and seed hit the real demo routes with backend-shaped payloads'
   expect(synthBody).not.toBeNull();
   const body = synthBody as unknown as Record<string, unknown>;
   expect(body).toHaveProperty('use_case');
-  expect(body).toHaveProperty('sn_release');
+  expect(body).not.toHaveProperty('sn_release');
   expect(body).not.toHaveProperty('prompt');
   expect(body).not.toHaveProperty('release_target');
   expect(body).not.toHaveProperty('personas');

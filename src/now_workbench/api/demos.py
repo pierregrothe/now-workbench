@@ -26,6 +26,7 @@ from now_workbench.runbooks.models import RunbookGuide
 from now_workbench.seed.engine import SeedEngine
 from now_workbench.synthesizer.engine import UseCaseSynthesizer
 from now_workbench.synthesizer.models import SynthesizedDemoResult, UseCaseSynthesisRequest
+from now_workbench.synthesizer.release import resolve_synthesis_release
 
 router = APIRouter(prefix="/api/demos", tags=["demos"])
 
@@ -444,9 +445,13 @@ def synthesize_demo_bundle(req: UseCaseSynthesisRequest) -> SynthesizedDemoResul
     """Synthesize a tailored demo bundle from a use case and customer context."""
     with db_session() as repo:
         prefs = repo.get_workbench_preferences()
+        try:
+            release = resolve_synthesis_release(repo, req.sn_release, req.instance_id)
+        except LookupError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
     synthesizer = UseCaseSynthesizer(bundles_dir=settings.get_bundles_dir())
     return synthesizer.synthesize(
-        req,
+        req.model_copy(update={"sn_release": release}),
         author_name=prefs.sc_author_name,
         scoped_prefix=prefs.default_scoped_prefix,
     )

@@ -25,6 +25,7 @@ from now_workbench.fluent.engine import FluentEngine
 from now_workbench.runbooks.engine import RunbookEngine
 from now_workbench.synthesizer.engine import UseCaseSynthesizer
 from now_workbench.synthesizer.models import UseCaseSynthesisRequest
+from now_workbench.synthesizer.release import resolve_synthesis_release
 from now_workbench.templates import TemplateEngine
 
 _BUNDLE = {"type": "string", "description": "Demo bundle id (slug)"}
@@ -142,7 +143,9 @@ def _synthesize(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
         use_case=str(args["use_case"]),
         customer_name=str(args.get("customer_name") or "Acme Global"),
         industry=str(args.get("industry") or "Enterprise IT"),
-        sn_release=str(args.get("sn_release") or prefs.default_sn_release),
+        sn_release=resolve_synthesis_release(
+            ctx.repo, str(args["sn_release"]) if args.get("sn_release") else None, None
+        ),
         primary_color=prefs.default_brand_color,
     )
     result = UseCaseSynthesizer(bundles_dir=settings.get_bundles_dir()).synthesize(

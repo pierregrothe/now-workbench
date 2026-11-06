@@ -12,6 +12,7 @@ from now_workbench.config.settings import settings
 from now_workbench.db.session import db_session
 from now_workbench.synthesizer.engine import UseCaseSynthesizer
 from now_workbench.synthesizer.models import UseCaseSynthesisRequest
+from now_workbench.synthesizer.release import resolve_synthesis_release
 
 console = Console()
 
@@ -21,10 +22,14 @@ def synthesize_demo_cmd(
     customer: str = typer.Option("Acme Global", "--customer", "-c", help="Customer name"),
     industry: str = typer.Option("Enterprise IT", "--industry", "-i", help="Industry vertical"),
     bundle_id: str | None = typer.Option(None, "--id", help="Explicit bundle slug"),
-    release: str = typer.Option("Zurich", "--release", "-r", help="ServiceNow release"),
+    release: str | None = typer.Option(
+        None, "--release", "-r", help="ServiceNow release (default: detected from the instance)"
+    ),
     color: str = typer.Option("#23a17e", "--color", help="Brand primary hex color"),
 ) -> None:
     """Synthesize a complete demo bundle (Fluent schema, seed data, properties, narrative)."""
+    with db_session() as repo:
+        target_release = resolve_synthesis_release(repo, release, None)
     synthesizer = UseCaseSynthesizer(bundles_dir=settings.get_bundles_dir())
     res = synthesizer.synthesize(
         UseCaseSynthesisRequest(
@@ -32,7 +37,7 @@ def synthesize_demo_cmd(
             customer_name=customer,
             industry=industry,
             bundle_id=bundle_id,
-            sn_release=release,
+            sn_release=target_release,
             primary_color=color,
         )
     )

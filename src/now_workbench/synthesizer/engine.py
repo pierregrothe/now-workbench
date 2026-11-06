@@ -158,7 +158,13 @@ class UseCaseSynthesizer:
         author_name: str = "Now Workbench Synthesizer",
         scoped_prefix: str = "x_snc",
     ) -> SynthesizedDemoResult:
-        """Generate Fluent code, seed datasets, system properties, and SC narrative."""
+        """Generate Fluent code, seed datasets, system properties, and SC narrative.
+
+        Raises:
+            ValueError: ``req.sn_release`` was not resolved by the caller.
+        """
+        if req.sn_release is None:
+            raise ValueError("sn_release must be resolved before synthesis")
         bundle_id = req.bundle_id or _slugify(f"{req.customer_name}-{req.use_case[:28]}")
         bundle_path = safe_child(self.bundles_dir, bundle_id)
         table_name = _table_slug(bundle_id, prefix=scoped_prefix)

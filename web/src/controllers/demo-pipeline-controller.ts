@@ -22,7 +22,7 @@ export interface SynthesizeParams {
   prompt: string;
   customerName: string;
   industry: string;
-  releaseTarget: string;
+  instanceId?: string;
   personas?: string[];
 }
 
@@ -65,7 +65,7 @@ export class DemoPipelineController implements ReactiveController {
           use_case: params.prompt,
           customer_name: params.customerName,
           industry: params.industry,
-          sn_release: params.releaseTarget,
+          instance_id: params.instanceId || undefined,
           ...personaFields(params.personas),
         }),
       });

@@ -14,7 +14,13 @@ class UseCaseSynthesisRequest(BaseModel):
     customer_name: str = Field(default="Acme Global", description="Target customer organization")
     industry: str = Field(default="Enterprise IT", description="Customer industry vertical")
     bundle_id: str | None = Field(default=None, description="Optional explicit bundle slug")
-    sn_release: str = Field(default="Zurich", description="Target ServiceNow release family")
+    sn_release: str | None = Field(
+        default=None,
+        description="Release to build for; omitted means the target instance's detected release",
+    )
+    instance_id: str | None = Field(
+        default=None, description="Target instance; omitted means the default instance"
+    )
     primary_color: str = Field(default="#23a17e", description="Customer brand accent hex")
     persona_primary: str = Field(
         default="Sarah Jenkins (Service Desk Lead)",
