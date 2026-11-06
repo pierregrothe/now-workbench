@@ -261,6 +261,7 @@ class WorkbenchPreferences(BaseModel):
     # 1. Claude AI & Conversational Intent Router
     anthropic_api_key_masked: str = ""
     has_anthropic_api_key: bool = False
+    anthropic_api_key_from_env: bool = False
     claude_model: str = "claude-sonnet-5-5"
     auto_route_intent: bool = True
     auto_execute_intent: bool = True

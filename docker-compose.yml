@@ -31,6 +31,8 @@ services:
       - WORKBENCH_ACCESS_TEAM_DOMAIN=${WORKBENCH_ACCESS_TEAM_DOMAIN:?set WORKBENCH_ACCESS_TEAM_DOMAIN in .env}
       - WORKBENCH_ACCESS_AUDIENCE=${WORKBENCH_ACCESS_AUDIENCE:?set WORKBENCH_ACCESS_AUDIENCE in .env}
       - WORKBENCH_CLAUDE_MODEL=${WORKBENCH_CLAUDE_MODEL:-claude-sonnet-5-5}
+      # Optional: the shared Claude key. When set it wins over a key entered in the UI.
+      - WORKBENCH_ANTHROPIC_API_KEY=${WORKBENCH_ANTHROPIC_API_KEY:-}
     volumes:
       # The database and the master key are in separate volumes: a copy of one is useless
       # without the other. Back them up separately (see docs/deploy.md).

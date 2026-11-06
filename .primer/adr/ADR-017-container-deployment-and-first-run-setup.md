@@ -23,9 +23,11 @@
   does not have; no reusable password is created.
 - **Roles live in the database** (`users`, schema v6), managed on the admin-only Team screen.
   The environment email lists of ADR-016 are removed. There is always at least one admin.
-- **Secrets enter through the UI only.** The Claude key and instance passwords are typed in the
-  UI by an admin and sealed with AES-256-GCM (ADR-012). Neither appears in compose or `.env`;
-  the only settings there are the Access team domain and AUD tag, which are not secrets.
+- **Secrets enter through the UI, except the Claude key, which may come from `.env`.** Instance
+  passwords are typed in the UI and sealed with AES-256-GCM (ADR-012). The Claude key is either
+  entered by an admin in the UI (sealed) or, as amended 2026-11-06 at the owner's request, set as
+  `WORKBENCH_ANTHROPIC_API_KEY` in the server's `.env` (mode 600, never committed). When set
+  there it wins and the UI shows it read-only. The tunnel token is the other `.env` secret.
 - **Key and data are separated.** The master key is generated on first start into its own
   volume (`workbench-keys`); the database lives in `workbench-data`. `workbench backup` streams
   a consistent SQLite snapshot out of the container; the key is backed up separately, once.

@@ -70,7 +70,9 @@ Outside users are unaffected; without it, devices at home get a TLS error for th
 Open `https://workbench.grothe.ca`, sign in with Google or an email code, and enter the setup
 code from the log in the dialog. You become **Administrator** and **Solution Consultant**. Then:
 
-- **Settings > Claude and Otto:** paste the Claude API key (stored encrypted, never in files).
+- **Claude API key:** either put it in `/opt/docker/now-workbench/.env` as
+  `WORKBENCH_ANTHROPIC_API_KEY=...` and run `docker compose up -d` (it then wins and shows
+  read-only in Settings), or paste it in **Settings > Claude and Otto** (stored encrypted).
 - **Settings > ServiceNow instances:** register your instances (passwords stored encrypted).
 
 Five wrong codes replace the code with a new one in the log; restarting the container before

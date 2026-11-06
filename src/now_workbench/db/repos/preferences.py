@@ -15,7 +15,18 @@ from now_workbench.db.models import (
 __all__ = ["PreferencesRepositoryMixin"]
 
 ANTHROPIC_KEY_SECRET = "anthropic_api_key"
-_DERIVED_FIELDS = ("anthropic_api_key_masked", "has_anthropic_api_key")
+_DERIVED_FIELDS = (
+    "anthropic_api_key_masked",
+    "has_anthropic_api_key",
+    "anthropic_api_key_from_env",
+)
+
+
+def _env_api_key() -> str:
+    """Return the Claude key from the server environment (``WORKBENCH_ANTHROPIC_API_KEY``)."""
+    from now_workbench.config.settings import settings
+
+    return settings.anthropic_api_key.strip()
 
 
 def _secret_context(name: str) -> str:
@@ -58,9 +69,6 @@ class PreferencesRepositoryMixin:
 
         from now_workbench.config.settings import settings
 
-        env_key = settings.anthropic_api_key.strip()
-        if env_key and not self.get_secret(ANTHROPIC_KEY_SECRET):
-            self.set_secret(ANTHROPIC_KEY_SECRET, env_key)
         payload = WorkbenchPreferences(claude_model=settings.claude_model).model_dump(
             exclude=set(_DERIVED_FIELDS)
         )
@@ -80,18 +88,18 @@ class PreferencesRepositoryMixin:
             )
 
     def get_decrypted_anthropic_api_key(self) -> str:
-        """Decrypt and return the stored Claude API key for internal backend use."""
-        self._load_preferences_payload()
-        return self.get_secret(ANTHROPIC_KEY_SECRET)
+        """Return the Claude key: the server environment's when set, else the stored one."""
+        return _env_api_key() or self.get_secret(ANTHROPIC_KEY_SECRET)
 
     def get_workbench_preferences(self) -> WorkbenchPreferences:
         """Fetch preferences with a masked API key preview (never the key itself)."""
         payload = self._load_preferences_payload()
-        raw_key = self.get_secret(ANTHROPIC_KEY_SECRET)
+        raw_key = self.get_decrypted_anthropic_api_key()
         return WorkbenchPreferences(
             **payload,
             anthropic_api_key_masked=mask_api_key(raw_key),
             has_anthropic_api_key=bool(raw_key),
+            anthropic_api_key_from_env=bool(_env_api_key()),
         )
 
     def update_workbench_preferences(
@@ -111,6 +119,8 @@ class PreferencesRepositoryMixin:
         )
         # A masked preview echoed back by the UI is never a real key.
         if new_key is not None and "..." not in new_key:
+            if _env_api_key():
+                raise ValueError("The Claude API key is set in the server .env file.")
             if new_key and self.get_secret(ANTHROPIC_KEY_SECRET):
                 msg = (
                     "An active API key exists. You must explicitly delete "

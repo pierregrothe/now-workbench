@@ -18,6 +18,7 @@ from now_workbench.db import (
     db_session,
     init_db,
 )
+from now_workbench.db.models import WorkbenchPreferencesUpdate
 from now_workbench.db.schema import SCHEMA_VERSION, apply_migrations
 
 
@@ -230,18 +231,24 @@ def test_has_instance_plugin_reports_presence() -> None:
     repo.close()
 
 
-def test_get_workbench_preferences_seeds_key_from_environment(
+def test_get_workbench_preferences_uses_key_from_environment(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """First-use initialization seals WORKBENCH_ANTHROPIC_API_KEY into the secrets table."""
+    """WORKBENCH_ANTHROPIC_API_KEY wins, is never written to the database, and is not editable."""
     from now_workbench.config.settings import settings
 
     monkeypatch.setattr(settings, "anthropic_api_key", "sk-ant-test-env1234")
     repo = _memory_repo()
     prefs = repo.get_workbench_preferences()
     assert prefs.has_anthropic_api_key is True
+    assert prefs.anthropic_api_key_from_env is True
     assert prefs.anthropic_api_key_masked == "sk-ant-...1234"
     assert repo.get_decrypted_anthropic_api_key() == "sk-ant-test-env1234"
+    assert repo.get_secret("anthropic_api_key") == ""
+    with pytest.raises(ValueError, match=".env"):
+        repo.update_workbench_preferences(
+            WorkbenchPreferencesUpdate(anthropic_api_key="sk-ant-other")
+        )
     repo.close()
 
 

@@ -7,6 +7,7 @@ import './now-admin-panel.js';
 export interface WorkbenchPreferences {
   anthropic_api_key_masked: string;
   has_anthropic_api_key: boolean;
+  anthropic_api_key_from_env: boolean;
   claude_model: string;
   auto_route_intent: boolean;
   auto_execute_intent: boolean;
@@ -30,6 +31,7 @@ export interface WorkbenchPreferences {
 const DEFAULT_PREFS: WorkbenchPreferences = {
   anthropic_api_key_masked: '',
   has_anthropic_api_key: false,
+  anthropic_api_key_from_env: false,
   claude_model: 'claude-sonnet-5-5',
   auto_route_intent: true,
   auto_execute_intent: true,
@@ -757,7 +759,20 @@ export class NowWorkbenchSettings extends LitElement {
                   <div class="grid-2">
                     <div class="field">
                       <label>Claude AI API Key</label>
-                      ${hasKey
+                      ${this.prefs.anthropic_api_key_from_env
+                        ? html`
+                            <div class="masked-key-badge locked">
+                              <div class="key-info">
+                                <span class="key-badge-label">Server key</span>
+                                <span class="key-code">${this.prefs.anthropic_api_key_masked}</span>
+                              </div>
+                            </div>
+                            <span class="field-hint">
+                              Set in the server's .env file (WORKBENCH_ANTHROPIC_API_KEY). Change it there
+                              and restart the container.
+                            </span>
+                          `
+                        : hasKey
                         ? html`
                             <div class="masked-key-badge locked">
                               <div class="key-info">

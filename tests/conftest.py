@@ -7,6 +7,7 @@ import pytest
 
 from now_workbench.auth.models import LOCAL_EMAIL
 from now_workbench.auth.owner import owner_scope
+from now_workbench.config.settings import settings
 from now_workbench.db import InstanceCreate, TemplateRecord, db_session
 
 
@@ -30,6 +31,8 @@ def isolate_workbench_db(
     # Local mode unless a test opts in: a developer .env with Access values must not leak in.
     monkeypatch.setenv("WORKBENCH_ACCESS_TEAM_DOMAIN", "")
     monkeypatch.setenv("WORKBENCH_ACCESS_AUDIENCE", "")
+    # The Claude key from a developer .env must not leak into tests either.
+    monkeypatch.setattr(settings, "anthropic_api_key", "")
     test_db = data_dir / "workbench.db"
 
     with db_session(test_db) as repo:
