@@ -284,7 +284,6 @@ class WorkbenchPreferences(BaseModel):
     show_welcome_on_startup: bool = True
     sidebar_collapsed_default: bool = False
     hud_font_scale: str = "standard"
-    theme_mode: str = "system"
     updated_at: str = Field(default_factory=lambda: datetime.now(UTC).isoformat())
 
 
@@ -314,4 +313,3 @@ class WorkbenchPreferencesUpdate(BaseModel):
     show_welcome_on_startup: bool | None = None
     sidebar_collapsed_default: bool | None = None
     hud_font_scale: str | None = None
-    theme_mode: str | None = None

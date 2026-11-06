@@ -3,7 +3,6 @@ import '../views/now-team-settings.js';
 import { LitElement, html, css } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import './now-admin-panel.js';
-import { applyTheme } from '../utils/theme.js';
 
 export interface WorkbenchPreferences {
   anthropic_api_key_masked: string;
@@ -25,7 +24,6 @@ export interface WorkbenchPreferences {
   show_welcome_on_startup: boolean;
   sidebar_collapsed_default: boolean;
   hud_font_scale: string;
-  theme_mode?: 'system' | 'light' | 'dark';
   updated_at?: string;
 }
 
@@ -49,7 +47,6 @@ const DEFAULT_PREFS: WorkbenchPreferences = {
   show_welcome_on_startup: true,
   sidebar_collapsed_default: false,
   hud_font_scale: 'standard',
-  theme_mode: 'system',
 };
 
 import { isAdmin } from '../profile/avatars.js';
@@ -516,31 +513,10 @@ export class NowWorkbenchSettings extends LitElement {
       const res = await fetch('/api/settings');
       if (res.ok) {
         this.prefs = (await res.json()) as WorkbenchPreferences;
-        if (this.prefs.theme_mode) {
-          applyTheme(this.prefs.theme_mode);
-        }
       }
     } catch {
       // Offline preview uses default state
     }
-  }
-
-  private handleThemeChange(mode: 'system' | 'light' | 'dark'): void {
-    this.updateField('theme_mode', mode);
-    applyTheme(mode);
-    this.dispatchEvent(
-      new CustomEvent('theme-change', {
-        detail: { mode },
-        bubbles: true,
-        composed: true,
-      })
-    );
-    // Immediately persist theme mode change to backend preferences
-    void fetch('/api/settings', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ theme_mode: mode }),
-    });
   }
 
   private updateField<K extends keyof WorkbenchPreferences>(
@@ -584,7 +560,6 @@ export class NowWorkbenchSettings extends LitElement {
         show_welcome_on_startup: this.prefs.show_welcome_on_startup,
         sidebar_collapsed_default: this.prefs.sidebar_collapsed_default,
         hud_font_scale: this.prefs.hud_font_scale,
-        theme_mode: this.prefs.theme_mode ?? 'system',
       };
       if (this.newApiKeyInput.trim()) {
         payload.anthropic_api_key = this.newApiKeyInput.trim();
@@ -711,7 +686,6 @@ export class NowWorkbenchSettings extends LitElement {
     }
     this.newApiKeyInput = '';
     this.saveMessage = 'Reset to factory defaults.';
-    applyTheme(this.prefs.theme_mode ?? 'system');
   }
 
   render() {
@@ -1065,23 +1039,6 @@ export class NowWorkbenchSettings extends LitElement {
                       />
                     </div>
 
-                    <div class="field">
-                      <label>Color Theme Mode</label>
-                      <select
-                        .value=${this.prefs.theme_mode ?? 'system'}
-                        @change=${(e: Event) =>
-                          this.handleThemeChange(
-                            (e.target as HTMLSelectElement).value as 'system' | 'light' | 'dark'
-                          )}
-                      >
-                        <option value="system">System Default (Automatic)</option>
-                        <option value="light">ServiceNow Polaris (Light)</option>
-                        <option value="dark">ServiceNow Dark Mode (Dark)</option>
-                      </select>
-                      <span class="field-hint">
-                        Default to OS system appearance or lock to light/dark.
-                      </span>
-                    </div>
                   </div>
 
                   <div class="grid-2" style="margin-top: 14px;">

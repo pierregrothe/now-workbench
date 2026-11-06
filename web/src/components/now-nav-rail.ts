@@ -238,72 +238,6 @@ export class NowNavRail extends LitElement {
       flex: 1;
     }
 
-    @keyframes session-pulse {
-      0%, 100% {
-        opacity: 1;
-        transform: scale(1);
-      }
-      50% {
-        opacity: 0.4;
-        transform: scale(1.25);
-      }
-    }
-
-    .pulse-dot {
-      width: 7px;
-      height: 7px;
-      border-radius: 50%;
-      background: var(--now-color-brand-green, #62d84e);
-      box-shadow: 0 0 6px var(--now-color-brand-green, #62d84e);
-      animation: session-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-      flex-shrink: 0;
-    }
-
-    .new-session-btn {
-      appearance: none;
-      border: 1px dashed var(--now-border-medium, #cbd5e1);
-      background: var(--now-bg-surface-0, #ffffff);
-      color: var(--now-text-primary, #0f172a);
-      width: 100%;
-      padding: 7px 10px;
-      border-radius: var(--now-radius-sm, 6px);
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      font-size: 12.5px;
-      font-weight: 600;
-      cursor: pointer;
-      margin-bottom: 10px;
-      transition: all 0.15s ease;
-      font-family: inherit;
-    }
-
-    .new-session-btn:hover {
-      border-color: var(--now-color-brand-green, #62d84e);
-      background: var(--now-color-brand-green-subtle, rgba(98, 216, 78, 0.1));
-      color: var(--now-color-brand-green, #62d84e);
-    }
-
-    .new-session-icon {
-      width: 14px;
-      height: 14px;
-      stroke: currentColor;
-      stroke-width: 2;
-      fill: none;
-    }
-
-    .session-category-label {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      font-size: 11px;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      color: var(--now-text-muted, #64748b);
-      padding: 6px 10px 4px 10px;
-    }
-
     .session-icon {
       width: 15px;
       height: 15px;
@@ -748,44 +682,27 @@ export class NowNavRail extends LitElement {
               const pastThreads = unarchived.filter((t) => t.id !== activeThread?.id);
               return html`
                 <div class="section-block">
-                  <button
-                    class="new-session-btn"
-                    title="Start a new Otto AI conversation"
-                    data-tooltip="New Conversation"
-                    @click=${this.startNewSession}
-                  >
-                    <svg viewBox="0 0 24 24" class="new-session-icon">
-                      <line x1="12" y1="5" x2="12" y2="19"></line>
-                      <line x1="5" y1="12" x2="19" y2="12"></line>
-                    </svg>
-                    <span>New Conversation</span>
-                  </button>
-
-                  ${activeThread
-                    ? html`
-                        <div class="session-category-label">
-                          <span class="pulse-dot"></span>
-                          <span>Active Conversation</span>
-                        </div>
-                        ${this.renderThreadItem(activeThread, true)}
-                      `
+                  <div class="section-header">
+                    <span class="section-label">Recent</span>
+                    <button
+                      class="compose-btn"
+                      title="New conversation"
+                      aria-label="New conversation"
+                      @click=${this.startNewSession}
+                    >
+                      <svg viewBox="0 0 24 24">
+                        <path d="M12 20h9"></path>
+                        <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"></path>
+                      </svg>
+                    </button>
+                  </div>
+                  ${activeThread ? this.renderThreadItem(activeThread, true) : ''}
+                  ${pastThreads.map((thread) =>
+                    this.renderThreadItem(thread, this.activeThreadId === thread.id)
+                  )}
+                  ${!activeThread && pastThreads.length === 0
+                    ? html`<div style="font-size: 12px; color: var(--now-text-muted, #64748b); padding: 4px 10px;">No conversations yet.</div>`
                     : ''}
-                  ${pastThreads.length > 0
-                    ? html`
-                        <div class="session-category-label" style="margin-top: 8px;">
-                          <span>Past Conversations (${pastThreads.length})</span>
-                        </div>
-                        ${pastThreads.map((thread) =>
-                          this.renderThreadItem(thread, this.activeThreadId === thread.id)
-                        )}
-                      `
-                    : !activeThread
-                      ? html`
-                          <div style="font-size: 11.5px; color: var(--now-text-muted, #64748b); padding: 4px 10px;">
-                            No active conversations. Click "New Conversation" to begin.
-                          </div>
-                        `
-                      : ''}
                   ${archived.length > 0
                     ? html`
                         <button

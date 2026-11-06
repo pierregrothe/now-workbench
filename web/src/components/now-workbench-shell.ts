@@ -10,7 +10,6 @@ import './now-demo-catalog.js';
 import './now-fluent-explorer.js';
 import './now-workbench-settings.js';
 import type { WorkbenchPreferences } from './now-workbench-settings.js';
-import { applyTheme, getStoredTheme } from '../utils/theme.js';
 import './now-presenter-hud.js';
 import './now-welcome-modal.js';
 import './now-command-palette.js';
@@ -89,64 +88,35 @@ export class NowWorkbenchShell extends LitElement {
     /* Docked Bottom Chat Bar (shown whenever activeTab !== 'home') */
     .bottom-chat-dock {
       flex-shrink: 0;
-      padding: 12px 36px 18px 36px;
-      background: var(--now-bg-surface-0, #ffffff);
-      border-top: 1px solid var(--now-border-subtle, #ececeb);
-      box-shadow: 0 -6px 24px rgba(0, 0, 0, 0.03);
+      padding: 8px 36px 14px 36px;
+      background: var(--otto-canvas, #efece7);
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 8px;
+      gap: 6px;
       z-index: 20;
     }
 
-    .intent-route-banner {
+    .intent-route-caption {
       width: 100%;
-      max-width: 1020px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      font-size: 12px;
-      color: var(--now-text-secondary, #374151);
-      background: var(--now-bg-surface-1, #f4faf3);
-      border: 1px solid var(--now-border-subtle, #d5ecd0);
-      padding: 6px 14px;
-      border-radius: 999px;
-      box-sizing: border-box;
-    }
-
-    .intent-route-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      font-weight: 700;
-      color: var(--now-color-brand-green, #032d42);
-    }
-
-    .intent-dot {
-      width: 7px;
-      height: 7px;
-      border-radius: 50%;
-      background: #62d84e;
+      max-width: 720px;
+      font-size: 11.5px;
+      color: var(--now-text-secondary, #6b7280);
+      text-align: center;
     }
 
     .bottom-prompt-box {
       width: 100%;
-      max-width: 1020px;
+      max-width: 720px;
       display: flex;
       align-items: center;
       gap: 10px;
-      background: var(--now-bg-surface-1, #f7f7f5);
-      border: 1.5px solid var(--now-border-medium, #d8dad4);
-      border-radius: 999px;
-      padding: 6px 8px 6px 20px;
+      background: #ffffff;
+      border: 1px solid rgba(0, 0, 0, 0.06);
+      border-radius: 20px;
+      padding: 10px 10px 10px 20px;
       box-sizing: border-box;
-      transition: border-color 0.14s ease, background 0.14s ease;
-    }
-
-    .bottom-prompt-box:focus-within {
-      background: var(--now-bg-surface-0, #ffffff);
-      border-color: var(--now-border-highlight, #032d42);
+      box-shadow: 0 0 0 6px rgba(255, 255, 255, 0.55), 0 2px 8px rgba(0, 0, 0, 0.05);
     }
 
     .bottom-prompt-box input {
@@ -269,7 +239,6 @@ export class NowWorkbenchShell extends LitElement {
   }
 
   private async loadInitialPreferences(): Promise<void> {
-    applyTheme(getStoredTheme());
     try {
       const res = await fetch('/api/settings');
       if (res.ok) {
@@ -281,12 +250,9 @@ export class NowWorkbenchShell extends LitElement {
           this.welcomeModalOpen = prefs.show_welcome_on_startup;
         }
         this.autoRouteIntent = prefs.auto_route_intent;
-        if (prefs.theme_mode) {
-          applyTheme(prefs.theme_mode);
-        }
       }
     } catch {
-      // Offline preview keeps stored theme
+      // Offline preview keeps the defaults
     }
   }
   @state() private presenterHudVisible = false;
@@ -758,17 +724,10 @@ export class NowWorkbenchShell extends LitElement {
         ${this.activeTab !== 'home'
           ? html`
               <div class="bottom-chat-dock">
-                <div class="intent-route-banner">
-                  <span class="intent-route-badge">
-                    <span class="intent-dot"></span>
-                    <span>Now Workbench AI</span>
-                  </span>
-                  <span>${this.lastIntentExplanation}</span>
-                </div>
                 <div class="bottom-prompt-box">
                   <input
                     type="text"
-                    placeholder="Ask Now Workbench to refine this workspace, synthesize another use case, or capture screenshots/videos..."
+                    placeholder="Ask Otto to refine this workspace, synthesize a use case, or capture media"
                     .value=${this.bottomChatInput}
                     @input=${(e: Event) => {
                       this.bottomChatInput = (e.target as HTMLInputElement).value;
@@ -789,6 +748,7 @@ export class NowWorkbenchShell extends LitElement {
                     ${sendIcon(16)}
                   </button>
                 </div>
+                <div class="intent-route-caption">${this.lastIntentExplanation}</div>
               </div>
             `
           : ''}

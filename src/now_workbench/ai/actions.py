@@ -5,7 +5,6 @@ from typing import Any, Literal
 
 from now_workbench.ai.tiles import (
     GenerativeUIResponse,
-    UITileSpec,
     build_instance_response,
 )
 from now_workbench.bundles.manager import BundleManager
@@ -15,7 +14,6 @@ from now_workbench.db import (
     DatabaseRepository,
     InstanceRecord,
 )
-from now_workbench.db.models import WorkbenchPreferencesUpdate
 
 _DELETE_VERBS = ("delete", "remove", "clean", "purge", "prune", "drop", "clear")
 _UNAUTH_FILTERS = (
@@ -247,38 +245,6 @@ def _try_delete_bundle_action(lower: str) -> GenerativeUIResponse | None:
     )
 
 
-def _try_update_preferences_action(
-    lower: str,
-    repo: DatabaseRepository,
-) -> GenerativeUIResponse | None:
-    """Update theme or simulation mode when requested in chat."""
-    if "dark mode" in lower or "dark theme" in lower:
-        repo.update_workbench_preferences(WorkbenchPreferencesUpdate(theme_mode="dark"))
-        mode_msg = "Switched Workbench theme preference to Dark Mode."
-    elif "light mode" in lower or "light theme" in lower:
-        repo.update_workbench_preferences(WorkbenchPreferencesUpdate(theme_mode="light"))
-        mode_msg = "Switched Workbench theme preference to Light Mode."
-    else:
-        return None
-
-    tile = UITileSpec(
-        id="tile-prefs-updated",
-        type="rich-text",
-        title="Workbench Preference Updated",
-        props={
-            "body": f"{mode_msg} Your preference has been saved to SQLite.",
-            "actions": [
-                {"id": "manage", "label": "Open Workbench Settings", "variant": "secondary"},
-            ],
-        },
-    )
-    return GenerativeUIResponse(
-        summary=mode_msg,
-        layout="1-col",
-        tiles=[tile],
-    )
-
-
 def execute_autonomous_action(
     query: str,
     repo: DatabaseRepository,
@@ -292,7 +258,6 @@ def execute_autonomous_action(
         _try_switch_default_instance_action(lower, repo),
         _try_add_instance_action(lower, query, repo),
         _try_delete_bundle_action(lower),
-        _try_update_preferences_action(lower, repo),
     ):
         if res is not None:
             return res

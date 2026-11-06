@@ -49,7 +49,6 @@ def show_config_cmd() -> None:
     table.add_row("UI & Toolchain", "Show Welcome on Startup", str(prefs.show_welcome_on_startup))
     table.add_row("UI & Toolchain", "SDK Simulation Mode", str(prefs.sdk_fake_mode))
     table.add_row("UI & Toolchain", "HUD Font Scale", prefs.hud_font_scale)
-    table.add_row("UI & Toolchain", "Theme Mode", prefs.theme_mode)
 
     console.print(table)
 
@@ -83,7 +82,6 @@ def set_config_cmd(
     welcome: bool | None = typer.Option(
         None, "--welcome/--no-welcome", help="Show Welcome modal on startup"
     ),
-    theme: str | None = typer.Option(None, "--theme", help="Theme mode: system, light, or dark"),
 ) -> None:
     """Update one or more Now Workbench settings in encrypted storage."""
     update = WorkbenchPreferencesUpdate(
@@ -98,7 +96,6 @@ def set_config_cmd(
         sc_author_name=author_name,
         default_brand_color=brand_color,
         show_welcome_on_startup=welcome,
-        theme_mode=theme,
     )
     with db_session() as repo:
         updated = repo.update_workbench_preferences(update)

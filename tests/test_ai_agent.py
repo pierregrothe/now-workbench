@@ -137,8 +137,8 @@ def test_tools_cover_instance_bundle_seed_and_settings_actions() -> None:
         rolled = execute_tool(ctx, "rollback_seed", {"operation_id": op_id}, confirmed=True)
         assert rolled.ok
 
-        assert execute_tool(ctx, "update_settings", {"theme_mode": "dark"}).ok
-        assert repo.get_workbench_preferences().theme_mode == "dark"
+        assert execute_tool(ctx, "update_settings", {"narrative_tone": "technical"}).ok
+        assert repo.get_workbench_preferences().narrative_tone == "technical"
         assert execute_tool(ctx, "reset_settings", {}).pending
         assert not execute_tool(ctx, "no_such_tool", {}).ok
 

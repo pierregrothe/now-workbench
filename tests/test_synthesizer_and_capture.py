@@ -472,15 +472,6 @@ def _run_workbench_settings_assertions() -> None:
     assert updated["capture_viewport_width"] == 1920
     assert updated["sc_author_name"] == "Pierre Grothe"
 
-    # 2b. PUT theme_mode update and verify persistence
-    theme_res = client.put("/api/settings", json={"theme_mode": "dark"})
-    assert theme_res.status_code == 200
-    assert theme_res.json()["theme_mode"] == "dark"
-
-    get_theme = client.get("/api/settings")
-    assert get_theme.status_code == 200
-    assert get_theme.json()["theme_mode"] == "dark"
-
     # Verify the raw SQLite payload is encrypted at rest and never contains the raw secret
     with db_session() as repo:
         payload = repo.conn.execute(

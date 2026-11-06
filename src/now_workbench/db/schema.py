@@ -185,7 +185,12 @@ CREATE TABLE users (
 ) STRICT, WITHOUT ROWID;
 """
 
-MIGRATIONS: tuple[str, ...] = (_V1, _V2, _V3, _V4, _V5, _V6)
+# v7: the theme preference is gone; the interface is light only, like ServiceNow's (PRD-002).
+_V7 = """
+UPDATE workbench_preferences SET payload = json_remove(payload, '$.theme_mode');
+"""
+
+MIGRATIONS: tuple[str, ...] = (_V1, _V2, _V3, _V4, _V5, _V6, _V7)
 SCHEMA_VERSION = len(MIGRATIONS)
 
 

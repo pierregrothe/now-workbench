@@ -343,3 +343,23 @@ def test_apply_migrations_v3_to_v4_strips_default_release_preference() -> None:
     assert "default_sn_release" not in payload
     assert "executive" in payload
     conn.close()
+
+
+def test_apply_migrations_v6_to_v7_strips_theme_preference() -> None:
+    """Stored preferences lose the removed theme_mode key and keep the rest."""
+    from now_workbench.db.schema import MIGRATIONS
+
+    conn = sqlite3.connect(":memory:")
+    conn.row_factory = sqlite3.Row
+    script = "\n".join(MIGRATIONS[:6])
+    conn.executescript(f"BEGIN;\n{script}\nPRAGMA user_version = 6;\nCOMMIT;")
+    conn.execute(
+        "INSERT INTO workbench_preferences (id, payload) VALUES "
+        '(1, \'{"theme_mode": "dark", "narrative_tone": "executive"}\');'
+    )
+    conn.commit()
+    assert apply_migrations(conn) == SCHEMA_VERSION
+    payload = conn.execute("SELECT payload FROM workbench_preferences;").fetchone()["payload"]
+    assert "theme_mode" not in payload
+    assert "executive" in payload
+    conn.close()

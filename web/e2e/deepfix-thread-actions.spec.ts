@@ -12,7 +12,7 @@ test('new conversation failure shows an error and adds no thread', async ({ page
     return route.continue();
   });
   await page.goto('/#home');
-  await page.getByTitle('Start a new Otto AI conversation').click();
+  await page.getByRole('button', { name: 'New conversation' }).click();
 
   await expect(page.getByTestId('thread-error')).toContainText('Could not create conversation');
   await expect(page.getByText('New Otto Conversation')).toHaveCount(0);

@@ -59,7 +59,7 @@ def _update_settings(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
 
 
 def _plan_reset_settings(ctx: ToolContext, args: dict[str, Any]) -> str:
-    return "Reset all Workbench settings to factory defaults (theme, capture, synthesis, ...)."
+    return "Reset all Workbench settings to factory defaults (capture, synthesis, ...)."
 
 
 def _reset_settings(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
@@ -99,7 +99,7 @@ register(
 register(
     ToolSpec(
         name="update_settings",
-        description="Change Workbench settings (theme, model, capture, release, welcome, ...).",
+        description="Change Workbench settings (model, capture, synthesis, welcome, ...).",
         properties=_setting_properties(),
         handler=_update_settings,
         category="config",
