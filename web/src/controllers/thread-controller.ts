@@ -42,6 +42,8 @@ export class ThreadController implements ReactiveController {
   public messages: ChatMessage[] = [];
   public isStreaming: boolean = false;
   public error: string | null = null;
+  /** Title of the active conversation, as stored by the backend. */
+  public title: string = '';
   /** Called after a conversation was created implicitly by the first message. */
   public onThreadCreated: ((threadId: string) => void) | null = null;
 
@@ -61,10 +63,13 @@ export class ThreadController implements ReactiveController {
   async setThread(threadId: string): Promise<void> {
     this.threadId = threadId;
     this.messages = [];
+    this.title = '';
     this.error = null;
     this.host.requestUpdate();
 
     if (!threadId) return;
+
+    void this.loadTitle(threadId);
 
     try {
       const res = await fetch(`/api/threads/${encodeURIComponent(threadId)}/messages`);
@@ -140,6 +145,18 @@ export class ThreadController implements ReactiveController {
   addSystemNote(text: string): void {
     this.messages = [...this.messages, { sender: 'system', text }];
     this.host.requestUpdate();
+  }
+
+  private async loadTitle(threadId: string): Promise<void> {
+    try {
+      const res = await fetch(`/api/threads/${encodeURIComponent(threadId)}`);
+      if (res.ok && this.threadId === threadId) {
+        this.title = ((await res.json()) as { title?: string }).title ?? '';
+        this.host.requestUpdate();
+      }
+    } catch {
+      // The breadcrumb falls back to the first prompt; the conversation itself still loads.
+    }
   }
 
   private async createThread(firstPrompt: string): Promise<string> {

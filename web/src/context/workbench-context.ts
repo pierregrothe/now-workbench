@@ -12,6 +12,16 @@ export interface InstanceData {
   is_default: boolean;
   status: string;
   last_checked: string | null;
+  purpose?: string;
+  profile?: {
+    installation_name?: string | null;
+    build_tag?: string | null;
+    datacenter?: string | null;
+    db_product?: string | null;
+    db_version?: string | null;
+    java_version?: string | null;
+    nodes?: unknown[];
+  } | null;
 }
 
 export interface DemoBundleItem {

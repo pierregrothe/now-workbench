@@ -8,6 +8,9 @@ import { customElement, property, state } from 'lit/decorators.js';
 import { ThreadController } from '../controllers/thread-controller.js';
 import { workbenchStore } from '../context/workbench-context.js';
 import type { WorkbenchState } from '../context/workbench-context.js';
+import { bundlePanel, instancePanel } from './panel-items.js';
+import type { PanelItem } from './panel-items.js';
+import './now-item-panel.js';
 import type { ChatMessage } from '../controllers/thread-controller.js';
 import { workspaceStyles } from '../styles/workspace-styles.js';
 import { chatViewStyles } from './chat-view-styles.js';
@@ -62,6 +65,8 @@ export class NowChatView extends LitElement {
   /** Approval cards decided in this session, keyed by message key and tile id. */
   @state() private decisions: Record<string, 'confirmed' | 'cancelled'> = {};
   private lastMessageCount = 0;
+  @state() private openItem: PanelItem | null = null;
+  @state() private hasClaudeKey: boolean | null = null;
 
   @property({ type: String })
   set activeThreadId(val: string) {
@@ -88,6 +93,18 @@ export class NowChatView extends LitElement {
     });
     workbenchStore.loadInstances();
     workbenchStore.loadBundles();
+    void this.loadKeyState();
+  }
+
+  private async loadKeyState(): Promise<void> {
+    try {
+      const res = await fetch('/api/settings');
+      if (res.ok) {
+        this.hasClaudeKey = Boolean((await res.json()).has_anthropic_api_key);
+      }
+    } catch {
+      this.hasClaudeKey = null;
+    }
   }
 
   disconnectedCallback(): void {
@@ -119,6 +136,38 @@ export class NowChatView extends LitElement {
   private handleInstanceChange(e: Event): void {
     const val = (e.target as HTMLSelectElement).value;
     workbenchStore.setState({ selectedInstanceId: val });
+  }
+
+  private renderHomeTiles() {
+    const { instances, selectedInstanceId, bundles } = this.currentStoreState;
+    const target = instances.find((i) => i.id === selectedInstanceId);
+    const open = (label: string, onClick: () => void) =>
+      html`<button type="button" class="open-btn" aria-label=${label} title=${label} @click=${onClick}>&#8599;</button>`;
+    const nav = (tab: string) => () =>
+      this.dispatchEvent(new CustomEvent('nav-change', { detail: { tab }, bubbles: true, composed: true }));
+    return html`
+      <div class="dash-card">
+        <div class="dash-head"><span>Target instance</span>${target ? open('Open instance details', () => (this.openItem = instancePanel(target))) : ''}</div>
+        ${target
+          ? html`<div class="dash-metric">${target.name}</div>
+              <p class="dash-sub">${[target.release, target.status].filter(Boolean).join(' - ')}</p>`
+          : html`<div class="dash-metric">None yet</div>
+              <p class="dash-sub">Register an instance so Otto can work against it.</p>
+              <button type="button" class="chip-btn" @click=${nav('admin')}>Add an instance</button>`}
+      </div>
+      <div class="dash-card">
+        <div class="dash-head"><span>Demo bundles</span>${open('Open Artifact library', nav('artifacts'))}</div>
+        <div class="dash-metric">${bundles.length}</div>
+        <p class="dash-sub">${bundles.slice(0, 3).map((b) => b.name).join(', ') || 'No bundles yet'}</p>
+      </div>
+      ${this.hasClaudeKey === null
+        ? ''
+        : html`<div class="dash-card">
+            <div class="dash-head"><span>Claude</span>${open('Open settings', nav('admin'))}</div>
+            <div class="dash-metric">${this.hasClaudeKey ? 'Connected' : 'No API key'}</div>
+            <p class="dash-sub">${this.hasClaudeKey ? 'Otto answers with Claude.' : 'Add a key in Settings to enable Otto.'}</p>
+          </div>`}
+    `;
   }
 
   private renderPrompt() {
@@ -227,6 +276,24 @@ export class NowChatView extends LitElement {
 
   private handleTileAction(e: CustomEvent, decisionKey: string): void {
     const { actionId, props } = e.detail;
+    if (actionId === 'open_item') {
+      this.openItem =
+        props?.kind === 'bundle'
+          ? bundlePanel(props)
+          : instancePanel(
+              this.currentStoreState.instances.find((i) => i.id === props?.instance_id) ?? {
+                id: String(props?.instance_id ?? ''),
+                name: String(props?.name ?? 'Instance'),
+                url: String(props?.url ?? ''),
+                username: '',
+                release: String(props?.release ?? ''),
+                is_default: Boolean(props?.is_default),
+                status: String(props?.status ?? ''),
+                last_checked: null,
+              }
+            );
+      return;
+    }
     const name = props?.name ?? props?.title ?? 'this instance';
     const prompt = TILE_PROMPTS[actionId]?.(name);
     const tab = TILE_NAV[actionId];
@@ -250,7 +317,7 @@ export class NowChatView extends LitElement {
           <span class="status-dot"></span>
           <span>Now Workbench</span>
           <span style="color: #9ca3af;">/</span>
-          <span>${this.activeMode === 'overview' ? 'Home' : this.threadTitle}</span>
+          <span>${this.activeMode === 'overview' ? 'Home' : this.threadCtrl.title || this.threadTitle}</span>
         </div>
         <div class="utility-actions">
           <div class="instance-picker-pill">
@@ -274,6 +341,7 @@ export class NowChatView extends LitElement {
         </div>
       </div>
 
+      <div class="split">
       <div class="scroll-canvas">
         <div class="canvas-container">
           ${this.activeMode === 'overview'
@@ -308,30 +376,20 @@ export class NowChatView extends LitElement {
                 </div>
               `
             : html`
-                <div class="dashboard-cards">
-                  <div class="dash-card">
-                    <span class="badge info">Active Target</span>
-                    <div class="dash-metric">${this.currentStoreState.instances.length}</div>
-                    <div style="font-size: 13px; font-weight: 600;">Managed Environments</div>
-                    <p style="font-size: 12px; color: #6b7280; margin: 6px 0 0 0;">Configured target instances in local SQLite registry.</p>
-                  </div>
-
-                  <div class="dash-card">
-                    <span class="badge success">Ready to Seed</span>
-                    <div class="dash-metric">${this.currentStoreState.bundles.length || 2}</div>
-                    <div style="font-size: 13px; font-weight: 600;">Demo Recipe Bundles</div>
-                    <p style="font-size: 12px; color: #6b7280; margin: 6px 0 0 0;">Declarative Fluent SDK bundles with seed data.</p>
-                  </div>
-
-                  <div class="dash-card">
-                    <span class="badge warning">Security & Tools</span>
-                    <div class="dash-metric">100%</div>
-                    <div style="font-size: 13px; font-weight: 600;">Local Sandbox Mode</div>
-                    <p style="font-size: 12px; color: #6b7280; margin: 6px 0 0 0;">In-memory fakes, strict ratchets, zero cloud leaks.</p>
-                  </div>
-                </div>
+                <div class="dashboard-cards">${this.renderHomeTiles()}</div>
               `}
         </div>
+      </div>
+      ${this.openItem
+        ? html`<now-item-panel
+        .item=${this.openItem}
+        @panel-close=${() => (this.openItem = null)}
+        @panel-action=${(e: CustomEvent<string>) => {
+          this.openItem = null;
+          this.dispatchEvent(new CustomEvent('nav-change', { detail: { tab: e.detail }, bubbles: true, composed: true }));
+        }}
+      ></now-item-panel>`
+        : ''}
       </div>
     `;
   }

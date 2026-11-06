@@ -41,9 +41,11 @@ export class NowTileRenderer extends LitElement {
 
   static styles = css`
     :host { display: block; font-family: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-    .gen-tile { background: var(--now-bg-surface-0, #ffffff); border: 1px solid var(--now-border-subtle, #e2e8f0); border-radius: 14px; padding: 16px 18px; display: flex; flex-direction: column; gap: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.03); transition: all 0.15s ease; text-align: left; }
-    .gen-tile:hover { box-shadow: 0 4px 18px rgba(0,0,0,0.06); border-color: var(--now-border-medium, #cbd5e1); }
-    .gen-tile.kpi { border-left: 4px solid var(--now-color-brand-green, #16a34a); }
+    .gen-tile { background: var(--now-bg-surface-0, #ffffff); border: 1px solid rgba(0,0,0,0.05); border-radius: 16px; padding: 18px 20px; display: flex; flex-direction: column; gap: 10px; box-shadow: 0 1px 2px rgba(0,0,0,0.04); transition: all 0.15s ease; text-align: left; }
+    .gen-tile:hover { box-shadow: 0 4px 18px rgba(0,0,0,0.06); }
+    .open-btn { border: none; background: transparent; cursor: pointer; font-size: 15px; line-height: 1; color: var(--now-text-secondary, #4b5563); padding: 2px 4px; border-radius: 6px; }
+    .open-btn:hover { background: rgba(0,0,0,0.06); }
+    .gen-tile.kpi { }
     .gen-kpi-top { display: flex; align-items: center; justify-content: space-between; }
     .gen-kpi-icon { width: 32px; height: 32px; border-radius: 8px; background: #dcfce7; color: #15803d; display: flex; align-items: center; justify-content: center; }
     .gen-kpi-icon svg { width: 17px; height: 17px; stroke: currentColor; stroke-width: 2; fill: none; }
@@ -57,7 +59,7 @@ export class NowTileRenderer extends LitElement {
     .gen-tile.alert-tile { background: #fef2f2; border-color: #fee2e2; border-left: 4px solid #dc2626; }
     .gen-alert-title { font-size: 14px; font-weight: 700; color: #991b1b; margin: 0; }
     .gen-alert-desc { font-size: 12.5px; color: #7f1d1d; line-height: 1.45; margin: 0; }
-    .gen-tile.rich { background: var(--now-bg-surface-1, #f8fafc); border-left: 4px solid #6366f1; }
+    .gen-tile.rich { background: var(--now-bg-surface-0, #ffffff); }
     .gen-rich-title { font-size: 13.5px; font-weight: 700; color: var(--now-text-primary, #0f172a); margin: 0; }
     .gen-rich-body { font-size: 12.5px; color: var(--now-text-secondary, #475467); line-height: 1.5; white-space: pre-wrap; }
     .gen-tile.table-tile { background: var(--now-bg-surface-0, #ffffff); border-left: 4px solid #2563eb; overflow-x: auto; }
@@ -133,9 +135,12 @@ export class NowTileRenderer extends LitElement {
           <div class="gen-tile card">
             <div class="gen-card-header">
               <h4 class="gen-card-title">${p.name || 'ServiceNow Instance'}</h4>
-              <span class="ct-tag low">${p.release || 'Zurich'}</span>
+              <span style="display:flex; align-items:center; gap:6px;">
+                ${p.release ? html`<span class="ct-tag low">${p.release}</span>` : ''}
+                <button type="button" class="open-btn" aria-label="Open details" title="Open details" @click=${() => this.handleAction('open_item', { ...p, kind: 'instance' })}>&#8599;</button>
+              </span>
             </div>
-            <div class="gen-card-url">${p.url || 'https://instance.service-now.com'}</div>
+            <div class="gen-card-url">${p.url || ''}</div>
             <div class="gen-card-meta-row">
               <span>Status: <span class="ct-tag ${badgeVariant}">${statusText}</span></span>
               ${p.is_default ? html`<span class="ct-tag high">Primary Target</span>` : ''}
@@ -156,7 +161,7 @@ export class NowTileRenderer extends LitElement {
       case 'demo-bundle': {
         return html`
           <div class="gen-tile card">
-            <div class="gen-card-header"><h4 class="gen-card-title">${p.name || 'Demo Bundle'}</h4><span class="ct-tag low">${p.release || 'Zurich'}</span></div>
+            <div class="gen-card-header"><h4 class="gen-card-title">${p.name || 'Demo Bundle'}</h4><span style="display:flex; align-items:center; gap:6px;">${p.release ? html`<span class="ct-tag low">${p.release}</span>` : ''}<button type="button" class="open-btn" aria-label="Open details" title="Open details" @click=${() => this.handleAction('open_item', { ...p, kind: 'bundle' })}>&#8599;</button></span></div>
             <div style="font-size:12px; color:var(--now-text-secondary, #475467);">Industry: <strong>${p.industry || 'General'}</strong></div>
             <div class="gen-card-meta-row"><span>Tables: <strong>${p.tables_count ?? 0}</strong></span><span>Records: <strong>${p.records_count ?? 0}</strong></span></div>
             ${p.actions && p.actions.length ? html`

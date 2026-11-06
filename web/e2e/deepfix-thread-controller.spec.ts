@@ -214,3 +214,46 @@ test('a reply with tool runs shows a collapsible steps list from the backend', a
   await expect(page.getByText('Listed 1 instance')).toBeVisible();
   await expect(page.getByText('Probe failed')).toBeVisible();
 });
+
+test('opening an instance tile shows a detail panel beside the conversation', async ({ page }) => {
+  await page.route('**/api/threads/default-thread/messages', (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([instanceCardRecord]) }),
+  );
+  await page.goto('/');
+  await selectThread(page);
+  await page.getByRole('button', { name: 'Open details' }).click();
+  const panel = page.getByRole('complementary', { name: 'Details' });
+  await expect(panel).toContainText('Demo Alecto');
+  await expect(panel).toContainText('Australia');
+  await page.getByRole('button', { name: 'Close details' }).click();
+  await expect(panel).toHaveCount(0);
+  await page.getByRole('button', { name: 'Open details' }).click();
+  await page.getByRole('button', { name: 'Manage in Settings' }).click();
+  await expect(page).toHaveURL(/#admin/);
+});
+
+test('the breadcrumb shows the stored conversation title', async ({ page }) => {
+  await page.route('**/api/threads/default-thread', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ id: 'default-thread', title: 'Quarterly demo prep', archived: false, target_tab: 'home', message_count: 1, max_messages: 20, created_at: '2026-11-06T12:00:00Z', updated_at: '2026-11-06T12:00:00Z' }),
+    }),
+  );
+  await page.route('**/api/threads/default-thread/messages', (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([instanceCardRecord]) }),
+  );
+  await page.goto('/');
+  await selectThread(page);
+  await expect(page.locator('.workspace-breadcrumb').filter({ hasText: 'Quarterly demo prep' })).toBeVisible();
+});
+
+test('home tiles show real state and nothing fabricated', async ({ page }) => {
+  await page.route('**/api/instances', (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: '[]' }),
+  );
+  await page.goto('/');
+  await expect(page.getByText('None yet')).toBeVisible();
+  await expect(page.getByText('Local Sandbox Mode')).toHaveCount(0);
+  await expect(page.getByText('100%')).toHaveCount(0);
+});

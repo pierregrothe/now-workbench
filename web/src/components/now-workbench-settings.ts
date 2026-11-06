@@ -50,6 +50,16 @@ const DEFAULT_PREFS: WorkbenchPreferences = {
   theme_mode: 'system',
 };
 
+type SettingsSection = 'claude' | 'capture' | 'synthesis' | 'workspace' | 'instances';
+
+const SECTIONS: { id: SettingsSection; label: string }[] = [
+  { id: 'claude', label: 'Claude and Otto' },
+  { id: 'capture', label: 'Media capture' },
+  { id: 'synthesis', label: 'Synthesis defaults' },
+  { id: 'workspace', label: 'Workspace' },
+  { id: 'instances', label: 'ServiceNow instances' },
+];
+
 @customElement('now-workbench-settings')
 export class NowWorkbenchSettings extends LitElement {
   static styles = css`
@@ -57,7 +67,7 @@ export class NowWorkbenchSettings extends LitElement {
       display: flex;
       flex-direction: column;
       height: 100%;
-      background: var(--now-bg-canvas, #ffffff);
+      background: var(--otto-canvas, #efece7);
       color: var(--now-text-primary, #16181d);
       font-family: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     }
@@ -68,7 +78,7 @@ export class NowWorkbenchSettings extends LitElement {
       justify-content: space-between;
       padding: 16px 36px;
       border-bottom: 1px solid var(--now-border-subtle, #f0f0ee);
-      background: var(--now-bg-surface-0, #ffffff);
+      background: transparent;
       flex-shrink: 0;
     }
 
@@ -86,31 +96,60 @@ export class NowWorkbenchSettings extends LitElement {
       letter-spacing: -0.015em;
     }
 
-    .sub-switcher {
-      display: inline-flex;
-      background: var(--now-bg-surface-1, #f3f4f2);
-      padding: 3px;
-      border-radius: 999px;
-      border: 1px solid var(--now-border-subtle, #e4e5e1);
+    .prefs-layout {
+      flex: 1;
+      min-height: 0;
+      display: grid;
+      grid-template-columns: 220px 1fr;
+      gap: 8px;
+      padding: 24px 36px 0;
+      max-width: 1240px;
+      width: 100%;
+      margin: 0 auto;
+      box-sizing: border-box;
     }
 
-    .sub-tab-btn {
-      appearance: none;
+    .pref-nav {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      align-self: start;
+      background: var(--now-bg-surface-0, #ffffff);
+      border-radius: 16px;
+      padding: 8px;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+    }
+
+    .pref-nav-item {
+      text-align: left;
       border: none;
       background: transparent;
-      color: var(--now-text-secondary, #4b5563);
-      font-size: 12.5px;
-      font-weight: 600;
-      padding: 6px 14px;
-      border-radius: 999px;
+      font: inherit;
+      font-size: 13.5px;
+      padding: 9px 12px;
+      border-radius: 10px;
       cursor: pointer;
-      font-family: inherit;
+      color: var(--now-text-primary, #16181d);
     }
 
-    .sub-tab-btn.active {
-      background: var(--now-bg-surface-0, #ffffff);
-      color: var(--now-text-primary, #0b0f19);
-      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+    .pref-nav-item:hover {
+      background: var(--otto-canvas-active, #e3dfd8);
+    }
+
+    .pref-nav-item.active {
+      background: #1a1a1a;
+      color: #ffffff;
+    }
+
+    .pref-content {
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+    }
+
+    .section-card[hidden] {
+      display: none;
     }
 
     .scroll-body {
@@ -441,7 +480,7 @@ export class NowWorkbenchSettings extends LitElement {
     }
   `;
 
-  @state() private activeSubTab: 'workbench' | 'instances' = 'workbench';
+  @state() private activeSection: SettingsSection = 'claude';
   @state() private prefs: WorkbenchPreferences = { ...DEFAULT_PREFS };
   @state() private newApiKeyInput = '';
   @state() private isSaving = false;
@@ -667,27 +706,26 @@ export class NowWorkbenchSettings extends LitElement {
           <h1>Now Workbench Settings</h1>
         </div>
 
-        <div class="sub-switcher">
-          <button
-            class="sub-tab-btn ${this.activeSubTab === 'workbench' ? 'active' : ''}"
-            @click=${() => {
-              this.activeSubTab = 'workbench';
-            }}
-          >
-            Workbench Preferences
-          </button>
-          <button
-            class="sub-tab-btn ${this.activeSubTab === 'instances' ? 'active' : ''}"
-            @click=${() => {
-              this.activeSubTab = 'instances';
-            }}
-          >
-            ServiceNow Instances
-          </button>
-        </div>
       </div>
 
-      ${this.activeSubTab === 'instances'
+      <div class="prefs-layout">
+        <nav class="pref-nav" aria-label="Settings sections">
+          ${SECTIONS.map(
+            (sec) => html`
+              <button
+                type="button"
+                class="pref-nav-item ${this.activeSection === sec.id ? 'active' : ''}"
+                @click=${() => {
+                  this.activeSection = sec.id;
+                }}
+              >
+                ${sec.label}
+              </button>
+            `
+          )}
+        </nav>
+        <div class="pref-content">
+      ${this.activeSection === 'instances'
         ? html`
             <now-admin-panel
               @instance-changed=${(e: CustomEvent) => {
@@ -705,10 +743,10 @@ export class NowWorkbenchSettings extends LitElement {
             <div class="scroll-body">
               <div class="settings-container">
                 <!-- 1. Claude AI API Key & Intent Router -->
-                <div class="section-card featured">
+                <div class="section-card featured" ?hidden=${this.activeSection !== 'claude'}>
                   <div class="section-header">
                     <div>
-                      <h2 class="section-title">1. Claude AI Copilot & Intent Router</h2>
+                      <h2 class="section-title">Claude AI Copilot & Intent Router</h2>
                       <p class="section-desc">
                         Configure your Claude AI API Key (encrypted at rest), active model, and conversational menu routing.
                       </p>
@@ -843,10 +881,10 @@ export class NowWorkbenchSettings extends LitElement {
                 </div>
 
                 <!-- 2. Instance Media Capture Defaults -->
-                <div class="section-card">
+                <div class="section-card" ?hidden=${this.activeSection !== 'capture'}>
                   <div class="section-header">
                     <div>
-                      <h2 class="section-title">2. Instance Media Capture Defaults</h2>
+                      <h2 class="section-title">Instance Media Capture Defaults</h2>
                       <p class="section-desc">
                         Default browser viewport resolution, capture format (.png / .webm), page settle delay, and offline fallback.
                       </p>
@@ -921,10 +959,10 @@ export class NowWorkbenchSettings extends LitElement {
                 </div>
 
                 <!-- 3. Solution Consultant & Demo Synthesis Defaults -->
-                <div class="section-card">
+                <div class="section-card" ?hidden=${this.activeSection !== 'synthesis'}>
                   <div class="section-header">
                     <div>
-                      <h2 class="section-title">3. Solution Consultant & Synthesis Defaults</h2>
+                      <h2 class="section-title">Solution Consultant & Synthesis Defaults</h2>
                       <p class="section-desc">
                         Default author metadata, scoped table prefix, and SC narrative tone.
                       </p>
@@ -976,10 +1014,10 @@ export class NowWorkbenchSettings extends LitElement {
                 </div>
 
                 <!-- 4. UI & Presenter HUD Preferences -->
-                <div class="section-card">
+                <div class="section-card" ?hidden=${this.activeSection !== 'workspace'}>
                   <div class="section-header">
                     <div>
-                      <h2 class="section-title">4. Workspace UI & Presenter HUD</h2>
+                      <h2 class="section-title">Workspace UI & Presenter HUD</h2>
                       <p class="section-desc">
                         Control startup dialogs, navigation rail defaults, and Presenter HUD teleprompter sizing.
                       </p>
@@ -1042,42 +1080,44 @@ export class NowWorkbenchSettings extends LitElement {
                     </div>
                   </div>
 
-                  <div class="actions-bar">
+                </div>
+                <div class="actions-bar">
+                  <button
+                    class="btn icon-btn"
+                    type="button"
+                    @click=${this.resetSettings}
+                    title="Reset to Factory Defaults"
+                    aria-label="Reset Defaults"
+                    data-tooltip="Reset Defaults"
+                  >
+                    <svg viewBox="0 0 24 24">
+                      <path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6 0 2.97-2.17 5.43-5.01 5.91v2.02c3.95-.49 7.01-3.85 7.01-7.93 0-4.42-3.58-8-8-8zm-6 8c0-1.65.67-3.15 1.76-4.24L6.34 7.34C4.9 8.78 4 10.79 4 13c0 4.08 3.06 7.44 7.01 7.93v-2.02C8.17 18.43 6 15.97 6 13z" />
+                    </svg>
+                  </button>
+                  <div style="display: flex; align-items: center; gap: 12px;">
+                    ${this.saveMessage
+                      ? html`<span class="save-toast" data-testid="save-message">${this.saveMessage}</span>`
+                      : ''}
                     <button
-                      class="btn icon-btn"
+                      class="btn primary icon-btn"
                       type="button"
-                      @click=${this.resetSettings}
-                      title="Reset to Factory Defaults"
-                      aria-label="Reset Defaults"
-                      data-tooltip="Reset Defaults"
+                      ?disabled=${this.isSaving}
+                      @click=${this.saveSettings}
+                      title="Save Workbench Preferences"
+                      aria-label="Save Preferences"
+                      data-tooltip="Save Preferences"
                     >
                       <svg viewBox="0 0 24 24">
-                        <path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6 0 2.97-2.17 5.43-5.01 5.91v2.02c3.95-.49 7.01-3.85 7.01-7.93 0-4.42-3.58-8-8-8zm-6 8c0-1.65.67-3.15 1.76-4.24L6.34 7.34C4.9 8.78 4 10.79 4 13c0 4.08 3.06 7.44 7.01 7.93v-2.02C8.17 18.43 6 15.97 6 13z" />
+                        <path d="M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z" />
                       </svg>
                     </button>
-                    <div style="display: flex; align-items: center; gap: 12px;">
-                      ${this.saveMessage
-                        ? html`<span class="save-toast" data-testid="save-message">${this.saveMessage}</span>`
-                        : ''}
-                      <button
-                        class="btn primary icon-btn"
-                        type="button"
-                        ?disabled=${this.isSaving}
-                        @click=${this.saveSettings}
-                        title="Save Workbench Preferences"
-                        aria-label="Save Preferences"
-                        data-tooltip="Save Preferences"
-                      >
-                        <svg viewBox="0 0 24 24">
-                          <path d="M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z" />
-                        </svg>
-                      </button>
-                    </div>
                   </div>
                 </div>
               </div>
             </div>
           `}
+        </div>
+      </div>
     `;
   }
 }

@@ -40,3 +40,13 @@ test('network failure on settings save shows an error', async ({ page }) => {
   await expect(page.getByTestId('save-message')).toContainText('Could not save settings');
   await expect(page.getByText('Saved settings in local session')).toHaveCount(0);
 });
+
+test('settings shows one section at a time and keeps Save available', async ({ page }) => {
+  await page.goto('/#admin');
+  await expect(page.getByRole('heading', { name: 'Claude AI Copilot & Intent Router' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Instance Media Capture Defaults' })).toBeHidden();
+  await page.getByLabel('Settings sections').getByRole('button', { name: 'Media capture' }).click();
+  await expect(page.getByRole('heading', { name: 'Instance Media Capture Defaults' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Claude AI Copilot & Intent Router' })).toBeHidden();
+  await expect(page.getByRole('button', { name: 'Save Preferences' })).toBeVisible();
+});

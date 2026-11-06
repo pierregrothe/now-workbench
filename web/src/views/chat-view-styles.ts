@@ -5,6 +5,56 @@
 import { css } from 'lit';
 
 export const chatViewStyles = css`
+      .split {
+        flex: 1;
+        min-height: 0;
+        display: flex;
+      }
+
+      .split .scroll-canvas {
+        flex: 1;
+        min-width: 0;
+      }
+
+      .dash-card {
+        background: #ffffff;
+        border-radius: 16px;
+        padding: 18px 20px;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+      }
+
+      .dash-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--now-text-secondary, #4b5563);
+      }
+
+      .dash-metric {
+        font-size: 22px;
+        font-weight: 600;
+        margin: 8px 0 2px;
+      }
+
+      .dash-sub {
+        font-size: 12.5px;
+        color: var(--now-text-secondary, #4b5563);
+        margin: 0 0 8px;
+      }
+
+      .open-btn {
+        border: none;
+        background: transparent;
+        cursor: pointer;
+        font-size: 15px;
+        line-height: 1;
+        color: var(--now-text-secondary, #4b5563);
+        padding: 2px 4px;
+        border-radius: 6px;
+      }
+
       .scroll-canvas {
         display: flex;
         flex-direction: column;
