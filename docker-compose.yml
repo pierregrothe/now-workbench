@@ -22,6 +22,10 @@ services:
       - com.centurylinklabs.watchtower.enable=false
     networks:
       - workbench-net
+    # Public resolvers: the host's LAN resolver is behind the private-range firewall rules.
+    dns:
+      - 1.1.1.1
+      - 1.0.0.1
     environment:
       # Refuse to start without them (the app also refuses to listen without Access).
       - WORKBENCH_ACCESS_TEAM_DOMAIN=${WORKBENCH_ACCESS_TEAM_DOMAIN:?set WORKBENCH_ACCESS_TEAM_DOMAIN in .env}
@@ -52,6 +56,10 @@ services:
     command: tunnel --no-autoupdate run
     networks:
       - workbench-net
+    # Public resolvers: the host's LAN resolver is behind the private-range firewall rules.
+    dns:
+      - 1.1.1.1
+      - 1.0.0.1
     environment:
       # Not required here so the workbench can start (and be checked) before the token is
       # pasted; cloudflared itself refuses to run without it.

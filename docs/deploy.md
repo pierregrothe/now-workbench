@@ -37,10 +37,11 @@ docker logs now-workbench   # look for FIRST-RUN SETUP CODE
 ```
 
 No port opens on srv01chambly: the tunnel container reaches the workbench over the private
-`br-workbench` network. The firewall rules stop that network from reaching your LAN, the host
-and other containers (10/8, 172.16/12, 192.168/16, link-local, CGNAT) while the internet stays
-reachable for Claude, ServiceNow and Cloudflare. Check them with
-`sudo iptables -L DOCKER-USER -n -v`.
+`br-workbench` network. The firewall rules stop that network from reaching your LAN and other
+containers (DOCKER-USER: 10/8, 172.16/12, 192.168/16, link-local, CGNAT) and the host itself
+(INPUT), while the internet stays reachable for Claude, ServiceNow and Cloudflare. The
+containers use public DNS (1.1.1.1) because the LAN resolver is blocked. Check with
+`sudo iptables -S DOCKER-USER` and `sudo iptables -S INPUT | grep br-workbench`.
 
 ## 3. First run
 

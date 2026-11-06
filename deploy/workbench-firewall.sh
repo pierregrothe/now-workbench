@@ -1,6 +1,6 @@
 #!/bin/sh
 # deploy/workbench-firewall.sh
-# Block the now-workbench Docker network from private ranges (LAN, host, other containers).
+# Block the now-workbench Docker network from private ranges, other containers and the host.
 # Author: Pierre Grothe
 # Date: 2026-11-06
 #
@@ -22,5 +22,10 @@ done
 # Replies to connections the workbench opened must still come back.
 if ! iptables -C DOCKER-USER -i "$BRIDGE" -m conntrack --ctstate ESTABLISHED,RELATED -j RETURN 2>/dev/null; then
     iptables -I DOCKER-USER -i "$BRIDGE" -m conntrack --ctstate ESTABLISHED,RELATED -j RETURN
+fi
+# Traffic addressed to the host itself (its LAN IP, the Docker gateways) goes through INPUT,
+# not DOCKER-USER: the workbench needs nothing from the host, so drop all of it.
+if ! iptables -C INPUT -i "$BRIDGE" -j DROP 2>/dev/null; then
+    iptables -I INPUT -i "$BRIDGE" -j DROP
 fi
 echo "workbench firewall rules in place on $BRIDGE"
