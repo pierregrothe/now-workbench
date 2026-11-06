@@ -320,3 +320,22 @@ async def test_property_error_handling(tmp_path: Path) -> None:
     )
     assert res_restore.success is False
     assert "Error restoring properties" in res_restore.details[0]
+
+
+async def test_read_live_values_reports_set_and_unset_properties() -> None:
+    """Live values come from the instance; a property that does not exist reads as None."""
+    inst = InstanceRecord(
+        id="i1", name="Dev", url="https://dev.service-now.com", username="admin", password="p"
+    )
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        assert request.method == "GET"
+        if "name=glide.ui.polaris" in str(request.url):
+            return httpx.Response(200, json={"result": [{"sys_id": "1", "value": "false"}]})
+        return httpx.Response(200, json={"result": []})
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handle))
+    values = await PropertyEngine().read_live_values(
+        ["glide.ui.polaris", "x.missing"], inst, client=client
+    )
+    assert values == {"glide.ui.polaris": "false", "x.missing": None}

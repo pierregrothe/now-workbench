@@ -121,6 +121,22 @@ class PropertyEngine:
         )
         return resp.status_code in (200, 201)
 
+    async def read_live_values(
+        self,
+        names: list[str],
+        instance: InstanceRecord,
+        client: httpx.AsyncClient | None = None,
+    ) -> dict[str, str | None]:
+        """Read, without changing anything, each property's current value (None if unset)."""
+        base_url = instance.url.rstrip("/")
+        auth = _build_auth(instance)
+        values: dict[str, str | None] = {}
+        async with client or httpx.AsyncClient(timeout=20.0) as session:
+            for name in names:
+                _sys_id, value = await self._query_single_property(session, base_url, auth, name)
+                values[name] = value
+        return values
+
     async def apply_bundle_properties(
         self,
         bundle_id: str,

@@ -178,18 +178,31 @@ def _get_properties(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
     props = engine.read_bundle_properties(bundle_path(ctx.repo, bundle_id))
     inst = resolve_instance(ctx.repo, args.get("instance"))
     snap = engine.load_snapshot(bundle_id, inst.id)
+    live: dict[str, str | None] = {}
+    note = "live values not read (simulated instance)"
+    if not _is_fake(ctx, inst):
+        live = run_async(engine.read_live_values(list(props), inst))
+        note = "live values read from the instance"
+    rows = [[k, v, _live_label(live, k)] for k, v in props.items()]
     tile = table_tile(
         f"tile-props-{bundle_id}",
         "System properties",
-        ["Property", "Value"],
-        [[k, v] for k, v in props.items()],
+        ["Property", "Bundle value", "Live on instance"],
+        rows,
     )
     return ToolResult(
-        summary=f"{len(props)} propert(ies) in '{bundle_id}'; snapshot on '{inst.name}': "
-        f"{'yes' if snap else 'no'}.",
-        data={"properties": props},
+        summary=f"{len(props)} propert(ies) in '{bundle_id}' ({note}); snapshot on "
+        f"'{inst.name}': {'yes' if snap else 'no'}.",
+        data={"properties": props, "live": live},
         tiles=[tile],
     )
+
+
+def _live_label(live: dict[str, str | None], name: str) -> str:
+    if not live:
+        return "-"
+    value = live.get(name)
+    return "(not set)" if value is None else value
 
 
 def _apply_properties(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
