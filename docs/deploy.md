@@ -47,12 +47,21 @@ containers use public DNS (1.1.1.1) because the LAN resolver is blocked. Check w
 
 The home DNS servers (BIND on the NAS) answer every `*.grothe.ca` name with srv01chambly, where
 Caddy serves the homelab apps directly. The workbench must not be served that way (it would skip
-Cloudflare Access, and the app refuses traffic without an Access token), so the zone needs one
-record overriding the wildcard:
+Cloudflare Access, and the app refuses traffic without an Access token), so home devices must
+resolve this one name the way the internet does. Preferred: a forward zone in BIND, more specific
+than the wildcard, so it follows any change Cloudflare makes:
 
 ```
-workbench   IN CNAME   workbench.grothe.ca.cdn.cloudflare.net.
+zone "workbench.grothe.ca" {
+    type forward;
+    forward only;
+    forwarders { 1.1.1.1; 1.0.0.1; };
+};
 ```
+
+Simpler but static: `workbench IN A 172.64.80.1` and
+`workbench IN AAAA 2606:4700:130:436c:6f75:6466:6c61:7265` (Cloudflare's addresses for the zone
+on 2026-11-06; update them if Cloudflare changes them).
 
 Outside users are unaffected; without it, devices at home get a TLS error for this name.
 
