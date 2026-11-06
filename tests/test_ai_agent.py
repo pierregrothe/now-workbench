@@ -246,3 +246,19 @@ def test_result_content_sends_attached_images_to_claude() -> None:
     assert isinstance(blocks, list)
     assert blocks[0] == {"type": "text", "text": "shot\n{}"}
     assert [b["source"]["media_type"] for b in blocks[1:]] == ["image/png", "image/jpeg"]
+
+
+def test_agent_long_tool_chain_keeps_at_most_four_cache_breakpoints() -> None:
+    """Many tool rounds never exceed the API's four cache_control blocks."""
+    with db_session() as repo:
+        script = [_tool_call(f"t{i}", "list_bundles", {}) for i in range(7)]
+        script.append(_Resp([_Block("text", text="Done.")], "end_turn"))
+        client = _FakeClient(script)
+        run_agent("check everything", [], repo, client, "claude-test")
+        for call in client.messages.calls:
+            marks = sum(1 for t in call["tools"] if "cache_control" in t)
+            marks += sum(1 for b in call["system"] if "cache_control" in b)
+            for m in call["messages"]:
+                if isinstance(m["content"], list):
+                    marks += sum(1 for b in m["content"] if "cache_control" in b)
+            assert marks <= 4

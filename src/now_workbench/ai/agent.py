@@ -86,6 +86,24 @@ def _as_blocks(content: str | FileBlocks) -> FileBlocks:
     return [{"type": "text", "text": content}] if isinstance(content, str) else content
 
 
+def _append_tool_results(
+    messages: list[dict[str, Any]], tool_results: list[dict[str, Any]]
+) -> None:
+    """Append a round of tool results with one rolling prompt-cache breakpoint.
+
+    The API allows four ``cache_control`` blocks; tools and system use two. Each round moves
+    the message breakpoint to the newest result instead of adding another one.
+    """
+    for message in messages:
+        if isinstance(message.get("content"), list):
+            for block in message["content"]:
+                if isinstance(block, dict):
+                    block.pop("cache_control", None)
+    if tool_results:
+        tool_results[-1]["cache_control"] = {"type": "ephemeral"}
+    messages.append({"role": "user", "content": tool_results})
+
+
 def _result_content(res: ToolResult) -> str | list[dict[str, Any]]:
     """Tool result text, plus any images the tool attached (sent as image blocks)."""
     text = f"{res.summary}\n{model_to_text(res.data)}"
@@ -359,9 +377,7 @@ class ClaudeAgentRunner:
                 for ev in step_events:
                     yield ev
 
-                if step_tool_res:
-                    step_tool_res[-1]["cache_control"] = {"type": "ephemeral"}
-                messages.append({"role": "user", "content": step_tool_res})
+                _append_tool_results(messages, step_tool_res)
 
             assembled = _assemble(final_text, results)
             yield AgentEvent(
@@ -464,9 +480,7 @@ def _run_agent_sync(
             messages.append({"role": "assistant", "content": content_blocks})
             step_res, step_tool_res, _ = _execute_turn_calls(calls, ctx)
             results.extend(step_res)
-            if step_tool_res:
-                step_tool_res[-1]["cache_control"] = {"type": "ephemeral"}
-            messages.append({"role": "user", "content": step_tool_res})
+            _append_tool_results(messages, step_tool_res)
     except Exception as exc:
         if fake_mode:
             raise AgentUnavailableError(str(exc)) from exc
