@@ -540,33 +540,57 @@ async function main() {
       console.log("[ChromeCapture] Fake mode enabled: Rendering simulated ServiceNow Agent Workspace...");
       await page.setContent(buildServiceNowOfflineHtml(), { waitUntil: "load" });
     } else {
-      console.log(`[ChromeCapture] Connecting to live instance target: ${opts.url}`);
-      try {
-        const resp = await page.goto(opts.url, { waitUntil: "domcontentloaded", timeout: 30000 });
-        if (resp && resp.status() >= 400) {
-          console.error(`[ChromeCapture] HTTP ${resp.status()} error loading target instance.`);
+      // Sign in through /login.do first: current releases answer a deep link with a
+      // "not logged in, redirecting" page, so the login form is not on the target page.
+      const baseUrl = new URL(opts.url).origin;
+      if (opts.username && opts.password) {
+        console.log(`[ChromeCapture] Signing in as '${opts.username}' via ${baseUrl}/login.do...`);
+        try {
+          await page.goto(`${baseUrl}/login.do`, { waitUntil: "domcontentloaded", timeout: 30000 });
+        } catch (err) {
+          console.error(`The instance could not be reached: ${err.message}`);
           process.exit(1);
         }
-      } catch (err) {
-        console.error(`[ChromeCapture] Live target unreachable: ${err.message}`);
-        process.exit(1);
-      }
-
-      // Check for ServiceNow web login page redirect
-      const loginUser = await page.$("#user_name");
-      if (loginUser) {
-        if (!opts.username || !opts.password) {
-          console.error("[ChromeCapture] Instance requires login credentials. Please provide username and password.");
+        const form = await page.waitForSelector("#user_name", { timeout: 15000 }).catch(() => null);
+        if (!form) {
+          console.error("The instance did not show its login form at /login.do");
           process.exit(1);
         }
-        console.log(`[ChromeCapture] Authenticating user '${opts.username}' via ServiceNow login form...`);
         await page.type("#user_name", opts.username, { delay: 20 });
         await page.type("#user_password", opts.password, { delay: 20 });
         await Promise.all([
           page.waitForNavigation({ waitUntil: "domcontentloaded", timeout: 30000 }).catch(() => {}),
           page.click("#sysverb_login"),
         ]);
-        console.log(`[ChromeCapture] Login submitted. Current URL: ${page.url()}`);
+        await page
+          .waitForFunction(() => !window.location.href.includes("login.do"), { timeout: 20000 })
+          .catch(() => {});
+        if (page.url().includes("login.do")) {
+          console.error("Sign-in failed: the instance kept the login page (check the username and password)");
+          process.exit(1);
+        }
+      }
+      console.log(`[ChromeCapture] Opening ${opts.url}`);
+      try {
+        const resp = await page.goto(opts.url, { waitUntil: "domcontentloaded", timeout: 45000 });
+        if (resp && resp.status() >= 400) {
+          console.error(`The page answered HTTP ${resp.status()}`);
+          process.exit(1);
+        }
+      } catch (err) {
+        console.error(`The page could not be loaded: ${err.message}`);
+        process.exit(1);
+      }
+      // Let the page render its data (ServiceNow lists load after the document).
+      await page.waitForNetworkIdle({ idleTime: 800, timeout: 20000 }).catch(() => {});
+      const signedOut = await page.evaluate(
+        () =>
+          !!document.querySelector("#user_name") ||
+          /not logged in|session has expired/i.test(document.body?.innerText || "")
+      );
+      if (signedOut) {
+        console.error("The instance showed its sign-in page instead of the requested page");
+        process.exit(1);
       }
     }
 
