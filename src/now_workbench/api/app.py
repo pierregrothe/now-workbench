@@ -22,6 +22,7 @@ from now_workbench.api.templates import router as templates_router
 from now_workbench.api.threads import _load_verified_instances_dict
 from now_workbench.api.threads import router as threads_router
 from now_workbench.capture.engine import PlaywrightCaptureEngine
+from now_workbench.config.origins import is_origin_allowed
 from now_workbench.config.paths import UnsafePathError, safe_child
 from now_workbench.config.settings import settings
 from now_workbench.db import (
@@ -34,15 +35,28 @@ from now_workbench.db import (
 from now_workbench.sdk.runner import NowSdkRunner
 
 
+async def _accept_if_origin_allowed(websocket: WebSocket) -> bool:
+    """Accept the handshake, or close with 1008 when its Origin is not allowed."""
+    origin = websocket.headers.get("origin")
+    if not is_origin_allowed(origin, settings.cors_origin_regex):
+        await websocket.close(code=1008)
+        return False
+    await websocket.accept()
+    return True
+
+
 class LogBroadcaster:
     """Manages active WebSocket connections for live terminal log streaming."""
 
     def __init__(self) -> None:
         self.active_connections: list[WebSocket] = []
 
-    async def connect(self, websocket: WebSocket) -> None:
-        await websocket.accept()
+    async def connect(self, websocket: WebSocket) -> bool:
+        """Accept the socket unless its Origin is disallowed; return whether accepted."""
+        if not await _accept_if_origin_allowed(websocket):
+            return False
         self.active_connections.append(websocket)
+        return True
 
     def disconnect(self, websocket: WebSocket) -> None:
         if websocket in self.active_connections:
@@ -114,8 +128,8 @@ def create_app() -> FastAPI:
 
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
-        allow_credentials=True,
+        allow_origin_regex=settings.cors_origin_regex,
+        allow_credentials=False,
         allow_methods=["*"],
         allow_headers=["*"],
     )
@@ -238,12 +252,16 @@ def _register_build_deploy(
                 if req.instance_id
                 else repo.get_default_instance()
             )
-        inst_url = target_inst.url if target_inst else None
-        inst_user = target_inst.username if target_inst else None
-        inst_pwd = target_inst.password if target_inst else None
+        if target_inst is None:
+            if req.instance_id:
+                raise HTTPException(status_code=404, detail="Instance not found")
+            raise HTTPException(status_code=409, detail="No target instance registered")
+        inst_url = target_inst.url
+        inst_user = target_inst.username
+        inst_pwd = target_inst.password
 
         await log_broadcaster.broadcast(
-            f"[deploy:start] Deploying bundle '{bundle_id}' to target: {inst_url or 'default'}..."
+            f"[deploy:start] Deploying bundle '{bundle_id}' to target: {inst_url}..."
         )
         res = await sdk_runner.deploy(
             target,
@@ -259,7 +277,9 @@ def _register_build_deploy(
             "success": res.success,
             "exit_code": res.exit_code,
             "output": res.output,
-            "target_instance": target_inst.name if target_inst else "default",
+            "target_instance": target_inst.name,
+            "target_instance_id": target_inst.id,
+            "target_instance_name": target_inst.name,
         }
 
 
@@ -292,7 +312,8 @@ def _register_websockets(app: FastAPI, log_broadcaster: LogBroadcaster) -> None:
 
     @app.websocket("/ws/logs")
     async def ws_logs(websocket: WebSocket) -> None:
-        await log_broadcaster.connect(websocket)
+        if not await log_broadcaster.connect(websocket):
+            return
         try:
             while True:
                 await websocket.receive_text()
@@ -301,7 +322,8 @@ def _register_websockets(app: FastAPI, log_broadcaster: LogBroadcaster) -> None:
 
     @app.websocket("/ws/otto")
     async def ws_otto_chat(websocket: WebSocket) -> None:
-        await websocket.accept()
+        if not await _accept_if_origin_allowed(websocket):
+            return
         try:
             while True:
                 data = await websocket.receive_json()

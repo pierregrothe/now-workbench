@@ -328,6 +328,12 @@ export class NowPresenterHud extends LitElement {
   @state()
   private verificationMessage: string | null = null
 
+  @state()
+  private verificationOk = false
+
+  @state()
+  private loadError: string | null = null
+
   connectedCallback() {
     super.connectedCallback()
     if (this.visible && !this.runbook) {
@@ -345,6 +351,7 @@ export class NowPresenterHud extends LitElement {
 
   private async loadRunbook(): Promise<void> {
     const id = this.bundleId || 'sample-ai-assistant'
+    this.loadError = null
     try {
       const resp = await fetch(`/api/demos/${id}/runbook`)
       if (resp.ok) {
@@ -353,51 +360,27 @@ export class NowPresenterHud extends LitElement {
         this.verificationMessage = null
         return
       }
-    } catch {
-      // Offline preview fallback below
-    }
-
-    this.runbook = {
-      bundle_id: id,
-      title: 'Enterprise AI Copilot & Triage Playbook',
-      narrative:
-        'Demonstrates declarative Fluent SDK recipes (*.now.ts) and transactional Table API seeding without brittle update sets.',
-      personas: [
-        { name: 'Amelia Chen', role: 'Clinical Operations Lead', email: 'amelia.chen@example.com' },
-      ],
-      stages: [
-        {
-          step_number: 1,
-          title: '1. Executive Value & Declarative Recipe Baseline',
-          persona: 'Amelia Chen (Clinical Operations Lead)',
-          talking_points: [
-            'Highlight that this demo was deployed via declarative Fluent SDK recipes (*.now.ts), not captured update sets.',
-            'Show real-time telemetry and date-aligned seed records in the workspace.',
-          ],
-          instructions: [
-            'Open the ServiceNow Operations Workspace and review active incident metrics.',
-            'Click Verify Stage below to confirm seeded records exist on the target instance.',
-          ],
-          target_table: 'x_snc_ai_triage_case',
-        },
-        {
-          step_number: 2,
-          title: '2. Autonomous Triage & Remediation',
-          persona: 'Marcus Vance (Field Reliability Architect)',
-          talking_points: [
-            'Demonstrate how Otto Copilot correlates anomaly events and recommends immediate action.',
-            'Emphasize 1-click snapshot rollback to restore the instance cleanly after the presentation.',
-          ],
-          instructions: [
-            'Trigger the Otto AI agent review flow in the conversation workspace.',
-            'Inspect the generated remediation plan and audit trail.',
-          ],
-          target_table: 'incident',
-        },
-      ],
+      this.runbook = null
+      this.loadError =
+        resp.status === 404
+          ? 'No walkthrough guide for this demo'
+          : `Could not load runbook: ${await this.errorDetail(resp)}`
+    } catch (e) {
+      this.runbook = null
+      this.loadError = `Could not load runbook: ${e instanceof Error ? e.message : String(e)}`
     }
     this.currentStageIndex = 0
     this.verificationMessage = null
+  }
+
+  private async errorDetail(resp: Response): Promise<string> {
+    try {
+      const body = (await resp.json()) as { detail?: unknown }
+      if (typeof body.detail === 'string') return body.detail
+    } catch {
+      // body is not JSON; fall back to the status line
+    }
+    return `HTTP ${resp.status}`
   }
 
   private get currentStage(): RunbookStage | null {
@@ -425,19 +408,23 @@ export class NowPresenterHud extends LitElement {
     if (!this.runbook || !this.currentStage) return
     this.verifying = true
     this.verificationMessage = null
+    this.verificationOk = false
     try {
       const resp = await fetch(`/api/demos/${this.runbook.bundle_id}/runbook/verify-stage`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          step_number: this.currentStage.step_number,
-          fake_mode: true,
-        }),
+        body: JSON.stringify({ step_number: this.currentStage.step_number }),
       })
-      const data = await resp.json()
-      this.verificationMessage = data.message || (data.success ? 'Stage state verified.' : 'Verification failed.')
+      if (!resp.ok) {
+        this.verificationMessage = `Verification failed: ${await this.errorDetail(resp)}`
+        return
+      }
+      const data = (await resp.json()) as { success?: boolean; message?: string }
+      this.verificationOk = data.success === true
+      this.verificationMessage =
+        data.message || (this.verificationOk ? 'Stage state verified.' : 'Verification failed.')
     } catch (e) {
-      this.verificationMessage = `Verification request error: ${e}`
+      this.verificationMessage = `Verification failed: ${e instanceof Error ? e.message : String(e)}`
     } finally {
       this.verifying = false
     }
@@ -450,6 +437,17 @@ export class NowPresenterHud extends LitElement {
   }
 
   render() {
+    if (this.visible && !this.runbook && this.loadError) {
+      return html`
+        <div class="hud-card">
+          <div class="hud-body">
+            <div class="verification-status pending" data-testid="hud-load-error" role="alert">
+              ${this.loadError}
+            </div>
+          </div>
+        </div>
+      `
+    }
     if (!this.visible || !this.runbook) {
       return html``
     }
@@ -514,7 +512,10 @@ export class NowPresenterHud extends LitElement {
 
           ${this.verificationMessage
             ? html`
-                <div class="verification-status success">
+                <div
+                  class="verification-status ${this.verificationOk ? 'success' : 'pending'}"
+                  data-testid="hud-verification-message"
+                >
                   ${this.verificationMessage}
                 </div>
               `

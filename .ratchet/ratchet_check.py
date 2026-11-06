@@ -72,15 +72,35 @@ class ValidatorCrashedError(RuntimeError):
     """A validator exited non-zero without printing a violation count."""
 
 
+class BaselinesError(RuntimeError):
+    """The baselines file is missing, unreadable or malformed."""
+
+
 def _load_baselines() -> dict[str, int]:
-    """Load baseline violation counts."""
-    if BASELINES_FILE.exists():
-        try:
-            data = json.loads(BASELINES_FILE.read_text(encoding="utf-8"))
-            return data.get("counts", {})
-        except Exception:
-            return {}
-    return {}
+    """Load baseline violation counts.
+
+    Raises:
+        BaselinesError: If the file is missing, unreadable, or not a valid
+            ``{"counts": {name: int}}`` document. The ratchet fails closed.
+    """
+    if not BASELINES_FILE.exists():
+        raise BaselinesError(
+            f"Baselines file not found: {BASELINES_FILE}. Run 'ratchet_check.py --init'."
+        )
+    try:
+        data = json.loads(BASELINES_FILE.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        raise BaselinesError(
+            f"Baselines file unreadable or corrupt: {BASELINES_FILE} ({exc})"
+        ) from exc
+    counts = data.get("counts") if isinstance(data, dict) else None
+    if not isinstance(counts, dict) or not all(
+        isinstance(v, int) and not isinstance(v, bool) for v in counts.values()
+    ):
+        raise BaselinesError(
+            f"Baselines file malformed: {BASELINES_FILE} (expected {{'counts': {{name: int}}}})"
+        )
+    return counts
 
 
 def _save_baselines(counts: dict[str, int]) -> None:
@@ -133,8 +153,19 @@ def check_validator(name: str, write: bool = False) -> tuple[bool, int, int]:
         return False, 0, 0
 
     val = VALIDATORS[name]
-    baselines = _load_baselines()
-    baseline = baselines.get(name, 999999)
+    try:
+        baselines = _load_baselines()
+    except BaselinesError as exc:
+        print(f"RATCHET FAIL: {name}\n  {exc}", file=sys.stderr)
+        return False, 0, 0
+    if name not in baselines:
+        print(
+            f"RATCHET FAIL: {name} ({val['description']})\n"
+            f"  No baseline entry for '{name}'. Run 'ratchet_check.py --init' to record baselines.",
+            file=sys.stderr,
+        )
+        return False, 0, 0
+    baseline = baselines[name]
 
     current = _count_violations(val["cmd"])
 

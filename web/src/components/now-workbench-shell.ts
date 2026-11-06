@@ -69,6 +69,13 @@ export class NowWorkbenchShell extends LitElement {
       background: var(--now-bg-canvas, #ffffff);
     }
 
+    .thread-error-banner {
+      padding: 8px 16px;
+      background: #fdecea;
+      color: #b3261e;
+      font-size: 13px;
+    }
+
     .active-view-stage {
       flex: 1;
       overflow-y: auto;
@@ -285,6 +292,7 @@ export class NowWorkbenchShell extends LitElement {
     'AI Intent Router active. Describe an action below to switch menus or update the current workspace.';
 
   @state() private recentThreads: NavThreadItem[] = [];
+  @state() private threadError = '';
 
   private detectIntentFromPrompt(prompt: string): DetectedIntent {
     const lower = prompt.toLowerCase().trim();
@@ -420,43 +428,7 @@ export class NowWorkbenchShell extends LitElement {
     this.lastIntentExplanation = detected.explanation;
 
     if (stayInOtto || detected.isQuestion) {
-      try {
-        const createRes = await fetch('/api/threads', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ title: shortTitle, target_tab: 'home' }),
-        });
-        if (createRes.ok) {
-          const created = (await createRes.json()) as { id: string; title: string };
-          await fetch(`/api/threads/${created.id}/messages`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ content: clean, role: 'user' }),
-          });
-          await this.loadThreads();
-          this.activeThreadId = created.id;
-          this.setActiveTab('home');
-          return;
-        }
-      } catch {
-        // Offline preview fallback
-      }
-      const fallbackId = `thread-${Date.now()}`;
-      this.recentThreads = [
-        {
-          id: fallbackId,
-          title: shortTitle,
-          targetTab: 'home',
-          archived: false,
-          messageCount: 2,
-          maxMessages: 20,
-          prompt: clean,
-        },
-        ...this.recentThreads,
-      ];
-      this.activeThreadId = fallbackId;
-      this.routedPrompt = clean;
-      this.setActiveTab('home');
+      await this.startOttoThread(shortTitle, clean);
       return;
     }
 
@@ -497,72 +469,88 @@ export class NowWorkbenchShell extends LitElement {
     this.lastIntentExplanation = `Opened conversation "${thread.title}"`;
   }
 
+  private async requestThreadApi(
+    action: string,
+    url: string,
+    init: RequestInit
+  ): Promise<Response | null> {
+    try {
+      const res = await fetch(url, init);
+      if (res.ok) {
+        this.threadError = '';
+        return res;
+      }
+      this.threadError = `Could not ${action}: HTTP ${res.status}`;
+    } catch (err) {
+      this.threadError = `Could not ${action}: ${err instanceof Error ? err.message : String(err)}`;
+    }
+    return null;
+  }
+
+  private async startOttoThread(title: string, firstMessage?: string): Promise<void> {
+    const createRes = await this.requestThreadApi('create conversation', '/api/threads', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title, target_tab: 'home' }),
+    });
+    if (!createRes) {
+      return;
+    }
+    const created = (await createRes.json()) as { id: string; title: string };
+    if (firstMessage !== undefined) {
+      const msgRes = await this.requestThreadApi(
+        'send message',
+        `/api/threads/${created.id}/messages`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content: firstMessage, role: 'user' }),
+        }
+      );
+      if (!msgRes) {
+        await this.loadThreads();
+        return;
+      }
+    }
+    await this.loadThreads();
+    this.activeThreadId = created.id;
+    this.setActiveTab('home');
+  }
+
   private async handleNewSession(): Promise<void> {
     this.routedPrompt = '';
     this.setActiveTab('home');
     this.railCollapsed = false;
-    try {
-      const res = await fetch('/api/threads', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: 'New Otto Conversation',
-          target_tab: 'home',
-        }),
-      });
-      if (res.ok) {
-        const created = (await res.json()) as { id: string; title: string };
-        await this.loadThreads();
-        this.activeThreadId = created.id;
-        return;
-      }
-    } catch {
-      // Offline preview fallback
-    }
-    const fallbackId = `thread-${Date.now()}`;
-    this.recentThreads = [
-      {
-        id: fallbackId,
-        title: 'New Otto Conversation',
-        targetTab: 'home',
-        archived: false,
-        messageCount: 0,
-        maxMessages: 20,
-      },
-      ...this.recentThreads,
-    ];
-    this.activeThreadId = fallbackId;
+    await this.startOttoThread('New Otto Conversation');
   }
 
   private async handleThreadArchive(
     e: CustomEvent<{ threadId: string; archived: boolean }>
   ): Promise<void> {
     const { threadId, archived } = e.detail;
-    try {
-      await fetch(`/api/threads/${threadId}`, {
+    const res = await this.requestThreadApi(
+      archived ? 'archive conversation' : 'unarchive conversation',
+      `/api/threads/${threadId}`,
+      {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ archived }),
-      });
-    } catch {
-      // Offline preview fallback
-    }
-    this.recentThreads = this.recentThreads.map((t) =>
-      t.id === threadId ? { ...t, archived } : t
+      }
     );
+    if (!res) {
+      return;
+    }
     await this.loadThreads();
   }
 
   private async handleThreadDelete(e: CustomEvent<{ threadId: string }>): Promise<void> {
     const { threadId } = e.detail;
-    try {
-      await fetch(`/api/threads/${threadId}`, {
-        method: 'DELETE',
-      });
-    } catch {
-      // Offline preview fallback
+    const res = await this.requestThreadApi('delete conversation', `/api/threads/${threadId}`, {
+      method: 'DELETE',
+    });
+    if (!res) {
+      return;
     }
-    this.recentThreads = this.recentThreads.filter((t) => t.id !== threadId);
     if (this.activeThreadId === threadId) {
       this.activeThreadId = '';
       this.routedPrompt = '';
@@ -718,6 +706,11 @@ export class NowWorkbenchShell extends LitElement {
       ></now-nav-rail>
 
       <main class="content-area">
+        ${this.threadError
+          ? html`<div class="thread-error-banner" role="alert" data-testid="thread-error">
+              ${this.threadError}
+            </div>`
+          : ''}
         <div class="active-view-stage">
           ${this.renderActiveView()}
         </div>
