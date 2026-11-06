@@ -18,6 +18,22 @@ from now_workbench.config.settings import settings
 from now_workbench.db.models import InstanceRecord
 
 
+def encode_stdin_credentials(username: str, password: str) -> bytes:
+    """Encode credentials for a Node capture script's stdin (``--credentials-stdin``).
+
+    Credentials never travel in argv, which any local user can read from the
+    process list; a pipe is private to the parent and child (ADR-012).
+
+    Args:
+        username: ServiceNow login name.
+        password: ServiceNow password.
+
+    Returns:
+        UTF-8 JSON bytes, written to the child's stdin before it is closed.
+    """
+    return json.dumps({"username": username, "password": password}).encode("utf-8")
+
+
 def load_playbook(bundle_path: Path, bundle_id: str) -> DemoPlaybook:
     """Load a declarative demo playbook from walkthrough/playbook.json or synthesize default."""
     playbook_file = bundle_path / "walkthrough" / "playbook.json"
@@ -148,10 +164,7 @@ def _build_runner_cmd(
     ]
     if fake_mode:
         cmd.append("--fake")
-    if instance.username:
-        cmd.extend(["--username", instance.username])
-    if instance.password:
-        cmd.extend(["--password", instance.password])
+    cmd.append("--credentials-stdin")
     return cmd
 
 
@@ -269,10 +282,13 @@ class PlaywrightPlaybookDriver:
         try:
             proc = await asyncio.create_subprocess_exec(
                 *cmd,
+                stdin=asyncio.subprocess.PIPE,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
-            await proc.communicate()
+            await proc.communicate(
+                input=encode_stdin_credentials(instance.username, instance.password)
+            )
         except Exception:
             pass
 

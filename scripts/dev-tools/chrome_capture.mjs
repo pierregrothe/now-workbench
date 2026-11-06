@@ -23,6 +23,7 @@ function parseArgs() {
     height: 720,
     duration: 15,
     fake: false,
+    credentialsStdin: false,
   };
 
   for (let i = 0; i < args.length; i++) {
@@ -31,8 +32,7 @@ function parseArgs() {
     else if (arg === "--url" && args[i + 1]) options.url = args[++i];
     else if (arg === "--output" && args[i + 1]) options.output = args[++i];
     else if (arg === "--mode" && args[i + 1]) options.mode = args[++i];
-    else if (arg === "--username" && args[i + 1]) options.username = args[++i];
-    else if (arg === "--password" && args[i + 1]) options.password = args[++i];
+    else if (arg === "--credentials-stdin") options.credentialsStdin = true;
     else if (arg === "--width" && args[i + 1]) options.width = parseInt(args[++i], 10);
     else if (arg === "--height" && args[i + 1]) options.height = parseInt(args[++i], 10);
     else if (arg === "--duration" && args[i + 1]) options.duration = parseFloat(args[++i]);
@@ -488,8 +488,19 @@ async function injectCursorOverlay(page) {
   });
 }
 
+// Credentials arrive as one JSON object on stdin (never argv, which any local
+// user can read from the process list -- ADR-012).
+async function readStdinCredentials() {
+  let raw = "";
+  for await (const chunk of process.stdin) raw += chunk;
+  if (!raw.trim()) return { username: "", password: "" };
+  const parsed = JSON.parse(raw);
+  return { username: String(parsed.username || ""), password: String(parsed.password || "") };
+}
+
 async function main() {
   const opts = parseArgs();
+  if (opts.credentialsStdin) Object.assign(opts, await readStdinCredentials());
   if (!opts.url || !opts.output) {
     console.error("Usage: node chrome_capture.mjs --url <url> --output <path> [--mode screenshot|video]");
     process.exit(1);

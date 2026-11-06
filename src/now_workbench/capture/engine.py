@@ -11,7 +11,11 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from now_workbench.capture.driver import PlaywrightPlaybookDriver, load_playbook
+from now_workbench.capture.driver import (
+    PlaywrightPlaybookDriver,
+    encode_stdin_credentials,
+    load_playbook,
+)
 from now_workbench.capture.models import CaptureArtifact, CaptureRequest
 from now_workbench.db.models import InstanceRecord
 from now_workbench.releases import translate_workspace_url
@@ -125,16 +129,16 @@ async def _run_chrome_capture(
     ]
     if fake_mode:
         cmd.append("--fake")
-    if username and password:
-        cmd.extend(["--username", username, "--password", password])
+    cmd.append("--credentials-stdin")
 
     try:
         proc = await asyncio.create_subprocess_exec(
             *cmd,
+            stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
-        await proc.communicate()
+        await proc.communicate(input=encode_stdin_credentials(username, password))
         return proc.returncode == 0 and output_file.exists() and output_file.stat().st_size > 500
     except Exception:
         return False

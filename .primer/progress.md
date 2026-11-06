@@ -75,7 +75,5 @@ Last updated: 2026-11-06
 
 - Coverage is 90% against the pre-push gate's `--cov-fail-under=100`: pushes are blocked until
   untested legacy paths (e.g. `api/instances.py` test-all/cleanup, `api/app.py` WS routes) are covered.
-- `capture/driver.py` passes the instance password to the Node capture script via argv (visible in
-  the process list); move it to stdin/env (ADR-012 follow-up).
 - Architecture policies `otto-copilot`, `demo-bundles`, `sqlite-persistence` are `unguarded`
   (no mechanical checks; agent-enforced via CLAUDE.md only).

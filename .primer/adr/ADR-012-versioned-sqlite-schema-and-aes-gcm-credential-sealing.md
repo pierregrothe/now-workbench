@@ -138,6 +138,7 @@ Rejected alternatives:
   Linux x86_64/arm64; no compiler is needed).
 - Existing prototype databases are retired, not migrated: instances and the API key must
   be registered again once (the prototype held only test-generated data).
-- Not covered by this ADR: `capture/driver.py` passes the instance password to the Node
-  capture script as a command-line argument, which is visible in the process list. Moving
-  it to stdin or an environment variable is a follow-up.
+- Decrypted credentials reach the Node capture scripts (`chrome_capture.mjs`,
+  `playbook_runner.mjs`) only as a JSON object on stdin (`--credentials-stdin`). The old
+  `--username` and `--password` arguments were removed (2026-11-06), because argv is
+  readable by any local user through the process list.

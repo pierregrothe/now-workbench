@@ -25,6 +25,7 @@ function parseArgs() {
     width: 1280,
     height: 720,
     fake: false,
+    credentialsStdin: false,
   };
 
   for (let i = 0; i < args.length; i++) {
@@ -36,8 +37,7 @@ function parseArgs() {
     else if (a === "--output-image" && args[i + 1]) opts.outputImage = args[++i];
     else if (a === "--output-log" && args[i + 1]) opts.outputLog = args[++i];
     else if (a === "--storage-state" && args[i + 1]) opts.storageState = args[++i];
-    else if (a === "--username" && args[i + 1]) opts.username = args[++i];
-    else if (a === "--password" && args[i + 1]) opts.password = args[++i];
+    else if (a === "--credentials-stdin") opts.credentialsStdin = true;
     else if (a === "--width" && args[i + 1]) opts.width = parseInt(args[++i], 10);
     else if (a === "--height" && args[i + 1]) opts.height = parseInt(args[++i], 10);
   }
@@ -490,8 +490,19 @@ async function injectCursorOverlay(page) {
   });
 }
 
+// Credentials arrive as one JSON object on stdin (never argv, which any local
+// user can read from the process list -- ADR-012).
+async function readStdinCredentials() {
+  let raw = "";
+  for await (const chunk of process.stdin) raw += chunk;
+  if (!raw.trim()) return { username: "", password: "" };
+  const parsed = JSON.parse(raw);
+  return { username: String(parsed.username || ""), password: String(parsed.password || "") };
+}
+
 async function main() {
   const opts = parseArgs();
+  if (opts.credentialsStdin) Object.assign(opts, await readStdinCredentials());
   const startTime = new Date().toISOString();
   const startedMs = Date.now();
 
