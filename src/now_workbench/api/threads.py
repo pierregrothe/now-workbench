@@ -1,9 +1,16 @@
 """API routes for conversational threads and persistent message history."""
 
+import asyncio
+import contextvars
+import json
+import logging
+import threading
 import uuid
+from collections.abc import AsyncIterator
 from typing import Any
 
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import StreamingResponse
 
 from now_workbench.ai.actions import execute_autonomous_action
 from now_workbench.ai.agent import (
@@ -375,8 +382,14 @@ def _conversation_files(
 
 
 @router.post("/{thread_id}/messages", response_model=list[ChatMessageRecord])
-def post_thread_message(thread_id: str, req: ChatMessageCreate) -> list[ChatMessageRecord]:
-    """Append a user message to a thread and generate a contextual assistant reply."""
+def post_thread_message(thread_id: str, req: ChatMessageCreate) -> StreamingResponse:
+    """Append a user message to a thread and generate a contextual assistant reply.
+
+    Checks (thread, limits, attachments) answer at once with their status codes. The reply
+    can take minutes (a full demo pipeline), longer than Cloudflare waits for a response to
+    start (100 s, HTTP 524), so the response starts immediately and sends a space every few
+    seconds until the thread history, as JSON, follows. Leading whitespace is valid JSON.
+    """
     with db_session() as repo:
         thread = repo.get_thread(thread_id)
         if thread_id == DEFAULT_THREAD_ID and not thread:
@@ -384,40 +397,90 @@ def post_thread_message(thread_id: str, req: ChatMessageCreate) -> list[ChatMess
             thread = repo.get_thread(thread_id)
         if not thread:
             raise HTTPException(status_code=404, detail="Thread not found.")
-
         existing_msgs = repo.list_messages(thread_id)
         if req.role == "user":
             try:
                 check_can_ask(thread, existing_msgs, repo.get_conversation_limits())
             except LimitReachedError as exc:
                 raise HTTPException(status_code=409, detail=str(exc)) from exc
-        attachments = repo.list_attachments(thread_id)
-        _require_unsent(attachments, req.attachment_ids)
-
+        _require_unsent(repo.list_attachments(thread_id), req.attachment_ids)
         if req.role == "user":
             _auto_title(repo, thread, req.content)
 
-        user_msg = ChatMessageRecord(
-            id=f"msg-{uuid.uuid4().hex[:8]}",
-            thread_id=thread_id,
-            role=req.role,
-            content=req.content,
-            widget_type=req.widget_type,
-            widget_data=req.widget_data,
-        )
-        repo.add_message(user_msg)
-        repo.attach_to_message(req.attachment_ids, user_msg.id)
+    worker = _ReplyWorker(thread_id, req, existing_msgs)
+    contextvars.copy_context().run(worker.start)
+    return StreamingResponse(worker.stream(), media_type="application/json")
 
-        if req.role == "user":
-            context_window = existing_msgs[-MAX_THREAD_CONTEXT_MESSAGES:]
-            if req.widget_type == "tool_confirm":
-                reply_text, w_type, w_data = _confirmed_tool_reply(req, repo, context_window)
-            else:
-                files = _conversation_files(attachments, context_window, req.attachment_ids)
-                reply_text, w_type, w_data = _build_contextual_reply(
-                    req.content, repo, context_window, files
-                )
-            assistant_msg = ChatMessageRecord(
+
+class _ReplyWorker:
+    """Saves the message and builds the reply in a thread, keeping the owner scope."""
+
+    def __init__(
+        self, thread_id: str, req: ChatMessageCreate, history: list[ChatMessageRecord]
+    ) -> None:
+        self.thread_id = thread_id
+        self.req = req
+        self.history = history
+        self.result: bytes | None = None
+        self._done = threading.Event()
+
+    def start(self) -> None:
+        context = contextvars.copy_context()
+        threading.Thread(target=context.run, args=(self._run,), daemon=True).start()
+
+    def _run(self) -> None:
+        try:
+            with db_session() as repo:
+                messages = _save_turn(repo, self.thread_id, self.req, self.history)
+            payload = [m.model_dump(mode="json") for m in messages]
+            self.result = json.dumps(payload).encode()
+        except Exception as exc:  # the stream must always end with valid JSON
+            logging.getLogger(__name__).exception("Reply failed in thread %s", self.thread_id)
+            self.result = json.dumps({"detail": f"Otto could not answer: {exc}"}).encode()
+        finally:
+            self._done.set()
+
+    async def stream(self) -> AsyncIterator[bytes]:
+        while not self._done.is_set():
+            await asyncio.to_thread(self._done.wait, _KEEPALIVE_S)
+            if not self._done.is_set():
+                yield b" "
+        yield self.result or b"[]"
+
+
+_KEEPALIVE_S = 10.0
+
+
+def _save_turn(
+    repo: DatabaseRepository,
+    thread_id: str,
+    req: ChatMessageCreate,
+    existing_msgs: list[ChatMessageRecord],
+) -> list[ChatMessageRecord]:
+    """Persist the message, produce Otto's reply for a user turn, and return the history."""
+    attachments = repo.list_attachments(thread_id)
+    user_msg = ChatMessageRecord(
+        id=f"msg-{uuid.uuid4().hex[:8]}",
+        thread_id=thread_id,
+        role=req.role,
+        content=req.content,
+        widget_type=req.widget_type,
+        widget_data=req.widget_data,
+    )
+    repo.add_message(user_msg)
+    repo.attach_to_message(req.attachment_ids, user_msg.id)
+
+    if req.role == "user":
+        context_window = existing_msgs[-MAX_THREAD_CONTEXT_MESSAGES:]
+        if req.widget_type == "tool_confirm":
+            reply_text, w_type, w_data = _confirmed_tool_reply(req, repo, context_window)
+        else:
+            files = _conversation_files(attachments, context_window, req.attachment_ids)
+            reply_text, w_type, w_data = _build_contextual_reply(
+                req.content, repo, context_window, files
+            )
+        repo.add_message(
+            ChatMessageRecord(
                 id=f"msg-{uuid.uuid4().hex[:8]}",
                 thread_id=thread_id,
                 role="assistant",
@@ -425,6 +488,5 @@ def post_thread_message(thread_id: str, req: ChatMessageCreate) -> list[ChatMess
                 widget_type=w_type,
                 widget_data=w_data,
             )
-            repo.add_message(assistant_msg)
-
-        return repo.list_messages(thread_id)
+        )
+    return repo.list_messages(thread_id)

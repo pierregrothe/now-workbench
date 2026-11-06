@@ -213,3 +213,22 @@ def test_delete_thread_removes_attachment_files(client: TestClient) -> None:
     assert not path.exists()
     with db_session() as repo:
         assert repo.get_attachment(att["id"]) is None
+
+
+def test_post_thread_message_slow_reply_keeps_the_connection_alive(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A long reply streams spaces first (beating proxy timeouts), then valid JSON."""
+    import time
+
+    def slow_reply(*_args: object, **_kwargs: object) -> tuple[str, None, dict[str, object]]:
+        time.sleep(0.35)
+        return "Done after a while.", None, {}
+
+    monkeypatch.setattr(threads_api, "_KEEPALIVE_S", 0.1)
+    monkeypatch.setattr(threads_api, "_build_contextual_reply", slow_reply)
+    thread = _thread(client)
+    res = client.post(f"/api/threads/{thread}/messages", json={"content": "long job"})
+    assert res.status_code == 200
+    assert res.text.startswith(" ")
+    assert res.json()[-1]["content"] == "Done after a while."

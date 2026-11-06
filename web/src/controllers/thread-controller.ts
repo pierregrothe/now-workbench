@@ -140,8 +140,13 @@ export class ThreadController implements ReactiveController {
       }
       if (attachmentIds.length) this.pending = [];
 
-      // The backend returns the full chronological history, including the new reply.
-      const history = mapThreadRecords(await res.json());
+      // The backend returns the full chronological history, including the new reply. A long
+      // reply streams keep-alive spaces first; an error found after that arrives as {detail}.
+      const body = await res.json();
+      if (!Array.isArray(body) && typeof body?.detail === 'string') {
+        throw new Error(body.detail);
+      }
+      const history = mapThreadRecords(body);
       const agentMsg = [...history].reverse().find((m) => m.sender === 'agent') ?? null;
       this.messages = history;
       if (createdThreadId) {
