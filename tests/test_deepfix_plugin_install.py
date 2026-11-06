@@ -32,7 +32,7 @@ def _json_transport(rows: list[dict[str, str]]) -> httpx.MockTransport:
 
 
 def test_install_plugin_inactive_on_instance_not_recorded() -> None:
-    mgr, repo, inst = _setup(_json_transport([{"id": "com.snc.itsm", "active": "false"}]))
+    mgr, repo, inst = _setup(_json_transport([{"id": "com.snc.itsm", "active": "inactive"}]))
     ok, msg = mgr.install_plugin(inst, "com.snc.itsm")
     assert ok is False
     assert "not active" in msg
@@ -40,7 +40,7 @@ def test_install_plugin_inactive_on_instance_not_recorded() -> None:
 
 
 def test_install_plugin_active_on_instance_recorded() -> None:
-    mgr, repo, inst = _setup(_json_transport([{"id": "com.snc.itsm", "active": "true"}]))
+    mgr, repo, inst = _setup(_json_transport([{"id": "com.snc.itsm", "active": "active"}]))
     ok, msg = mgr.install_plugin(inst, "com.snc.itsm")
     assert ok is True
     assert "already active" in msg
@@ -71,3 +71,27 @@ def test_install_plugin_fake_mode_message_says_simulated() -> None:
     assert ok is True
     assert "simulated" in msg
     assert len(repo.list_instance_plugins("i1")) == 1
+
+
+def test_evaluate_plugins_asks_the_instance_and_remembers_active_ones() -> None:
+    """Readiness is read from the instance, not only from what the workbench recorded."""
+
+    def by_id(req: httpx.Request) -> httpx.Response:
+        query = req.url.params["sysparm_query"]
+        rows = [{"id": "com.now_assist_core", "active": "active"}] if "now_assist" in query else []
+        return httpx.Response(200, json={"result": rows})
+
+    mgr, repo, inst = _setup(httpx.MockTransport(by_id))
+    res = mgr.evaluate_plugins(inst, ["com.now_assist_core", "com.snc.itsm"])
+    assert res.installed == ["com.now_assist_core"]
+    assert res.missing == ["com.snc.itsm"]
+    assert res.reasons["com.snc.itsm"] == "plugin not found or not active"
+    assert [p.plugin_id for p in repo.list_instance_plugins("i1")] == ["com.now_assist_core"]
+
+
+def test_evaluate_plugins_unreachable_instance_says_why() -> None:
+    """When the instance cannot answer, the plugin is missing with the reason, never assumed."""
+    mgr, _repo, inst = _setup(httpx.MockTransport(lambda req: httpx.Response(503)))
+    res = mgr.evaluate_plugins(inst, ["com.snc.incident"])
+    assert res.missing == ["com.snc.incident"]
+    assert "503" in res.reasons["com.snc.incident"]

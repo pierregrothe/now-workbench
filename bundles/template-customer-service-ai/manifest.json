@@ -6,5 +6,5 @@
   "min_release": "Washington DC",
   "sn_release": "Zurich",
   "tags": ["AI", "Enterprise", "Customer Tailored"],
-  "required_plugins": ["sn_csm", "sn_csm_ai"]
+  "required_plugins": ["com.now_assist_core", "com.sn_customerservice"]
 }

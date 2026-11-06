@@ -26,4 +26,6 @@ class PluginEvaluationResult(BaseModel):
     required: list[str]
     installed: list[str]
     missing: list[str]
+    # Why each missing plugin counts as missing (not active, or the instance could not answer).
+    reasons: dict[str, str] = Field(default_factory=dict)
     all_satisfied: bool

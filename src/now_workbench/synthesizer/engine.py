@@ -198,7 +198,7 @@ class UseCaseSynthesizer:
             "description": f"{req.use_case} (Tailored for {req.customer_name} - {req.industry})",
             "author": author_name,
             "sn_release": req.sn_release,
-            "required_plugins": ["com.glide.now.assist", "com.snc.itsm"],
+            "required_plugins": ["com.now_assist_core", "com.snc.incident"],
             "tags": [req.industry, req.sn_release, "Synthesized", "GenAI"],
             "personas": [
                 {

@@ -6,10 +6,7 @@
   "author": "Pierre Grothe",
   "min_release": "Xanadu",
   "sn_release": "Xanadu",
-  "required_plugins": [
-    "com.glide.now.assist",
-    "com.snc.itsm"
-  ],
+  "required_plugins": ["com.now_assist_core", "com.snc.incident"],
   "tags": [
     "ITSM",
     "GenAI",

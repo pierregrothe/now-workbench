@@ -6,10 +6,7 @@
   "author": "Now Workbench Synthesizer",
   "min_release": "Utah",
   "sn_release": "Utah",
-  "required_plugins": [
-    "com.glide.now.assist",
-    "com.snc.itsm"
-  ],
+  "required_plugins": ["com.now_assist_core", "com.sn_hr_core"],
   "tags": [
     "Human Resources",
     "Utah",

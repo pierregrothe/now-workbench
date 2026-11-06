@@ -57,8 +57,8 @@ def test_evaluate_and_install_modules(tmp_path: Path, synthesized_demo):
         # 1. Initial evaluation should detect missing required plugins
         eval_before = engine.evaluate_bundle(bundle_id, inst, fake_mode=True)
         assert len(eval_before.required_plugins) >= 2
-        assert "com.glide.now.assist" in eval_before.required_plugins
-        assert "com.snc.itsm" in eval_before.required_plugins
+        assert "com.now_assist_core" in eval_before.required_plugins
+        assert "com.snc.incident" in eval_before.required_plugins
         assert len(eval_before.missing_plugins) >= 2
         assert not eval_before.is_ready
 
