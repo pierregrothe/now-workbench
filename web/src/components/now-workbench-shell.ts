@@ -1,3 +1,4 @@
+import { sendIcon } from '../icons.js';
 import { LitElement, html, css } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import './now-nav-rail.js';
@@ -159,9 +160,9 @@ export class NowWorkbenchShell extends LitElement {
     .bottom-send-btn {
       position: relative;
       appearance: none;
-      border: 1px solid var(--now-color-brand-green, #62d84e);
-      background: var(--now-color-brand-green, #62d84e);
-      color: #032d42;
+      border: none;
+      background: #c9f0c1;
+      color: #4b5f4b;
       width: 36px;
       height: 36px;
       display: inline-flex;
@@ -746,9 +747,7 @@ export class NowWorkbenchShell extends LitElement {
                     aria-label="Send prompt"
                     data-tooltip="Send"
                   >
-                    <svg viewBox="0 0 24 24">
-                      <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
-                    </svg>
+                    ${sendIcon(16)}
                   </button>
                 </div>
               </div>

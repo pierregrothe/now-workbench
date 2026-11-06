@@ -1,7 +1,8 @@
 import { LitElement, html, css } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { workbenchStore } from '../context/workbench-context.js';
-import { renderAvatar } from '../profile/avatars.js';
+import { libraryIcon } from '../icons.js';
+import { renderAvatar, roleSummary } from '../profile/avatars.js';
 import type { ProfileData } from '../profile/avatars.js';
 
 export interface NavThreadItem {
@@ -717,11 +718,7 @@ export class NowNavRail extends LitElement {
             @click=${() => this.selectTab('artifacts')}
           >
             <span class="nav-icon">
-              <svg viewBox="0 0 24 24">
-                <path d="M12 2L2 7l10 5 10-5-10-5z"></path>
-                <path d="M2 12l10 5 10-5"></path>
-                <path d="M2 17l10 5 10-5"></path>
-              </svg>
+              ${libraryIcon()}
             </span>
             ${!this.collapsed ? html`<span>Artifact library</span>` : ''}
           </button>
@@ -862,8 +859,8 @@ export class NowNavRail extends LitElement {
             ${!this.collapsed
               ? html`
                   <div class="user-info-text">
-                    <span class="user-name">${this.profile?.display_name || 'Set up your profile'}</span>
-                    <span class="user-role">${this.profile?.email_verified ? 'Approved ServiceNow account' : 'Profile not approved'}</span>
+                    <span class="user-name">${this.profile?.display_name || this.profile?.email || 'Signing in...'}</span>
+                    <span class="user-role">${roleSummary(this.profile)}</span>
                   </div>
                   <button class="user-more-btn" title="Account profile" aria-label="Account profile" @click=${() => this.dispatchEvent(new CustomEvent('nav-change', { detail: { tab: 'admin' }, bubbles: true, composed: true }))}>
                     <svg viewBox="0 0 24 24">

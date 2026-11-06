@@ -60,6 +60,7 @@ now-workbench/
 - `httpx >= 0.28` -- Async/sync HTTP client for ServiceNow Table API & Claude API
 - `anthropic >= 0.40` -- Anthropic Claude Python SDK (Otto copilot)
 - `cryptography >= 46` -- AES-256-GCM sealing of instance credentials and API key (ADR-012)
+- `pyjwt[crypto]` -- verifies Cloudflare Access tokens (ADR-016)
 
 ### Frontend (web/)
 - `lit >= 3.2` -- Open-standard Web Components library

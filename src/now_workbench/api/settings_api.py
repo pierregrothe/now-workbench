@@ -1,12 +1,15 @@
 """FastAPI routes for Now Workbench settings and preferences."""
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
 
 from now_workbench.ai.client import validate_api_key
+from now_workbench.auth.guard import current_user, require_role
+from now_workbench.auth.models import AuthUser, Role
 from now_workbench.db.models import WorkbenchPreferences, WorkbenchPreferencesUpdate
 from now_workbench.db.session import db_session
 
+_ADMIN_ONLY = [Depends(require_role(Role.ADMIN))]
 router = APIRouter(prefix="/api/settings", tags=["settings"])
 
 
@@ -35,8 +38,14 @@ def get_workbench_settings() -> WorkbenchPreferences:
 
 
 @router.put("", response_model=WorkbenchPreferences)
-async def update_workbench_settings(req: WorkbenchPreferencesUpdate) -> WorkbenchPreferences:
-    """Update Now Workbench settings (with key pre-validation and delete-before-replace check)."""
+async def update_workbench_settings(
+    req: WorkbenchPreferencesUpdate, user: AuthUser = Depends(current_user)
+) -> WorkbenchPreferences:
+    """Update settings. Changing the Claude API key needs the admin role; other fields do not."""
+    if req.anthropic_api_key is not None and Role.ADMIN not in user.roles:
+        raise HTTPException(
+            status_code=403, detail="Changing the Claude API key needs the admin role."
+        )
     if req.anthropic_api_key is not None:
         key_to_check = req.anthropic_api_key.strip()
         if key_to_check and "..." not in key_to_check:
@@ -55,21 +64,29 @@ async def update_workbench_settings(req: WorkbenchPreferencesUpdate) -> Workbenc
             raise HTTPException(status_code=400, detail=str(exc))
 
 
-@router.delete("/api-key", response_model=WorkbenchPreferences)
+@router.delete(
+    "/api-key",
+    response_model=WorkbenchPreferences,
+    dependencies=_ADMIN_ONLY,
+)
 def delete_workbench_api_key() -> WorkbenchPreferences:
     """Explicitly delete the configured Claude AI API key."""
     with db_session() as repo:
         return repo.delete_anthropic_api_key()
 
 
-@router.post("/validate-key", response_model=ValidateKeyResponse)
+@router.post(
+    "/validate-key",
+    response_model=ValidateKeyResponse,
+    dependencies=_ADMIN_ONLY,
+)
 async def validate_key_endpoint(req: ValidateKeyRequest) -> ValidateKeyResponse:
     """Perform a live probe validation of a candidate Claude API key."""
     valid, message = await validate_api_key(req.api_key)
     return ValidateKeyResponse(valid=valid, message=message)
 
 
-@router.post("/reset", response_model=WorkbenchPreferences)
+@router.post("/reset", response_model=WorkbenchPreferences, dependencies=_ADMIN_ONLY)
 def reset_workbench_settings() -> WorkbenchPreferences:
     """Reset Now Workbench settings back to defaults."""
     with db_session() as repo:

@@ -51,15 +51,19 @@ const DEFAULT_PREFS: WorkbenchPreferences = {
   theme_mode: 'system',
 };
 
+import { isAdmin } from '../profile/avatars.js';
+import type { ProfileData } from '../profile/avatars.js';
+import { workbenchStore } from '../context/workbench-context.js';
+
 type SettingsSection = 'profile' | 'claude' | 'capture' | 'synthesis' | 'workspace' | 'instances';
 
-const SECTIONS: { id: SettingsSection; label: string }[] = [
+const SECTIONS: { id: SettingsSection; label: string; adminOnly?: boolean }[] = [
   { id: 'profile', label: 'Profile' },
-  { id: 'claude', label: 'Claude and Otto' },
+  { id: 'claude', label: 'Claude and Otto', adminOnly: true },
   { id: 'capture', label: 'Media capture' },
   { id: 'synthesis', label: 'Synthesis defaults' },
   { id: 'workspace', label: 'Workspace' },
-  { id: 'instances', label: 'ServiceNow instances' },
+  { id: 'instances', label: 'ServiceNow instances', adminOnly: true },
 ];
 
 @customElement('now-workbench-settings')
@@ -483,6 +487,8 @@ export class NowWorkbenchSettings extends LitElement {
   `;
 
   @state() private activeSection: SettingsSection = 'profile';
+  @state() private profile: ProfileData | null = workbenchStore.state.profile;
+  private unsubscribeProfile?: () => void;
   @state() private prefs: WorkbenchPreferences = { ...DEFAULT_PREFS };
   @state() private newApiKeyInput = '';
   @state() private isSaving = false;
@@ -492,7 +498,15 @@ export class NowWorkbenchSettings extends LitElement {
 
   connectedCallback(): void {
     super.connectedCallback();
+    this.unsubscribeProfile = workbenchStore.subscribe((state) => {
+      this.profile = state.profile;
+    });
     void this.loadSettings();
+  }
+
+  disconnectedCallback(): void {
+    super.disconnectedCallback();
+    this.unsubscribeProfile?.();
   }
 
   private async loadSettings(): Promise<void> {
@@ -712,7 +726,7 @@ export class NowWorkbenchSettings extends LitElement {
 
       <div class="prefs-layout">
         <nav class="pref-nav" aria-label="Settings sections">
-          ${SECTIONS.map(
+          ${SECTIONS.filter((sec) => !sec.adminOnly || isAdmin(this.profile)).map(
             (sec) => html`
               <button
                 type="button"

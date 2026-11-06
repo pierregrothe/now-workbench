@@ -5,10 +5,16 @@ services:
       dockerfile: Dockerfile
     container_name: now-workbench
     ports:
-      - "8080:8080"
+      # Loopback only: cloudflared (same host) is the way in, never the LAN.
+      - "127.0.0.1:8080:8080"
     environment:
       - WORKBENCH_HOST=0.0.0.0
       - WORKBENCH_PORT=8080
+      # Cloudflare Access (ADR-016). The container refuses to start without the first two.
+      - WORKBENCH_ACCESS_TEAM_DOMAIN=${WORKBENCH_ACCESS_TEAM_DOMAIN:-}
+      - WORKBENCH_ACCESS_AUDIENCE=${WORKBENCH_ACCESS_AUDIENCE:-}
+      - WORKBENCH_ADMIN_EMAILS=${WORKBENCH_ADMIN_EMAILS:-}
+      - WORKBENCH_CONSULTANT_EMAILS=${WORKBENCH_CONSULTANT_EMAILS:-}
       - WORKBENCH_SN_INSTANCE_URL=${WORKBENCH_SN_INSTANCE_URL:-}
       - WORKBENCH_SN_USERNAME=${WORKBENCH_SN_USERNAME:-}
       - WORKBENCH_SN_PASSWORD=${WORKBENCH_SN_PASSWORD:-}
@@ -22,6 +28,19 @@ services:
       - ./data:/app/data
       - workbench-keys:/run/workbench-keys
     restart: unless-stopped
+
+  # Optional named tunnel (same pattern as the rivian gateway). Skip it when the host already
+  # runs cloudflared: add a public hostname there that points to http://localhost:8080.
+  #     docker compose --profile tunnel up -d
+  cloudflared:
+    profiles: ["tunnel"]
+    image: cloudflare/cloudflared:latest
+    container_name: cloudflared-now-workbench
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    network_mode: host
+    environment:
+      - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN:-}
 
 volumes:
   workbench-keys:

@@ -1,22 +1,13 @@
 // web/src/views/now-profile-settings.ts
-// Profile settings: picture or built-in avatar, servicenow.com email approved by a code, SMTP.
+// Profile settings: who is signed in (Cloudflare Access), roles, display name and avatar.
 // Author: Pierre Grothe
 // Date: 2026-11-06
 import { LitElement, html } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import { workbenchStore } from '../context/workbench-context.js';
-import { PRESETS, presetDataUrl, renderAvatar } from '../profile/avatars.js';
+import { PRESETS, ROLE_LABELS, presetDataUrl, renderAvatar } from '../profile/avatars.js';
 import type { ProfileData } from '../profile/avatars.js';
 import { profileSettingsStyles } from './profile-settings-styles.js';
-
-interface MailSettings {
-  host: string;
-  port: number;
-  username: string;
-  from_address: string;
-  starttls: boolean;
-  has_password: boolean;
-}
 
 type Notice = { kind: 'ok' | 'error'; text: string } | null;
 
@@ -39,13 +30,8 @@ export class NowProfileSettings extends LitElement {
 
   @state() private profile: ProfileData | null = null;
   @state() private name = '';
-  @state() private email = '';
-  @state() private code = '';
-  @state() private mail: MailSettings | null = null;
-  @state() private smtpPassword = '';
   @state() private avatarNotice: Notice = null;
   @state() private detailsNotice: Notice = null;
-  @state() private mailNotice: Notice = null;
   @state() private busy = false;
 
   connectedCallback(): void {
@@ -55,19 +41,17 @@ export class NowProfileSettings extends LitElement {
 
   private async load(): Promise<void> {
     try {
-      const [p, m] = await Promise.all([fetch('/api/profile'), fetch('/api/profile/mail')]);
-      if (!p.ok || !m.ok) throw new Error(`HTTP ${p.ok ? m.status : p.status}`);
-      this.applyProfile((await p.json()) as ProfileData);
-      this.mail = (await m.json()) as MailSettings;
+      const res = await fetch('/api/profile');
+      if (!res.ok) throw new Error(await detail(res, 'Could not load your profile'));
+      this.applyProfile((await res.json()) as ProfileData);
     } catch (err) {
-      this.detailsNotice = { kind: 'error', text: `Could not load your profile: ${String(err)}` };
+      this.detailsNotice = { kind: 'error', text: (err as Error).message };
     }
   }
 
   private applyProfile(profile: ProfileData): void {
     this.profile = profile;
     this.name = profile.display_name;
-    this.email = profile.email;
     workbenchStore.setState({ profile });
   }
 
@@ -128,57 +112,14 @@ export class NowProfileSettings extends LitElement {
     }
   }
 
-  private async saveDetails(): Promise<void> {
+  private async saveName(): Promise<void> {
     try {
-      const res = await this.call('/api/profile', this.json('PUT', { display_name: this.name, email: this.email }), 'Could not save your profile');
+      const res = await this.call('/api/profile', this.json('PUT', { display_name: this.name }), 'Could not save your profile');
       this.applyProfile((await res.json()) as ProfileData);
       this.detailsNotice = { kind: 'ok', text: 'Profile saved.' };
     } catch (err) {
       this.detailsNotice = { kind: 'error', text: (err as Error).message };
     }
-  }
-
-  private async sendCode(): Promise<void> {
-    try {
-      const res = await this.call('/api/profile/verification/send', { method: 'POST' }, 'Could not send the code');
-      const sent = (await res.json()) as { sent_to: string };
-      await this.load();
-      this.detailsNotice = { kind: 'ok', text: `Code sent to ${sent.sent_to}. It is valid for 10 minutes.` };
-    } catch (err) {
-      this.detailsNotice = { kind: 'error', text: (err as Error).message };
-    }
-  }
-
-  private async confirmCode(): Promise<void> {
-    try {
-      const res = await this.call('/api/profile/verification/confirm', this.json('POST', { code: this.code }), 'Could not confirm the code');
-      this.code = '';
-      this.applyProfile((await res.json()) as ProfileData);
-      this.detailsNotice = { kind: 'ok', text: 'Email approved.' };
-    } catch (err) {
-      this.detailsNotice = { kind: 'error', text: (err as Error).message };
-      await this.load();
-    }
-  }
-
-  private async saveMail(): Promise<void> {
-    const m = this.mail;
-    if (!m) return;
-    const body: Record<string, unknown> = { host: m.host, port: Number(m.port), username: m.username, from_address: m.from_address, starttls: m.starttls };
-    if (this.smtpPassword) body.password = this.smtpPassword;
-    try {
-      const res = await this.call('/api/profile/mail', this.json('PUT', body), 'Could not save email delivery settings');
-      this.mail = (await res.json()) as MailSettings;
-      this.smtpPassword = '';
-      await this.load();
-      this.mailNotice = { kind: 'ok', text: 'Email delivery settings saved.' };
-    } catch (err) {
-      this.mailNotice = { kind: 'error', text: (err as Error).message };
-    }
-  }
-
-  private setMail<K extends keyof MailSettings>(key: K, value: MailSettings[K]): void {
-    if (this.mail) this.mail = { ...this.mail, [key]: value };
   }
 
   private notice(n: Notice) {
@@ -213,73 +154,33 @@ export class NowProfileSettings extends LitElement {
 
   private renderDetailsCard() {
     const p = this.profile;
-    const saved = p !== null && p.email === this.email && this.email !== '';
     return html`
       <section class="card">
-        <h2>Your details</h2>
-        <p class="desc">Approve your account with a code sent to your active servicenow.com address.</p>
+        <h2>Your account</h2>
+        <p class="desc">
+          ${p?.auth_mode === 'cloudflare'
+            ? 'Signed in through Cloudflare Access with your Apple or Google account.'
+            : 'Local mode: the workbench is only reachable from this machine, so there is no sign-in.'}
+        </p>
         <div class="fields">
           <label class="field">Display name
             <input type="text" maxlength="80" .value=${this.name} @input=${(e: Event) => (this.name = (e.target as HTMLInputElement).value)} />
           </label>
-          <label class="field">ServiceNow email
-            <input type="email" placeholder="name@servicenow.com" .value=${this.email} @input=${(e: Event) => (this.email = (e.target as HTMLInputElement).value)} />
+          <label class="field">Email
+            <input type="email" readonly aria-readonly="true" .value=${p?.email ?? ''} />
           </label>
         </div>
         <div class="row">
-          <button class="btn primary" ?disabled=${this.busy} @click=${this.saveDetails}>Save profile</button>
-          ${p?.email_verified ? html`<span class="chip ok">Approved</span>` : html`<span class="chip todo">Not approved</span>`}
-          ${!p?.email_verified
-            ? html`<button class="btn" ?disabled=${this.busy || !saved || !p?.mail_configured} @click=${this.sendCode}>Send approval code</button>`
-            : ''}
+          <span class="hint">Roles</span>
+          ${(p?.roles ?? []).map((r) => html`<span class="chip ok">${ROLE_LABELS[r] ?? r}</span>`)}
         </div>
-        ${!p?.email_verified && !p?.mail_configured
-          ? html`<p class="hint">Set up email delivery below to send approval codes.</p>`
-          : ''}
-        ${!p?.email_verified && p?.verification_pending
-          ? html`<div class="row">
-              <input class="code-input" type="text" aria-label="Approval code" maxlength="12" placeholder="ABCD-EFGH" .value=${this.code} @input=${(e: Event) => (this.code = (e.target as HTMLInputElement).value)} />
-              <button class="btn primary" ?disabled=${this.busy || this.code.trim().length < 4} @click=${this.confirmCode}>Approve</button>
-            </div>`
-          : ''}
+        <div class="row"><button class="btn primary" ?disabled=${this.busy} @click=${this.saveName}>Save profile</button></div>
         ${this.notice(this.detailsNotice)}
       </section>
     `;
   }
 
-  private renderMailCard() {
-    const m = this.mail;
-    if (!m) return '';
-    const input = (label: string, key: 'host' | 'username' | 'from_address', type = 'text', wide = false) => html`
-      <label class="field ${wide ? 'wide' : ''}">${label}
-        <input type=${type} .value=${m[key]} @input=${(e: Event) => this.setMail(key, (e.target as HTMLInputElement).value)} />
-      </label>`;
-    return html`
-      <section class="card">
-        <h2>Email delivery (SMTP)</h2>
-        <p class="desc">Used only to send your approval code. The password is stored encrypted.</p>
-        <div class="fields">
-          ${input('SMTP host', 'host')}
-          <label class="field">Port
-            <input type="number" min="1" max="65535" .value=${String(m.port)} @input=${(e: Event) => this.setMail('port', Number((e.target as HTMLInputElement).value))} />
-          </label>
-          ${input('Username', 'username')}
-          <label class="field">Password
-            <input type="password" autocomplete="off" placeholder=${m.has_password ? '(saved - leave blank to keep)' : ''} .value=${this.smtpPassword} @input=${(e: Event) => (this.smtpPassword = (e.target as HTMLInputElement).value)} />
-          </label>
-          ${input('Send from address', 'from_address', 'email')}
-          <label class="field">
-            <span>Encryption</span>
-            <span><input type="checkbox" .checked=${m.starttls} @change=${(e: Event) => this.setMail('starttls', (e.target as HTMLInputElement).checked)} /> Use STARTTLS (port 465 uses SSL)</span>
-          </label>
-        </div>
-        <div class="row"><button class="btn primary" ?disabled=${this.busy} @click=${this.saveMail}>Save email settings</button></div>
-        ${this.notice(this.mailNotice)}
-      </section>
-    `;
-  }
-
   render() {
-    return html`${this.renderAvatarCard()}${this.renderDetailsCard()}${this.renderMailCard()}`;
+    return html`${this.renderAvatarCard()}${this.renderDetailsCard()}`;
   }
 }

@@ -2,8 +2,10 @@
 
 from typing import Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
+from now_workbench.auth.guard import require_role
+from now_workbench.auth.models import Role
 from now_workbench.connectivity import check_and_record_instance
 from now_workbench.db import (
     InstanceCreate,
@@ -12,6 +14,7 @@ from now_workbench.db import (
     db_session,
 )
 
+_ADMIN_ONLY = [Depends(require_role(Role.ADMIN))]
 router = APIRouter(prefix="/api/instances", tags=["instances"])
 
 
@@ -24,7 +27,7 @@ def list_instances() -> list[InstancePublic]:
         ]
 
 
-@router.post("", response_model=InstancePublic)
+@router.post("", response_model=InstancePublic, dependencies=_ADMIN_ONLY)
 def register_instance(inst: InstanceCreate) -> InstancePublic:
     """Register a new instance and verify initial status."""
     with db_session() as repo:
@@ -39,7 +42,11 @@ def register_instance(inst: InstanceCreate) -> InstancePublic:
         )
 
 
-@router.put("/{instance_id}", response_model=InstancePublic)
+@router.put(
+    "/{instance_id}",
+    response_model=InstancePublic,
+    dependencies=_ADMIN_ONLY,
+)
 def update_instance_endpoint(instance_id: str, update: InstanceUpdate) -> InstancePublic:
     """Update an existing instance (rename, credentials, release) and auto-verify."""
     with db_session() as repo:
@@ -54,7 +61,7 @@ def update_instance_endpoint(instance_id: str, update: InstanceUpdate) -> Instan
         return (repo.get_instance(instance_id) or rec).to_public(repo.get_instance_profile(rec.id))
 
 
-@router.delete("/{instance_id}")
+@router.delete("/{instance_id}", dependencies=_ADMIN_ONLY)
 def delete_instance_endpoint(instance_id: str) -> dict[str, Any]:
     """Delete an instance from the registry."""
     with db_session() as repo:
@@ -97,7 +104,7 @@ def test_all_instances(fake_mode: bool = False) -> dict[str, Any]:
         }
 
 
-@router.post("/cleanup")
+@router.post("/cleanup", dependencies=_ADMIN_ONLY)
 def cleanup_unauthenticated_instances() -> dict[str, Any]:
     """Delete all instances whose status is not 'authenticated'."""
     with db_session() as repo:

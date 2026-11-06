@@ -78,6 +78,10 @@ export const chatViewStyles = css`
       }
 
       .hero-title {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 12px;
         font-size: 30px;
         font-weight: 500;
         margin: 0 0 24px 0;
@@ -119,7 +123,7 @@ export const chatViewStyles = css`
         height: 34px;
         border-radius: 50%;
         background: #c9f0c1;
-        color: #1b4d1b;
+        color: #4b5f4b;
         border: none;
         display: flex;
         align-items: center;

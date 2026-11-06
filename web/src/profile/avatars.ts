@@ -6,13 +6,23 @@ import { html } from 'lit';
 import type { TemplateResult } from 'lit';
 
 export interface ProfileData {
-  display_name: string;
   email: string;
-  email_verified: boolean;
+  display_name: string;
+  roles: string[];
+  auth_mode: 'cloudflare' | 'local';
   avatar: { kind: 'none' | 'preset' | 'upload'; preset: string | null; url: string | null };
-  verification_pending: boolean;
-  mail_configured: boolean;
 }
+
+export const ROLE_LABELS: Record<string, string> = {
+  admin: 'Administrator',
+  solution_consultant: 'Solution Consultant',
+};
+
+export const roleSummary = (profile: ProfileData | null): string =>
+  profile ? profile.roles.map((r) => ROLE_LABELS[r] ?? r).join(' - ') : '';
+
+export const isAdmin = (profile: ProfileData | null): boolean =>
+  profile?.roles.includes('admin') ?? false;
 
 interface Preset {
   id: string;
@@ -66,5 +76,5 @@ export function renderAvatar(profile: ProfileData | null, size = 24): TemplateRe
   if (a?.kind === 'preset' && a.preset) {
     return html`<img alt="" src=${presetDataUrl(a.preset)} style="${box}" />`;
   }
-  return html`<span style="${box}display:inline-flex;align-items:center;justify-content:center;background:#c9f0c1;color:#1b4d1b;font-size:${Math.max(9, size * 0.42)}px;font-weight:700;">${initialsOf(profile?.display_name ?? '')}</span>`;
+  return html`<span style="${box}display:inline-flex;align-items:center;justify-content:center;background:#c9f0c1;color:#1b4d1b;font-size:${Math.max(9, size * 0.42)}px;font-weight:700;">${initialsOf(profile?.display_name || profile?.email.split('@')[0] || '')}</span>`;
 }

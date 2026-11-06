@@ -318,8 +318,9 @@ UI showed a red PROD badge for it, which was misleading.
 - Warning styling and future production guards key off the owner's declaration, never the platform's.
 
 
-### 2026-11-06 -- ADR-016: Local profile with email-code approval
+### 2026-11-06 -- ADR-016: Cloudflare Access sign-in and roles
 
-Profile (name, servicenow.com email, avatar) stored in schema v5; the email is approved by
-a one-time code sent over the owner's SMTP account. Codes are hashed, expire after 10
-minutes, lock after 5 wrong attempts. Details: `.primer/adr/ADR-016-local-profile-and-email-code-approval.md`.
+Sign-in through Cloudflare Access (Apple, Google); the server verifies the signed token and maps
+the verified email to `admin` and `solution_consultant` from configuration. Fails closed when
+exposed without Access. The earlier email-code approval design was dropped before release.
+Details: `.primer/adr/ADR-016-cloudflare-access-sign-in-and-roles.md`.

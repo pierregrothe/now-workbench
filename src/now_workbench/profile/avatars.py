@@ -4,6 +4,7 @@
 # Date: 2026-11-06
 """Avatar presets and uploaded-picture storage (PNG, JPEG or WebP only; never SVG)."""
 
+import hashlib
 from pathlib import Path
 
 from now_workbench.config.settings import settings
@@ -57,22 +58,27 @@ def _directory() -> Path:
     return path
 
 
-def delete_avatar() -> None:
-    """Remove any stored uploaded picture."""
+def _stem(email: str) -> str:
+    """File name stem for a user: a hash, so the email never reaches the file system."""
+    return hashlib.sha256(email.strip().lower().encode()).hexdigest()[:24]
+
+
+def delete_avatar(email: str) -> None:
+    """Remove the user's stored uploaded picture."""
     for ext in _EXTENSIONS.values():
-        (_directory() / f"avatar.{ext}").unlink(missing_ok=True)
+        (_directory() / f"{_stem(email)}.{ext}").unlink(missing_ok=True)
 
 
-def save_avatar(data: bytes, content_type: str) -> None:
-    """Store the uploaded picture under a fixed name, replacing any previous one."""
-    delete_avatar()
-    (_directory() / f"avatar.{_EXTENSIONS[content_type]}").write_bytes(data)
+def save_avatar(email: str, data: bytes, content_type: str) -> None:
+    """Store the user's uploaded picture, replacing any previous one."""
+    delete_avatar(email)
+    (_directory() / f"{_stem(email)}.{_EXTENSIONS[content_type]}").write_bytes(data)
 
 
-def load_avatar() -> tuple[bytes, str] | None:
-    """Return the stored picture and its content type, or None."""
+def load_avatar(email: str) -> tuple[bytes, str] | None:
+    """Return the user's stored picture and its content type, or None."""
     for content_type, ext in _EXTENSIONS.items():
-        path = _directory() / f"avatar.{ext}"
+        path = _directory() / f"{_stem(email)}.{ext}"
         if path.is_file():
             return path.read_bytes(), content_type
     return None

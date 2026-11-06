@@ -8,6 +8,7 @@ import { customElement, property, state } from 'lit/decorators.js';
 import { ThreadController } from '../controllers/thread-controller.js';
 import { workbenchStore } from '../context/workbench-context.js';
 import type { WorkbenchState } from '../context/workbench-context.js';
+import { openArrowIcon, ottoGlyph, sendIcon } from '../icons.js';
 import { renderAvatar } from '../profile/avatars.js';
 import { bundlePanel, instancePanel } from './panel-items.js';
 import type { PanelItem } from './panel-items.js';
@@ -42,7 +43,7 @@ const TILE_NAV: Record<string, string> = {
   delete_unauthenticated: 'admin',
 };
 
-const SPARKLE = html`<svg viewBox="0 0 24 24" style="width: 16px; height: 16px; fill: #16a34a;"><path d="M12 0L14.59 9.41L24 12L14.59 14.59L12 24L9.41 14.59L0 12L9.41 9.41L12 0Z"/></svg>`;
+const SPARKLE = ottoGlyph(16);
 
 @customElement('now-chat-view')
 export class NowChatView extends LitElement {
@@ -143,7 +144,7 @@ export class NowChatView extends LitElement {
     const { instances, selectedInstanceId, bundles } = this.currentStoreState;
     const target = instances.find((i) => i.id === selectedInstanceId);
     const open = (label: string, onClick: () => void) =>
-      html`<button type="button" class="open-btn" aria-label=${label} title=${label} @click=${onClick}>&#8599;</button>`;
+      html`<button type="button" class="open-btn" aria-label=${label} title=${label} @click=${onClick}>${openArrowIcon(14)}</button>`;
     const nav = (tab: string) => () =>
       this.dispatchEvent(new CustomEvent('nav-change', { detail: { tab }, bubbles: true, composed: true }));
     return html`
@@ -185,7 +186,7 @@ export class NowChatView extends LitElement {
         <div class="prompt-foot">
           <span>${this.currentStoreState.instances.find((i) => i.id === this.currentStoreState.selectedInstanceId)?.name ?? 'No instance'}</span>
           <button class="prompt-send-btn" aria-label="Send" @click=${() => void this.submitPrompt()}>
-            <svg viewBox="0 0 24 24" style="width: 16px; height: 16px; fill: currentColor;"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+            ${sendIcon(16)}
           </button>
         </div>
       </div>
@@ -348,7 +349,7 @@ export class NowChatView extends LitElement {
           ${this.activeMode === 'overview'
             ? html`
                 <div class="hero">
-                  <h1 class="hero-title">${greeting()}${this.currentStoreState.profile?.display_name ? `, ${this.currentStoreState.profile.display_name.split(' ')[0]}` : ''}!</h1>
+                  <h1 class="hero-title">${ottoGlyph(30)} ${greeting()}${this.currentStoreState.profile?.display_name ? `, ${this.currentStoreState.profile.display_name.split(' ')[0]}` : ''}!</h1>
                   ${this.renderPrompt()}
                   <div class="chips-row">
                     <button class="chip-btn" @click=${() => void this.submitPrompt('How many instances do I have?')}>How many instances do I have?</button>

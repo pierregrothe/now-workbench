@@ -22,6 +22,8 @@ from now_workbench.api.settings_api import router as settings_router
 from now_workbench.api.templates import router as templates_router
 from now_workbench.api.threads import _load_verified_instances_dict
 from now_workbench.api.threads import router as threads_router
+from now_workbench.auth.access import AccessValidator
+from now_workbench.auth.guard import AccessMiddleware, assert_safe_binding
 from now_workbench.capture.engine import PlaywrightCaptureEngine
 from now_workbench.config.origins import is_origin_allowed
 from now_workbench.config.paths import UnsafePathError, safe_child
@@ -111,15 +113,20 @@ def _mount_static_ui(app: FastAPI) -> None:
 
 
 @asynccontextmanager
-async def _lifespan(_app: FastAPI) -> AsyncIterator[None]:
-    """Seed the database at server startup -- never at import, so importing is side-effect free."""
+async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
+    """Check the binding, then seed the database (never at import)."""
+    assert_safe_binding(settings.get_host(), app.state.access_validator)
     with db_session() as repo:
         seed_database(repo)
     yield
 
 
-def create_app() -> FastAPI:
-    """Factory creating and configuring the FastAPI app."""
+def create_app(access_validator: AccessValidator | None = None) -> FastAPI:
+    """Factory creating and configuring the FastAPI app.
+
+    Args:
+        access_validator: Cloudflare Access validator; built from settings when omitted.
+    """
     app = FastAPI(
         title="now-workbench",
         description="AI-native developer & demonstration workbench for ServiceNow SDK",
@@ -127,6 +134,17 @@ def create_app() -> FastAPI:
         lifespan=_lifespan,
     )
 
+    validator = access_validator or AccessValidator(
+        settings.get_access_team_domain(), settings.get_access_audience()
+    )
+    app.state.access_validator = validator
+    # Added first so it sits inside CORS: preflight requests are answered before sign-in checks.
+    app.add_middleware(
+        AccessMiddleware,
+        validator=validator,
+        admin_emails=settings.get_admin_emails,
+        consultant_emails=settings.get_consultant_emails,
+    )
     app.add_middleware(
         CORSMiddleware,
         allow_origin_regex=settings.cors_origin_regex,

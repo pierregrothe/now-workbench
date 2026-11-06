@@ -484,7 +484,21 @@ def serve(
     reload: bool = typer.Option(False, "--reload", help="Auto-reload on changes"),
 ) -> None:
     """Start the FastAPI backend server and serve the ServiceNow Lux web UI."""
+    import os
+
     import uvicorn
+
+    from now_workbench.auth.access import AccessValidator
+    from now_workbench.auth.guard import assert_safe_binding
+
+    try:
+        assert_safe_binding(
+            host, AccessValidator(settings.get_access_team_domain(), settings.get_access_audience())
+        )
+    except RuntimeError as exc:
+        console.print(f"[bold red]{exc}[/bold red]")
+        raise typer.Exit(code=1) from exc
+    os.environ["WORKBENCH_HOST"] = host
 
     console.print(
         Panel(

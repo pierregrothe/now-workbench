@@ -3,6 +3,7 @@
 // Author: Pierre Grothe
 // Date: 2026-10-31
 
+import { openArrowIcon } from '../icons.js';
 import { LitElement, html, css } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import './now-media-tile.js';
@@ -137,7 +138,7 @@ export class NowTileRenderer extends LitElement {
               <h4 class="gen-card-title">${p.name || 'ServiceNow Instance'}</h4>
               <span style="display:flex; align-items:center; gap:6px;">
                 ${p.release ? html`<span class="ct-tag low">${p.release}</span>` : ''}
-                <button type="button" class="open-btn" aria-label="Open details" title="Open details" @click=${() => this.handleAction('open_item', { ...p, kind: 'instance' })}>&#8599;</button>
+                <button type="button" class="open-btn" aria-label="Open details" title="Open details" @click=${() => this.handleAction('open_item', { ...p, kind: 'instance' })}>${openArrowIcon(14)}</button>
               </span>
             </div>
             <div class="gen-card-url">${p.url || ''}</div>
@@ -161,7 +162,7 @@ export class NowTileRenderer extends LitElement {
       case 'demo-bundle': {
         return html`
           <div class="gen-tile card">
-            <div class="gen-card-header"><h4 class="gen-card-title">${p.name || 'Demo Bundle'}</h4><span style="display:flex; align-items:center; gap:6px;">${p.release ? html`<span class="ct-tag low">${p.release}</span>` : ''}<button type="button" class="open-btn" aria-label="Open details" title="Open details" @click=${() => this.handleAction('open_item', { ...p, kind: 'bundle' })}>&#8599;</button></span></div>
+            <div class="gen-card-header"><h4 class="gen-card-title">${p.name || 'Demo Bundle'}</h4><span style="display:flex; align-items:center; gap:6px;">${p.release ? html`<span class="ct-tag low">${p.release}</span>` : ''}<button type="button" class="open-btn" aria-label="Open details" title="Open details" @click=${() => this.handleAction('open_item', { ...p, kind: 'bundle' })}>${openArrowIcon(14)}</button></span></div>
             <div style="font-size:12px; color:var(--now-text-secondary, #475467);">Industry: <strong>${p.industry || 'General'}</strong></div>
             <div class="gen-card-meta-row"><span>Tables: <strong>${p.tables_count ?? 0}</strong></span><span>Records: <strong>${p.records_count ?? 0}</strong></span></div>
             ${p.actions && p.actions.length ? html`

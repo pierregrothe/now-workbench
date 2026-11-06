@@ -1,0 +1,40 @@
+// web/src/icons.ts
+// Shared icons drawn to match the ServiceNow Otto interface (thin outlines, paper-plane send).
+// Author: Pierre Grothe
+// Date: 2026-11-06
+import { html } from 'lit';
+import type { TemplateResult } from 'lit';
+
+/** Paper-plane send icon (a solid plane with a fold line), as on the Otto prompt box. */
+export const sendIcon = (size = 16): TemplateResult => html`
+  <svg viewBox="0 0 24 24" width=${size} height=${size} aria-hidden="true">
+    <path fill="currentColor" d="M21.6 2.4 2.6 9.9a.7.7 0 0 0 0 1.3l7.3 3 3 7.3a.7.7 0 0 0 1.3 0z" />
+    <path d="M9.9 14.2 21 3" fill="none" stroke="rgba(255,255,255,0.75)" stroke-width="1.2" stroke-linecap="round" />
+  </svg>
+`;
+
+/** Otto's mark: a rounded diamond with a round hole. */
+export const ottoGlyph = (size = 16, color = '#3ec24a'): TemplateResult => html`
+  <svg viewBox="0 0 24 24" width=${size} height=${size} aria-hidden="true" style="flex:none;">
+    <path
+      fill=${color}
+      fill-rule="evenodd"
+      d="M12 1.6c.8 0 1.6.3 2.2.9l7.3 7.3c1.2 1.2 1.2 3.2 0 4.4l-7.3 7.3c-1.2 1.2-3.2 1.2-4.4 0l-7.3-7.3c-1.2-1.2-1.2-3.2 0-4.4l7.3-7.3c.6-.6 1.4-.9 2.2-.9zm0 6.6a3.8 3.8 0 1 0 0 7.6 3.8 3.8 0 0 0 0-7.6z"
+    />
+  </svg>
+`;
+
+/** Thin up-right arrow used to open a tile. */
+export const openArrowIcon = (size = 14): TemplateResult => html`
+  <svg viewBox="0 0 16 16" width=${size} height=${size} aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M4 12 12 4M5.2 4H12v6.8" />
+  </svg>
+`;
+
+/** Document with a binding edge and lines, the Artifact library icon. */
+export const libraryIcon = (): TemplateResult => html`
+  <svg viewBox="0 0 24 24" aria-hidden="true">
+    <rect x="5" y="3" width="14" height="18" rx="2.5"></rect>
+    <path d="M9 3v18M12.5 8.5h3M12.5 12h3"></path>
+  </svg>
+`;
