@@ -322,3 +322,24 @@ def test_apply_migrations_v2_to_v3_adds_purpose_and_renames_reported_fields() ->
     ).fetchone()
     assert (row["instance_type"], row["production_property"]) == ("prod", 1)
     conn.close()
+
+
+def test_apply_migrations_v3_to_v4_strips_default_release_preference() -> None:
+    """Stored preferences lose the removed default_sn_release key and keep the rest."""
+    from now_workbench.db.schema import MIGRATIONS
+
+    conn = sqlite3.connect(":memory:")
+    conn.row_factory = sqlite3.Row
+    conn.executescript(
+        "BEGIN;\n" + "\n".join(MIGRATIONS[:3]) + "\nPRAGMA user_version = 3;\nCOMMIT;"
+    )
+    conn.execute(
+        "INSERT INTO workbench_preferences (id, payload) VALUES "
+        '(1, \'{"default_sn_release": "Zurich", "narrative_tone": "executive"}\');'
+    )
+    conn.commit()
+    assert apply_migrations(conn) == SCHEMA_VERSION
+    payload = conn.execute("SELECT payload FROM workbench_preferences;").fetchone()["payload"]
+    assert "default_sn_release" not in payload
+    assert "executive" in payload
+    conn.close()

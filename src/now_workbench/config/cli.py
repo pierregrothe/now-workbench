@@ -42,7 +42,6 @@ def show_config_cmd() -> None:
     table.add_row("Media Capture", "Offline Simulation", str(prefs.capture_fake_mode))
 
     table.add_row("SC Demo Synthesis", "SC Author Name", prefs.sc_author_name)
-    table.add_row("SC Demo Synthesis", "Default SN Release", prefs.default_sn_release)
     table.add_row("SC Demo Synthesis", "Scoped Prefix", prefs.default_scoped_prefix)
     table.add_row("SC Demo Synthesis", "Brand Accent Color", prefs.default_brand_color)
     table.add_row("SC Demo Synthesis", "Narrative Tone", prefs.narrative_tone)
@@ -80,7 +79,6 @@ def set_config_cmd(
         None, "--offline-capture/--no-offline-capture", help="Offline capture simulation"
     ),
     author_name: str | None = typer.Option(None, "--author-name", help="Default SC author name"),
-    release: str | None = typer.Option(None, "--release", help="Default ServiceNow release"),
     brand_color: str | None = typer.Option(None, "--brand-color", help="Default brand hex color"),
     welcome: bool | None = typer.Option(
         None, "--welcome/--no-welcome", help="Show Welcome modal on startup"
@@ -98,7 +96,6 @@ def set_config_cmd(
         capture_wait_timeout_ms=wait_timeout,
         capture_fake_mode=playwright_fake,
         sc_author_name=author_name,
-        default_sn_release=release,
         default_brand_color=brand_color,
         show_welcome_on_startup=welcome,
         theme_mode=theme,

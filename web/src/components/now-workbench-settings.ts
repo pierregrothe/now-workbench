@@ -16,7 +16,6 @@ export interface WorkbenchPreferences {
   capture_fake_mode: boolean;
   sc_author_name: string;
   sc_author_email: string;
-  default_sn_release: string;
   default_scoped_prefix: string;
   default_brand_color: string;
   narrative_tone: string;
@@ -41,7 +40,6 @@ const DEFAULT_PREFS: WorkbenchPreferences = {
   capture_fake_mode: false,
   sc_author_name: 'Now Workbench Solution Consultant',
   sc_author_email: 'sc@servicenow.com',
-  default_sn_release: 'Zurich',
   default_scoped_prefix: 'x_snc',
   default_brand_color: '#62d84e',
   narrative_tone: 'executive',
@@ -522,7 +520,6 @@ export class NowWorkbenchSettings extends LitElement {
         capture_fake_mode: this.prefs.capture_fake_mode,
         sc_author_name: this.prefs.sc_author_name,
         sc_author_email: this.prefs.sc_author_email,
-        default_sn_release: this.prefs.default_sn_release,
         default_scoped_prefix: this.prefs.default_scoped_prefix,
         default_brand_color: this.prefs.default_brand_color,
         narrative_tone: this.prefs.narrative_tone,
@@ -929,7 +926,7 @@ export class NowWorkbenchSettings extends LitElement {
                     <div>
                       <h2 class="section-title">3. Solution Consultant & Synthesis Defaults</h2>
                       <p class="section-desc">
-                        Default author metadata, target ServiceNow release, scoped table prefix, and SC narrative tone.
+                        Default author metadata, scoped table prefix, and SC narrative tone.
                       </p>
                     </div>
                   </div>
@@ -963,22 +960,6 @@ export class NowWorkbenchSettings extends LitElement {
                   </div>
 
                   <div class="grid-2">
-                    <div class="field">
-                      <label>Default ServiceNow Release</label>
-                      <select
-                        .value=${this.prefs.default_sn_release}
-                        @change=${(e: Event) =>
-                          this.updateField(
-                            'default_sn_release',
-                            (e.target as HTMLSelectElement).value
-                          )}
-                      >
-                        <option value="Zurich">Zurich</option>
-                        <option value="Yokohama">Yokohama</option>
-                        <option value="Xanadu">Xanadu</option>
-                      </select>
-                    </div>
-
                     <div class="field">
                       <label>Default Scoped Table Prefix</label>
                       <input

@@ -26,7 +26,7 @@ from now_workbench.runbooks.models import RunbookGuide
 from now_workbench.seed.engine import SeedEngine
 from now_workbench.synthesizer.engine import UseCaseSynthesizer
 from now_workbench.synthesizer.models import SynthesizedDemoResult, UseCaseSynthesisRequest
-from now_workbench.synthesizer.release import resolve_synthesis_release
+from now_workbench.synthesizer.release import NoReleaseError, resolve_synthesis_release
 
 router = APIRouter(prefix="/api/demos", tags=["demos"])
 
@@ -449,6 +449,8 @@ def synthesize_demo_bundle(req: UseCaseSynthesisRequest) -> SynthesizedDemoResul
             release = resolve_synthesis_release(repo, req.sn_release, req.instance_id)
         except LookupError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except NoReleaseError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
     synthesizer = UseCaseSynthesizer(bundles_dir=settings.get_bundles_dir())
     return synthesizer.synthesize(
         req.model_copy(update={"sn_release": release}),

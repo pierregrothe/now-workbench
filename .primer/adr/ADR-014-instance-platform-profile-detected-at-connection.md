@@ -104,3 +104,11 @@ value describes *how the instance was provisioned*, not what the owner uses it f
 
 **Consequence.** Guarding destructive operations (seed, deploy, reset) on instances
 marked `production` is now possible and reliable. It is not implemented yet.
+
+## Amendment (2026-11-06): no default release preference
+
+The `default_sn_release` workbench preference and its Settings dropdown are removed
+(schema v4 strips the stored key). A synthesized bundle targets the release detected
+from the selected, or default, instance. With no instance or no detected release the
+synthesize route answers 409 and the CLI exits 1, explaining how to fix it; a release
+is never guessed or typed.

@@ -12,7 +12,7 @@ from now_workbench.config.settings import settings
 from now_workbench.db.session import db_session
 from now_workbench.synthesizer.engine import UseCaseSynthesizer
 from now_workbench.synthesizer.models import UseCaseSynthesisRequest
-from now_workbench.synthesizer.release import resolve_synthesis_release
+from now_workbench.synthesizer.release import NoReleaseError, resolve_synthesis_release
 
 console = Console()
 
@@ -29,7 +29,11 @@ def synthesize_demo_cmd(
 ) -> None:
     """Synthesize a complete demo bundle (Fluent schema, seed data, properties, narrative)."""
     with db_session() as repo:
-        target_release = resolve_synthesis_release(repo, release, None)
+        try:
+            target_release = resolve_synthesis_release(repo, release, None)
+        except NoReleaseError as exc:
+            console.print(f"[red]{exc}[/red]")
+            raise typer.Exit(code=1) from exc
     synthesizer = UseCaseSynthesizer(bundles_dir=settings.get_bundles_dir())
     res = synthesizer.synthesize(
         UseCaseSynthesisRequest(

@@ -143,9 +143,7 @@ def _synthesize(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
         use_case=str(args["use_case"]),
         customer_name=str(args.get("customer_name") or "Acme Global"),
         industry=str(args.get("industry") or "Enterprise IT"),
-        sn_release=resolve_synthesis_release(
-            ctx.repo, str(args["sn_release"]) if args.get("sn_release") else None, None
-        ),
+        sn_release=resolve_synthesis_release(ctx.repo, None, None),
         primary_color=prefs.default_brand_color,
     )
     result = UseCaseSynthesizer(bundles_dir=settings.get_bundles_dir()).synthesize(
@@ -528,7 +526,6 @@ register(
             "use_case": {"type": "string"},
             "customer_name": {"type": "string"},
             "industry": {"type": "string"},
-            "sn_release": {"type": "string"},
         },
         required=["use_case"],
         handler=_synthesize,

@@ -4,19 +4,24 @@
 # Date: 2026-11-06
 """Release resolution for synthesis.
 
-The release is read from the target instance's detected profile (ADR-014). Only when no
-instance is registered, or its release is unknown, does the saved workbench default apply.
+The release is read from the target instance's detected profile (ADR-014). With no
+instance, or a release the platform has not reported yet, there is nothing to build for and
+``NoReleaseError`` explains how to fix it; a release is never guessed.
 """
 
 from now_workbench.db import UNKNOWN_RELEASE, DatabaseRepository
 
-__all__ = ["resolve_synthesis_release"]
+__all__ = ["NoReleaseError", "resolve_synthesis_release"]
+
+
+class NoReleaseError(RuntimeError):
+    """No instance reports a release to build the bundle for."""
 
 
 def resolve_synthesis_release(
     repo: DatabaseRepository, explicit: str | None, instance_id: str | None
 ) -> str:
-    """Return the release to build for: explicit value, else target instance, else default.
+    """Return the release to build for: explicit value, else the target instance's.
 
     Args:
         repo: Open repository.
@@ -28,6 +33,8 @@ def resolve_synthesis_release(
 
     Raises:
         LookupError: ``instance_id`` names an instance that does not exist.
+        NoReleaseError: No explicit release, and the target instance (or the default
+            instance) is missing or has not reported a release.
     """
     if explicit:
         return explicit
@@ -38,4 +45,7 @@ def resolve_synthesis_release(
         profile = repo.get_instance_profile(inst.id)
         if profile is not None and profile.release and profile.release != UNKNOWN_RELEASE:
             return profile.release
-    return repo.get_workbench_preferences().default_sn_release
+    raise NoReleaseError(
+        "No release to build for: register an instance and test its connection so its "
+        "release is detected."
+    )

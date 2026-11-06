@@ -13,7 +13,7 @@ from now_workbench.api.app import create_app
 from now_workbench.db import UNKNOWN_RELEASE, InstanceCreate, InstanceProfile, db_session
 from now_workbench.synthesizer.engine import UseCaseSynthesizer
 from now_workbench.synthesizer.models import UseCaseSynthesisRequest
-from now_workbench.synthesizer.release import resolve_synthesis_release
+from now_workbench.synthesizer.release import NoReleaseError, resolve_synthesis_release
 
 
 def _add(repo, instance_id: str, release: str, default: bool = False) -> None:
@@ -56,13 +56,14 @@ def test_resolve_synthesis_release_unknown_instance_raises(tmp_path: Path) -> No
         resolve_synthesis_release(repo, None, "nope")
 
 
-def test_resolve_synthesis_release_falls_back_to_saved_default(tmp_path: Path) -> None:
-    """No instance, or an unknown release, falls back to the saved workbench default."""
+def test_resolve_synthesis_release_never_guesses(tmp_path: Path) -> None:
+    """No instance, or an unknown release, raises instead of inventing a release."""
     with db_session(tmp_path / "t.db") as repo:
-        fallback = repo.get_workbench_preferences().default_sn_release
-        assert resolve_synthesis_release(repo, None, None) == fallback
+        with pytest.raises(NoReleaseError):
+            resolve_synthesis_release(repo, None, None)
         _add(repo, "a", UNKNOWN_RELEASE, default=True)
-        assert resolve_synthesis_release(repo, None, None) == fallback
+        with pytest.raises(NoReleaseError):
+            resolve_synthesis_release(repo, None, None)
 
 
 def test_synthesize_engine_rejects_unresolved_release(tmp_path: Path) -> None:
@@ -94,3 +95,10 @@ def test_synthesize_route_unknown_instance_is_not_found() -> None:
         "/api/demos/synthesize", json={"use_case": "Incident triage", "instance_id": "nope"}
     )
     assert res.status_code == 404
+
+
+def test_synthesize_route_without_instance_is_conflict() -> None:
+    """With no instance to take a release from, the route answers 409 and builds nothing."""
+    client = TestClient(create_app())
+    res = client.post("/api/demos/synthesize", json={"use_case": "Incident triage"})
+    assert res.status_code == 409

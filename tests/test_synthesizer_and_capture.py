@@ -14,6 +14,7 @@ from now_workbench.capture.engine import PlaywrightCaptureEngine
 from now_workbench.capture.models import CaptureRequest
 from now_workbench.cli import app as cli_app
 from now_workbench.config.settings import settings
+from now_workbench.db import InstanceCreate, InstanceProfile, db_session
 from now_workbench.synthesizer.engine import (
     UseCaseSynthesizer,
     _extract_persona_parts,
@@ -296,6 +297,17 @@ def test_cli_demo_synthesize_and_capture(tmp_path: Path) -> None:
     object.__setattr__(settings, "bundles_dir", tmp_path)
     try:
         runner = CliRunner()
+        no_instance = runner.invoke(cli_app, ["demo", "synthesize", "Incident triage."])
+        assert no_instance.exit_code == 1
+        assert "register an instance" in no_instance.stdout
+
+        with db_session() as repo:
+            repo.add_instance(
+                InstanceCreate(
+                    id="cli-inst", name="CLI", url="https://cli.service-now.com", is_default=True
+                )
+            )
+            repo.save_instance_profile(InstanceProfile(instance_id="cli-inst", release="Australia"))
         synth_result = runner.invoke(
             cli_app,
             [

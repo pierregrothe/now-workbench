@@ -275,7 +275,6 @@ class WorkbenchPreferences(BaseModel):
     # 3. Solution Consultant & Synthesis Defaults
     sc_author_name: str = "Now Workbench Solution Consultant"
     sc_author_email: str = "sc@servicenow.com"
-    default_sn_release: str = "Zurich"
     default_scoped_prefix: str = "x_snc"
     default_brand_color: str = "#62d84e"
     narrative_tone: str = "executive"
@@ -307,7 +306,6 @@ class WorkbenchPreferencesUpdate(BaseModel):
 
     sc_author_name: str | None = None
     sc_author_email: str | None = None
-    default_sn_release: str | None = None
     default_scoped_prefix: str | None = None
     default_brand_color: str | None = None
     narrative_tone: str | None = None

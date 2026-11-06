@@ -152,7 +152,13 @@ ALTER TABLE instance_profiles RENAME COLUMN is_production TO production_property
 ALTER TABLE instance_profiles ADD COLUMN installation_name TEXT;
 """
 
-MIGRATIONS: tuple[str, ...] = (_V1, _V2, _V3)
+# v4: the default release preference is gone; a bundle's release is detected from the
+# target instance (ADR-014). Strip the key so stored preferences still validate.
+_V4 = """
+UPDATE workbench_preferences SET payload = json_remove(payload, '$.default_sn_release');
+"""
+
+MIGRATIONS: tuple[str, ...] = (_V1, _V2, _V3, _V4)
 SCHEMA_VERSION = len(MIGRATIONS)
 
 
