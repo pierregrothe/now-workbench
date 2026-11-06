@@ -22,7 +22,7 @@ from now_workbench.api.app import create_app
 from now_workbench.auth.access import ACCESS_HEADER, AccessValidator
 from now_workbench.auth.guard import assert_safe_binding, is_loopback_host
 from now_workbench.auth.models import Role
-from now_workbench.auth.roles import parse_emails, roles_for
+from now_workbench.db import db_session
 
 TEAM = "example.cloudflareaccess.com"
 AUD = "aud-tag-123"
@@ -54,30 +54,18 @@ def _validator() -> AccessValidator:
 
 
 @pytest.fixture
-def signed_in(monkeypatch: pytest.MonkeyPatch) -> TestClient:
+def signed_in() -> TestClient:
     """App with Access configured; ADMIN holds both roles, SC is a consultant only."""
-    monkeypatch.setenv("WORKBENCH_ADMIN_EMAILS", ADMIN)
-    monkeypatch.setenv("WORKBENCH_CONSULTANT_EMAILS", f"{ADMIN}, {SC.upper()}")
-    return TestClient(create_app(access_validator=_validator()))
+    with db_session() as repo:
+        repo.put_user(ADMIN, frozenset(Role), added_by="test")
+        repo.put_user(SC, frozenset({Role.SOLUTION_CONSULTANT}), added_by="test")
+    return TestClient(
+        create_app(access_validator=_validator(), announce_setup_code=lambda _c: None)
+    )
 
 
 def _as(email: str | None, **kwargs: Any) -> dict[str, str]:
     return {ACCESS_HEADER: _token(email, **kwargs)}
-
-
-# --- roles ------------------------------------------------------------------------------
-
-
-def test_parse_emails_accepts_commas_spaces_and_case() -> None:
-    """The role lists are forgiving about separators and case."""
-    assert parse_emails("A@x.com, b@x.com\n C@X.com") == {"a@x.com", "b@x.com", "c@x.com"}
-
-
-def test_roles_for_gives_both_roles_when_on_both_lists() -> None:
-    """An address on both lists is admin and consultant; on neither, no role."""
-    assert roles_for("P@x.com", "p@x.com", "p@x.com") == {Role.ADMIN, Role.SOLUTION_CONSULTANT}
-    assert roles_for("c@x.com", "p@x.com", "c@x.com") == {Role.SOLUTION_CONSULTANT}
-    assert roles_for("z@x.com", "p@x.com", "c@x.com") == frozenset()
 
 
 # --- token validation -------------------------------------------------------------------
@@ -203,7 +191,10 @@ def test_local_mode_is_a_single_user_with_both_roles() -> None:
     assert body["roles"] == ["admin", "solution_consultant"]
 
 
-@pytest.mark.parametrize("header", ["cf-ray", "cf-connecting-ip", ACCESS_HEADER])
+@pytest.mark.parametrize(
+    "header",
+    ["cf-ray", "cf-connecting-ip", ACCESS_HEADER, "x-forwarded-for", "forwarded", "x-real-ip"],
+)
 def test_cloudflare_traffic_is_refused_when_access_is_not_configured(header: str) -> None:
     """A tunnel in front of an unconfigured server must not silently open it."""
     client = TestClient(create_app(access_validator=AccessValidator("", "")))
@@ -227,14 +218,12 @@ def test_assert_safe_binding_fails_closed() -> None:
     assert_safe_binding("0.0.0.0", _validator())
 
 
-def test_serve_refuses_a_public_bind_without_access(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_serve_refuses_a_public_bind_without_access() -> None:
     """`workbench serve --host 0.0.0.0` exits before listening when Access is not configured."""
     from typer.testing import CliRunner
 
     from now_workbench.cli import app as cli_app
 
-    monkeypatch.delenv("WORKBENCH_ACCESS_TEAM_DOMAIN", raising=False)
-    monkeypatch.delenv("WORKBENCH_ACCESS_AUDIENCE", raising=False)
     result = CliRunner().invoke(cli_app, ["serve", "--host", "0.0.0.0", "--port", "8099"])
     assert result.exit_code == 1
     assert "Refusing to listen" in result.stdout

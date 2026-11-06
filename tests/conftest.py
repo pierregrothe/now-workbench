@@ -15,6 +15,9 @@ def isolate_workbench_db(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Pat
     monkeypatch.setenv("WORKBENCH_DATA_DIR", str(data_dir))
     monkeypatch.setenv("WORKBENCH_KEY_FILE", str(tmp_path / "keys" / "master.key"))
     monkeypatch.delenv("WORKBENCH_MASTER_KEY", raising=False)
+    # Local mode unless a test opts in: a developer .env with Access values must not leak in.
+    monkeypatch.setenv("WORKBENCH_ACCESS_TEAM_DOMAIN", "")
+    monkeypatch.setenv("WORKBENCH_ACCESS_AUDIENCE", "")
     test_db = data_dir / "workbench.db"
 
     with db_session(test_db) as repo:

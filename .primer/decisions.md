@@ -324,3 +324,11 @@ Sign-in through Cloudflare Access (Apple, Google); the server verifies the signe
 the verified email to `admin` and `solution_consultant` from configuration. Fails closed when
 exposed without Access. The earlier email-code approval design was dropped before release.
 Details: `.primer/adr/ADR-016-cloudflare-access-sign-in-and-roles.md`.
+
+### 2026-11-06 -- ADR-017: Container deployment and first-run setup
+
+One hardened container on srv01chambly behind Cloudflare Access. The first administrator is
+created with a one-time setup code written only to the server log (more secure than a
+first-come password form); roles then live in the database and are managed on a Team screen.
+Secrets are entered in the UI only and sealed; the master key and the database are in separate
+volumes. Runbook: `docs/deploy.md`. Details: `.primer/adr/ADR-017-container-deployment-and-first-run-setup.md`.

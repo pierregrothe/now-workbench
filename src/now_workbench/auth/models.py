@@ -9,7 +9,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
-__all__ = ["LOCAL_EMAIL", "AuthUser", "Role"]
+__all__ = ["LOCAL_EMAIL", "AuthUser", "Role", "TeamMember"]
 
 LOCAL_EMAIL = "local@localhost"
 
@@ -29,3 +29,14 @@ class AuthUser(BaseModel):
     email: str
     roles: frozenset[Role]
     mode: Literal["cloudflare", "local"]
+
+
+class TeamMember(BaseModel):
+    """A person allowed into the workbench, as listed on the Team screen."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    email: str
+    roles: list[str]
+    added_by: str
+    created_at: str

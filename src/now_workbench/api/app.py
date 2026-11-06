@@ -1,7 +1,8 @@
 """FastAPI backend server for now-workbench."""
 
+import logging
 import uuid
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 from typing import Any
 
@@ -19,11 +20,15 @@ from now_workbench.api.demos import router as demos_router
 from now_workbench.api.instances import router as instances_router
 from now_workbench.api.profile import router as profile_router
 from now_workbench.api.settings_api import router as settings_router
+from now_workbench.api.setup import router as setup_router
+from now_workbench.api.team import router as team_router
 from now_workbench.api.templates import router as templates_router
 from now_workbench.api.threads import _load_verified_instances_dict
 from now_workbench.api.threads import router as threads_router
 from now_workbench.auth.access import AccessValidator
 from now_workbench.auth.guard import AccessMiddleware, assert_safe_binding
+from now_workbench.auth.models import Role
+from now_workbench.auth.setup import SetupCodes
 from now_workbench.capture.engine import PlaywrightCaptureEngine
 from now_workbench.config.origins import is_origin_allowed
 from now_workbench.config.paths import UnsafePathError, safe_child
@@ -112,20 +117,47 @@ def _mount_static_ui(app: FastAPI) -> None:
         app.mount("/", StaticFiles(directory=settings.static_dir, html=True), name="static")
 
 
+def _log_setup_code(code: str) -> None:
+    """Write the first-run setup code to the server log (``docker logs``)."""
+    log = logging.getLogger("uvicorn.error")
+    log.warning("=" * 60)
+    log.warning("FIRST-RUN SETUP CODE: %s", code)
+    log.warning("Open the workbench, sign in, and enter this code to become administrator.")
+    log.warning("=" * 60)
+
+
+def _stored_roles(email: str) -> frozenset[Role]:
+    with db_session() as repo:
+        return repo.get_user_roles(email)
+
+
+def _setup_pending() -> bool:
+    with db_session() as repo:
+        return repo.count_admins() == 0
+
+
 @asynccontextmanager
 async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Check the binding, then seed the database (never at import)."""
     assert_safe_binding(settings.get_host(), app.state.access_validator)
     with db_session() as repo:
         seed_database(repo)
+        needs_setup = app.state.access_validator.configured and repo.count_admins() == 0
+    if needs_setup:
+        app.state.setup_codes.issue()
     yield
 
 
-def create_app(access_validator: AccessValidator | None = None) -> FastAPI:
+def create_app(
+    access_validator: AccessValidator | None = None,
+    announce_setup_code: Callable[[str], None] | None = None,
+) -> FastAPI:
     """Factory creating and configuring the FastAPI app.
 
     Args:
         access_validator: Cloudflare Access validator; built from settings when omitted.
+        announce_setup_code: Receives a newly issued first-run setup code (the server log
+            when omitted).
     """
     app = FastAPI(
         title="now-workbench",
@@ -138,12 +170,13 @@ def create_app(access_validator: AccessValidator | None = None) -> FastAPI:
         settings.get_access_team_domain(), settings.get_access_audience()
     )
     app.state.access_validator = validator
+    app.state.setup_codes = SetupCodes(announce_setup_code or _log_setup_code)
     # Added first so it sits inside CORS: preflight requests are answered before sign-in checks.
     app.add_middleware(
         AccessMiddleware,
         validator=validator,
-        admin_emails=settings.get_admin_emails,
-        consultant_emails=settings.get_consultant_emails,
+        lookup_roles=_stored_roles,
+        setup_pending=_setup_pending,
     )
     app.add_middleware(
         CORSMiddleware,
@@ -164,6 +197,8 @@ def create_app(access_validator: AccessValidator | None = None) -> FastAPI:
     app.include_router(threads_router)
     app.include_router(settings_router)
     app.include_router(profile_router)
+    app.include_router(setup_router)
+    app.include_router(team_router)
 
     sdk_runner = NowSdkRunner(now_sdk_bin=settings.now_sdk_bin, node_bin=settings.node_bin)
     log_broadcaster = LogBroadcaster()

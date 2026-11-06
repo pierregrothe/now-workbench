@@ -1,46 +1,47 @@
+# docker-compose.yml
+# now-workbench on srv01chambly, reached only through Cloudflare (ADR-016, ADR-017).
+#
+#   cp .env.example .env    # then fill in the two Access values
+#   docker compose up -d --build
+#   docker logs now-workbench   # FIRST-RUN SETUP CODE
+#
+# No secret lives in this file or in .env: the Claude API key and instance passwords are
+# entered in the UI and stored encrypted; the master key is generated into its own volume.
 services:
   now-workbench:
     build:
       context: .
       dockerfile: Dockerfile
+    image: now-workbench:latest
     container_name: now-workbench
+    restart: unless-stopped
     ports:
-      # Loopback only: cloudflared (same host) is the way in, never the LAN.
-      - "127.0.0.1:8080:8080"
+      # Loopback only: the host's cloudflared is the way in, never the LAN or the internet.
+      - "127.0.0.1:${WORKBENCH_PUBLISH_PORT:-8080}:8080"
     environment:
-      - WORKBENCH_HOST=0.0.0.0
-      - WORKBENCH_PORT=8080
-      # Cloudflare Access (ADR-016). The container refuses to start without the first two.
-      - WORKBENCH_ACCESS_TEAM_DOMAIN=${WORKBENCH_ACCESS_TEAM_DOMAIN:-}
-      - WORKBENCH_ACCESS_AUDIENCE=${WORKBENCH_ACCESS_AUDIENCE:-}
-      - WORKBENCH_ADMIN_EMAILS=${WORKBENCH_ADMIN_EMAILS:-}
-      - WORKBENCH_CONSULTANT_EMAILS=${WORKBENCH_CONSULTANT_EMAILS:-}
-      - WORKBENCH_SN_INSTANCE_URL=${WORKBENCH_SN_INSTANCE_URL:-}
-      - WORKBENCH_SN_USERNAME=${WORKBENCH_SN_USERNAME:-}
-      - WORKBENCH_SN_PASSWORD=${WORKBENCH_SN_PASSWORD:-}
-      - WORKBENCH_ANTHROPIC_API_KEY=${WORKBENCH_ANTHROPIC_API_KEY:-${ANTHROPIC_API_KEY:-}}
-      - WORKBENCH_CLAUDE_MODEL=claude-sonnet-5-5
-      # AES-256-GCM master key (ADR-012): kept OUT of ./data so a copied DB alone is useless.
-      - WORKBENCH_KEY_FILE=/run/workbench-keys/master.key
+      # Refuse to start without them (the app also refuses to listen without Access).
+      - WORKBENCH_ACCESS_TEAM_DOMAIN=${WORKBENCH_ACCESS_TEAM_DOMAIN:?set WORKBENCH_ACCESS_TEAM_DOMAIN in .env}
+      - WORKBENCH_ACCESS_AUDIENCE=${WORKBENCH_ACCESS_AUDIENCE:?set WORKBENCH_ACCESS_AUDIENCE in .env}
+      - WORKBENCH_CLAUDE_MODEL=${WORKBENCH_CLAUDE_MODEL:-claude-sonnet-5-5}
     volumes:
-      - ./bundles:/app/bundles
-      - ./workspaces:/app/workspaces
-      - ./data:/app/data
+      # The database and the master key are in separate volumes: a copy of one is useless
+      # without the other. Back them up separately (see docs/deploy.md).
+      - workbench-data:/app/data
       - workbench-keys:/run/workbench-keys
-    restart: unless-stopped
-
-  # Optional named tunnel (same pattern as the rivian gateway). Skip it when the host already
-  # runs cloudflared: add a public hostname there that points to http://localhost:8080.
-  #     docker compose --profile tunnel up -d
-  cloudflared:
-    profiles: ["tunnel"]
-    image: cloudflare/cloudflared:latest
-    container_name: cloudflared-now-workbench
-    restart: unless-stopped
-    command: tunnel --no-autoupdate run
-    network_mode: host
-    environment:
-      - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN:-}
+      - workbench-bundles:/app/bundles
+      - workbench-workspaces:/app/workspaces
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 volumes:
+  workbench-data:
   workbench-keys:
+  workbench-bundles:
+  workbench-workspaces:

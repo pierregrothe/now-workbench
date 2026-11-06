@@ -40,6 +40,9 @@ export default defineConfig({
       WORKBENCH_STATIC_DIR: '.e2e/dist',
       WORKBENCH_SN_INSTANCE_URL: '',
       WORKBENCH_ANTHROPIC_API_KEY: '',
+      // Local mode: a developer .env with Cloudflare Access values must not leak in.
+      WORKBENCH_ACCESS_TEAM_DOMAIN: '',
+      WORKBENCH_ACCESS_AUDIENCE: '',
     },
   },
 });

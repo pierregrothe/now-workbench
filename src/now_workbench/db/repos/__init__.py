@@ -6,6 +6,7 @@ from now_workbench.db.repos.profile import ProfileRepositoryMixin
 from now_workbench.db.repos.seeds import SeedRepositoryMixin
 from now_workbench.db.repos.templates import TemplateRepositoryMixin
 from now_workbench.db.repos.threads import ThreadRepositoryMixin
+from now_workbench.db.repos.users import UserRepositoryMixin
 
 __all__ = [
     "InstanceRepositoryMixin",
@@ -14,5 +15,6 @@ __all__ = [
     "SeedRepositoryMixin",
     "TemplateRepositoryMixin",
     "ThreadRepositoryMixin",
+    "UserRepositoryMixin",
     "row_to_instance",
 ]

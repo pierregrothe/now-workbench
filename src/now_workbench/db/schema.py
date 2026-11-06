@@ -171,7 +171,21 @@ CREATE TABLE profile (
 ) STRICT, WITHOUT ROWID;
 """
 
-MIGRATIONS: tuple[str, ...] = (_V1, _V2, _V3, _V4, _V5)
+# v6: people allowed in and their roles (ADR-017). Cloudflare Access proves the email; this
+# table says what that email may do. The first admin is created by the first-run setup code.
+_V6 = f"""
+CREATE TABLE users (
+    email          TEXT PRIMARY KEY,
+    is_admin       INTEGER NOT NULL DEFAULT 0 CHECK (is_admin IN (0, 1)),
+    is_consultant  INTEGER NOT NULL DEFAULT 0 CHECK (is_consultant IN (0, 1)),
+    added_by       TEXT NOT NULL DEFAULT '',
+    created_at     TEXT NOT NULL DEFAULT {_NOW},
+    updated_at     TEXT NOT NULL DEFAULT {_NOW},
+    CHECK (is_admin = 1 OR is_consultant = 1)
+) STRICT, WITHOUT ROWID;
+"""
+
+MIGRATIONS: tuple[str, ...] = (_V1, _V2, _V3, _V4, _V5, _V6)
 SCHEMA_VERSION = len(MIGRATIONS)
 
 

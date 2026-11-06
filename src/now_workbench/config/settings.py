@@ -25,13 +25,11 @@ class Settings(BaseSettings):
     cors_origin_regex: str = r"https?://(localhost|127\.0\.0\.1|\[::1\])(:\d+)?"
     debug: bool = False
 
-    # Sign-in (ADR-016). Cloudflare Access authenticates the person (Apple or Google) and
-    # attaches a signed token; the two lists below map verified emails to roles. With Access
-    # unconfigured the server only runs on loopback, as a single local user with both roles.
+    # Sign-in (ADR-016, ADR-017). Cloudflare Access authenticates the person (Apple or Google)
+    # and attaches a signed token; roles live in the database. With Access unconfigured the
+    # server only runs on loopback, as a single local user with both roles.
     access_team_domain: str = Field(default="", description="Access team domain")
     access_audience: str = Field(default="", description="Access application AUD tag")
-    admin_emails: str = Field(default="", description="Emails with the admin role")
-    consultant_emails: str = Field(default="", description="Emails with the consultant role")
 
     # Directories
     workspace_dir: Path = Field(default_factory=lambda: Path("./workspaces").resolve())
@@ -78,14 +76,6 @@ class Settings(BaseSettings):
     def get_access_audience(self) -> str:
         """Return the Access application AUD tag, reading the environment at call time."""
         return self._env_or("ACCESS_AUDIENCE", self.access_audience)
-
-    def get_admin_emails(self) -> str:
-        """Return the admin email list, reading the environment at call time."""
-        return self._env_or("ADMIN_EMAILS", self.admin_emails)
-
-    def get_consultant_emails(self) -> str:
-        """Return the consultant email list, reading the environment at call time."""
-        return self._env_or("CONSULTANT_EMAILS", self.consultant_emails)
 
     def get_bundles_dir(self) -> Path:
         """Return resolved bundles directory respecting WORKBENCH_BUNDLES_DIR env override."""

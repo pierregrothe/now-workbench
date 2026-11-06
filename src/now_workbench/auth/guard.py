@@ -13,10 +13,11 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 
 from now_workbench.auth.access import ACCESS_HEADER, AccessValidator
 from now_workbench.auth.models import LOCAL_EMAIL, AuthUser, Role
-from now_workbench.auth.roles import roles_for
 
 __all__ = [
+    "HEALTH_PATH",
     "AccessMiddleware",
+    "Decision",
     "assert_safe_binding",
     "authenticate",
     "current_user",
@@ -24,10 +25,19 @@ __all__ = [
     "require_role",
 ]
 
+HEALTH_PATH = "/healthz"
 _LOOPBACK = {"127.0.0.1", "::1", "localhost"}
 # Headers only Cloudflare adds. Seeing them with Access unconfigured means the server is being
 # reached through a tunnel it does not know how to authenticate; refuse rather than trust.
 _CLOUDFLARE_HEADERS = ("cf-connecting-ip", "cf-ray")
+# In local mode no proxy is trusted, so a forwarding header can only mean an unknown proxy in
+# front (or a forged header). Refusing makes that setup fail loudly instead of opening silently.
+_FORWARDING_HEADERS = ("x-forwarded-for", "forwarded", "x-real-ip")
+# Paths a signed-in person without a role may still use: the UI itself and first-run setup.
+_SETUP_API = ("/api/setup",)
+_API_PREFIXES = ("/api/", "/ws/", "/docs", "/redoc", "/openapi.json")
+
+type Decision = tuple[AuthUser | None, str, str]
 
 
 def is_loopback_host(host: str) -> bool:
@@ -49,31 +59,47 @@ def assert_safe_binding(host: str, validator: AccessValidator) -> None:
         )
 
 
+def _roleless_may_use(path: str) -> bool:
+    if path == "/api/setup" or path.startswith(_SETUP_API[0] + "/"):
+        return True
+    return not path.startswith(_API_PREFIXES)
+
+
 def authenticate(
-    headers: dict[str, str], validator: AccessValidator, admin_emails: str, consultant_emails: str
-) -> tuple[AuthUser | None, str]:
-    """Decide who a request is.
+    headers: dict[str, str],
+    path: str,
+    validator: AccessValidator,
+    lookup_roles: Callable[[str], frozenset[Role]],
+    setup_pending: Callable[[], bool],
+) -> Decision:
+    """Decide who a request is and whether it may proceed.
 
     Args:
         headers: Request headers, lower-cased names.
+        path: Request path.
         validator: Cloudflare Access validator.
-        admin_emails: Configured admin addresses.
-        consultant_emails: Configured Solution Consultant addresses.
+        lookup_roles: Returns the stored roles of an email.
+        setup_pending: True while no administrator exists yet.
 
     Returns:
-        ``(user, "")`` when allowed, otherwise ``(None, reason)``.
+        ``(user, "", "")`` when allowed, otherwise ``(None, reason, code)`` where ``code`` is
+        ``signin``, ``setup_required`` or ``no_role``.
     """
     if validator.configured:
         email = validator.email(headers.get(ACCESS_HEADER, ""))
         if email is None:
-            return None, "Sign in through Cloudflare Access."
-        roles = roles_for(email, admin_emails, consultant_emails)
-        if not roles:
-            return None, f"{email} has no role on this workbench."
-        return AuthUser(email=email, roles=roles, mode="cloudflare"), ""
+            return None, "Sign in through Cloudflare Access.", "signin"
+        user = AuthUser(email=email, roles=lookup_roles(email), mode="cloudflare")
+        if user.roles or _roleless_may_use(path):
+            return user, "", ""
+        if setup_pending():
+            return None, "This workbench is not set up yet.", "setup_required"
+        return None, f"{email} has no role on this workbench.", "no_role"
     if any(name in headers for name in _CLOUDFLARE_HEADERS) or ACCESS_HEADER in headers:
-        return None, "Cloudflare traffic reached a server where Access is not configured."
-    return AuthUser(email=LOCAL_EMAIL, roles=frozenset(Role), mode="local"), ""
+        return None, "Cloudflare traffic reached a server where Access is not configured.", "signin"
+    if any(name in headers for name in _FORWARDING_HEADERS):
+        return None, "Requests through a proxy need Cloudflare Access configured.", "signin"
+    return AuthUser(email=LOCAL_EMAIL, roles=frozenset(Role), mode="local"), "", ""
 
 
 class AccessMiddleware:
@@ -83,41 +109,45 @@ class AccessMiddleware:
         self,
         app: ASGIApp,
         validator: AccessValidator,
-        admin_emails: Callable[[], str],
-        consultant_emails: Callable[[], str],
+        lookup_roles: Callable[[str], frozenset[Role]],
+        setup_pending: Callable[[], bool],
     ) -> None:
         self.app = app
         self.validator = validator
-        self._admins = admin_emails
-        self._consultants = consultant_emails
+        self._lookup = lookup_roles
+        self._pending = setup_pending
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] not in {"http", "websocket"}:
             await self.app(scope, receive, send)
             return
+        if scope["type"] == "http" and scope["path"] == HEALTH_PATH:
+            await self._json(send, 200, {"status": "ok"})
+            return
         headers = {k.decode("latin-1").lower(): v.decode("latin-1") for k, v in scope["headers"]}
-        user, reason = authenticate(headers, self.validator, self._admins(), self._consultants())
+        user, reason, code = authenticate(
+            headers, scope["path"], self.validator, self._lookup, self._pending
+        )
         if user is None:
-            await self._deny(scope, receive, send, reason)
+            if scope["type"] == "websocket":
+                await receive()
+                await send({"type": "websocket.close", "code": 1008})
+                return
+            await self._json(send, 403, {"detail": reason, "code": code})
             return
         scope.setdefault("state", {})["user"] = user
         await self.app(scope, receive, send)
 
     @staticmethod
-    async def _deny(scope: Scope, receive: Receive, send: Send, reason: str) -> None:
-        if scope["type"] == "websocket":
-            await receive()
-            await send({"type": "websocket.close", "code": 1008})
-            return
-        body = json.dumps({"detail": reason}).encode()
+    async def _json(send: Send, status: int, payload: dict[str, str]) -> None:
         await send(
             {
                 "type": "http.response.start",
-                "status": 403,
+                "status": status,
                 "headers": [(b"content-type", b"application/json")],
             }
         )
-        await send({"type": "http.response.body", "body": body})
+        await send({"type": "http.response.body", "body": json.dumps(payload).encode()})
 
 
 def current_user(request: Request) -> AuthUser:

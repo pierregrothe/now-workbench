@@ -40,7 +40,14 @@ COPY --from=frontend-builder /app/web/dist ./web/dist
 
 # Default demonstration bundles & workspace storage
 COPY bundles/ ./bundles/
-RUN mkdir -p /app/workspaces /app/data
+
+# Run as an unprivileged user (ADR-017). The writable paths are owned by it; Docker copies this
+# ownership into the named volumes the first time they are created.
+RUN groupadd --system --gid 10001 workbench \
+    && useradd --system --uid 10001 --gid workbench --home-dir /tmp --shell /usr/sbin/nologin workbench \
+    && mkdir -p /app/workspaces /app/data /run/workbench-keys \
+    && chown -R workbench:workbench /app/workspaces /app/data /app/bundles /run/workbench-keys \
+    && chmod 700 /run/workbench-keys
 
 EXPOSE 8080
 
@@ -51,6 +58,14 @@ ENV WORKBENCH_HOST="0.0.0.0" \
     WORKBENCH_BUNDLES_DIR="/app/bundles" \
     WORKBENCH_WORKSPACE_DIR="/app/workspaces" \
     WORKBENCH_CLAUDE_MODEL="claude-sonnet-5-5" \
+    WORKBENCH_KEY_FILE="/run/workbench-keys/master.key" \
+    HOME="/tmp" \
     PATH="/app/.venv/bin:$PATH"
+
+USER workbench
+
+# /healthz answers without sign-in and says only "ok" (ADR-017).
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
+    CMD python -c "import sys, urllib.request; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8080/healthz', timeout=4).status == 200 else 1)"
 
 ENTRYPOINT ["workbench", "serve", "--host", "0.0.0.0", "--port", "8080"]

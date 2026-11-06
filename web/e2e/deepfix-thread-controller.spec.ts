@@ -6,8 +6,10 @@ import type { Page } from '@playwright/test';
 import { expect, test } from './fixtures';
 
 /** Set activeThreadId on the chat view, searching through nested shadow roots. */
-const selectThread = (page: Page) =>
-  page.evaluate(() => {
+const selectThread = async (page: Page) => {
+  // The app renders after its access check; wait for it before reaching into the chat view.
+  await page.locator('now-nav-rail').waitFor();
+  await page.evaluate(() => {
     const find = (root: Document | ShadowRoot): Element | null => {
       const hit = root.querySelector('now-chat-view');
       if (hit) return hit;
@@ -21,6 +23,7 @@ const selectThread = (page: Page) =>
     };
     (find(document) as any).activeThreadId = 'default-thread';
   });
+};
 
 const record = (id: string, role: string, content: string) => ({
   id,

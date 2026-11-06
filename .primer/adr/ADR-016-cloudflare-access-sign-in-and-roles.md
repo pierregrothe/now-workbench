@@ -2,6 +2,7 @@
 
 **Status:** accepted
 **Date:** 2026-11-06
+**Amended:** 2026-11-06 by ADR-017 (roles moved from environment lists to the database)
 
 ## Context
 
@@ -55,3 +56,10 @@
   either list revokes their role immediately, without touching Cloudflare.
 - Apple "Hide My Email" returns a relay address; the owner must list the address Cloudflare
   actually reports.
+
+## Amendment (2026-11-06): roles in the database
+
+`WORKBENCH_ADMIN_EMAILS` and `WORKBENCH_CONSULTANT_EMAILS` are removed. Roles are stored in
+the `users` table and managed on the Team screen; the first administrator is created by the
+first-run setup code (ADR-017). Steps 4 and the role lists above are superseded by
+`docs/deploy.md`.

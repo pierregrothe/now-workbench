@@ -12,7 +12,8 @@ from now_workbench.api.app import create_app
 from now_workbench.cli import app as cli_app
 from now_workbench.db import InstanceCreate, db_session
 
-CLI_EXCLUDED = {"serve", "version"}
+# Operator commands, not chat actions: Otto must never stream the database into a conversation.
+CLI_EXCLUDED = {"serve", "version", "backup"}
 
 
 def _cli_leaves(cmd: Any, prefix: str = "") -> list[str]:

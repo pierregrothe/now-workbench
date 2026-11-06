@@ -478,6 +478,39 @@ def seed_history_demo(
 
 
 @app.command()
+def backup(
+    out: str = typer.Option("-", "--out", "-o", help="Destination file, or - for stdout"),
+) -> None:
+    """Write a consistent snapshot of the database (credentials stay sealed).
+
+    The master key is NOT included: keep it separately, or the snapshot cannot be decrypted.
+    Example on the server: docker exec now-workbench workbench backup > workbench.db
+    """
+    import sqlite3
+    import sys
+    import tempfile
+
+    from now_workbench.db.session import get_db_path
+
+    with tempfile.TemporaryDirectory() as tmp:
+        snapshot = Path(tmp) / "snapshot.db"
+        source = sqlite3.connect(get_db_path())
+        target = sqlite3.connect(snapshot)
+        try:
+            source.backup(target)
+        finally:
+            target.close()
+            source.close()
+        data = snapshot.read_bytes()
+    if out == "-":
+        sys.stdout.buffer.write(data)
+        sys.stdout.buffer.flush()
+        return
+    Path(out).write_bytes(data)
+    console.print(f"[green]Backup written:[/green] {out} ({len(data)} bytes)")
+
+
+@app.command()
 def serve(
     host: str = typer.Option(settings.host, "--host", "-h", help="Bind host"),
     port: int = typer.Option(settings.port, "--port", "-p", help="Bind port"),

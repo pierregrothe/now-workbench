@@ -10,6 +10,7 @@ from now_workbench.db.repos import (
     SeedRepositoryMixin,
     TemplateRepositoryMixin,
     ThreadRepositoryMixin,
+    UserRepositoryMixin,
 )
 
 
@@ -20,6 +21,7 @@ class DatabaseRepository(
     SeedRepositoryMixin,
     PreferencesRepositoryMixin,
     ProfileRepositoryMixin,
+    UserRepositoryMixin,
 ):
     """Encapsulates SQLite queries for instances, templates, threads, seeds, and preferences."""
 

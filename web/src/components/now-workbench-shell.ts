@@ -1,6 +1,8 @@
 import { sendIcon } from '../icons.js';
 import { LitElement, html, css } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
+import '../views/now-access-gate.js';
+import type { GateMode } from '../views/now-access-gate.js';
 import './now-nav-rail.js';
 import type { NavThreadItem } from './now-nav-rail.js';
 import './now-conversational-workspace.js';
@@ -221,6 +223,7 @@ export class NowWorkbenchShell extends LitElement {
 
   connectedCallback(): void {
     super.connectedCallback();
+    void this.checkAccess();
     smartTooltip.init();
     if (typeof window !== 'undefined') {
       window.addEventListener('hashchange', this.handleWindowHashChange);
@@ -691,7 +694,43 @@ export class NowWorkbenchShell extends LitElement {
     this.setActiveTab('home');
   }
 
+  @state() private access: 'checking' | 'ok' | GateMode = 'checking';
+  @state() private accessEmail = '';
+  @state() private accessMessage = '';
+
+  /** Decide between the app, the forced first-run setup dialog, and the no-access page. */
+  private async checkAccess(): Promise<void> {
+    try {
+      const res = await fetch('/api/setup/status');
+      const body = (await res.json().catch(() => ({}))) as {
+        setup_required?: boolean;
+        has_role?: boolean;
+        email?: string;
+        detail?: string;
+      };
+      if (!res.ok) {
+        this.access = 'error';
+        this.accessMessage = body.detail || `The workbench answered HTTP ${res.status}.`;
+        return;
+      }
+      this.accessEmail = body.email ?? '';
+      this.access = body.setup_required ? 'setup' : body.has_role ? 'ok' : 'denied';
+    } catch (err) {
+      this.access = 'error';
+      this.accessMessage = `Could not reach the workbench: ${String(err)}`;
+    }
+  }
+
   render() {
+    if (this.access === 'checking') return html``;
+    if (this.access !== 'ok') {
+      return html`<now-access-gate
+        .mode=${this.access}
+        .email=${this.accessEmail}
+        .message=${this.accessMessage}
+        @setup-complete=${() => window.location.reload()}
+      ></now-access-gate>`;
+    }
     return html`
       <now-nav-rail
         .activeTab=${this.activeTab}

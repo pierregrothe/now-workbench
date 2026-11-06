@@ -16,6 +16,8 @@ from fastapi.testclient import TestClient
 
 from now_workbench.api.app import create_app
 from now_workbench.auth.access import ACCESS_HEADER, AccessValidator
+from now_workbench.auth.models import Role
+from now_workbench.db import db_session
 from now_workbench.db.schema import MIGRATIONS, SCHEMA_VERSION, apply_migrations
 from now_workbench.profile.avatars import MAX_AVATAR_BYTES, PRESET_AVATARS, sniff_image
 
@@ -40,9 +42,11 @@ def _as(email: str) -> dict[str, str]:
 
 
 @pytest.fixture
-def client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
+def client() -> TestClient:
     """App with Access configured and two consultants."""
-    monkeypatch.setenv("WORKBENCH_CONSULTANT_EMAILS", "a@example.com b@example.com")
+    with db_session() as repo:
+        for email in ("a@example.com", "b@example.com"):
+            repo.put_user(email, frozenset({Role.SOLUTION_CONSULTANT}), added_by="test")
     validator = AccessValidator(
         "t.cloudflareaccess.com", "a", key_resolver=lambda _t: _KEY.public_key()
     )
@@ -116,7 +120,7 @@ def test_apply_migrations_v4_to_v5_creates_the_profile_table() -> None:
     conn.row_factory = sqlite3.Row
     script = "\n".join(MIGRATIONS[:4])
     conn.executescript(f"BEGIN;\n{script}\nPRAGMA user_version = 4;\nCOMMIT;")
-    assert apply_migrations(conn) == SCHEMA_VERSION == 5
+    assert apply_migrations(conn) == SCHEMA_VERSION
     cols = {r["name"] for r in conn.execute("PRAGMA table_info(profile);")}
     assert {"email", "display_name", "avatar_kind"} <= cols
     conn.close()
