@@ -20,6 +20,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_20.x nodistro main" | tee /etc/apt/sources.list.d/nodesource.list \
     && apt-get update && apt-get install -y nodejs \
     && npm install -g @servicenow/sdk \
+    && apt-get install -y --no-install-recommends chromium fonts-liberation \
     && rm -rf /var/lib/apt/lists/*
 
 # Install uv from official binary image
@@ -38,6 +39,12 @@ RUN uv sync --frozen --no-dev
 # Copy pre-built Lit frontend from Stage 1
 COPY --from=frontend-builder /app/web/dist ./web/dist
 
+# Live screenshots and demo videos (ADR-021 follow-up): the capture scripts drive Chromium
+# through puppeteer-core, which they import from web/node_modules.
+COPY web/package.json web/package-lock.json ./web/
+RUN cd web && npm ci --omit=dev --ignore-scripts --no-audit --no-fund
+COPY scripts/dev-tools/chrome_capture.mjs scripts/dev-tools/playbook_runner.mjs ./scripts/dev-tools/
+
 # Default demonstration bundles & workspace storage
 COPY bundles/ ./bundles/
 
@@ -55,6 +62,7 @@ EXPOSE 8080
 ENV WORKBENCH_HOST="0.0.0.0" \
     WORKBENCH_PORT="8080" \
     WORKBENCH_STATIC_DIR="/app/web/dist" \
+    CHROME_PATH="/usr/bin/chromium" \
     WORKBENCH_BUNDLES_DIR="/app/bundles" \
     WORKBENCH_WORKSPACE_DIR="/app/workspaces" \
     WORKBENCH_CLAUDE_MODEL="claude-sonnet-5-5" \

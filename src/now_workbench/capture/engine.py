@@ -101,17 +101,16 @@ async def _run_chrome_capture(
     username: str = "",
     password: str = "",
     duration: float = 3.0,
-    fake_mode: bool = False,
-) -> bool:
-    """Execute live Chrome / Puppeteer screenshot or WebM video capture."""
+) -> tuple[bool, str]:
+    """Take a live Chrome (Puppeteer) screenshot or video; return (ok, why it failed)."""
     script_path = (
         Path(__file__).resolve().parents[3] / "scripts" / "dev-tools" / "chrome_capture.mjs"
     )
     if not script_path.exists():
-        return False
+        return False, f"the capture script is not installed ({script_path})"
     node_bin = shutil.which("node")
     if not node_bin:
-        return False
+        return False, "Node.js is not installed on the server"
     cmd = [
         node_bin,
         str(script_path),
@@ -127,11 +126,8 @@ async def _run_chrome_capture(
         str(height),
         "--duration",
         str(duration),
+        "--credentials-stdin",
     ]
-    if fake_mode:
-        cmd.append("--fake")
-    cmd.append("--credentials-stdin")
-
     try:
         proc = await asyncio.create_subprocess_exec(
             *cmd,
@@ -139,35 +135,13 @@ async def _run_chrome_capture(
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
-        await proc.communicate(input=encode_stdin_credentials(username, password))
-        return proc.returncode == 0 and output_file.exists() and output_file.stat().st_size > 500
-    except Exception:
-        return False
-
-
-async def _run_playwright_cli(
-    full_url: str, output_file: Path, width: int, height: int, wait_timeout_ms: int = 1500
-) -> bool:
-    """Execute Playwright screenshot capture via async subprocess."""
-    npx_bin = shutil.which("npx")
-    if not npx_bin:
-        return False
-    cmd = [
-        npx_bin,
-        "playwright",
-        "screenshot",
-        f"--viewport-size={width},{height}",
-        f"--wait-for-timeout={wait_timeout_ms}",
-        full_url,
-        str(output_file),
-    ]
-    proc = await asyncio.create_subprocess_exec(
-        *cmd,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
-    )
-    await proc.communicate()
-    return proc.returncode == 0 and output_file.exists()
+        _out, err = await proc.communicate(input=encode_stdin_credentials(username, password))
+    except OSError as exc:
+        return False, f"could not start the browser: {exc}"
+    if proc.returncode == 0 and output_file.exists() and output_file.stat().st_size > 500:
+        return True, ""
+    detail = err.decode("utf-8", "replace").strip().splitlines()
+    return False, (detail[-1] if detail else f"the browser exited with code {proc.returncode}")
 
 
 async def _execute_video_playbook(
@@ -234,6 +208,10 @@ def _check_capture_exists(
         return True
     matches = [m for m in media_dir.glob(f"{stem}.*") if m.name != "captures.json"]
     return len(matches) > 0
+
+
+class CaptureFailedError(RuntimeError):
+    """A live capture failed; nothing was saved (never replaced by a placeholder)."""
 
 
 class PlaywrightCaptureEngine:
@@ -340,62 +318,48 @@ class PlaywrightCaptureEngine:
         step_results: list[dict[str, Any]] = []
         live_auth = False
 
-        if not req.fake_mode:
-            if req.media_type == "video":
-                ok, live_auth, step_results = await _execute_video_playbook(
-                    safe_child(self.bundles_dir, req.bundle_id),
-                    req.bundle_id,
-                    req.instance_id,
-                    base_url,
-                    username,
-                    password,
-                    output_file,
-                    media_dir / f"{capture_id}.png",
-                    req.viewport_width,
-                    req.viewport_height,
-                    fake_mode=False,
+        if req.fake_mode:
+            # Simulation was asked for explicitly: a placeholder, labelled as simulated.
+            output_file.write_bytes(
+                _PLACEHOLDER_WEBM if ext == "webm" else _generate_simulated_png()
+            )
+        elif req.media_type == "video":
+            ok, live_auth, step_results = await _execute_video_playbook(
+                safe_child(self.bundles_dir, req.bundle_id),
+                req.bundle_id,
+                req.instance_id,
+                base_url,
+                username,
+                password,
+                output_file,
+                media_dir / f"{capture_id}.png",
+                req.viewport_width,
+                req.viewport_height,
+                fake_mode=False,
+            )
+            if not ok:
+                failed = [
+                    f"{s.get('description', '')} ({s.get('error_message') or s.get('status')})"
+                    for s in step_results
+                    if s.get("status") == "failed"
+                ]
+                raise CaptureFailedError(
+                    "The video could not be recorded" + (f": {failed[0]}" if failed else ".")
                 )
-                if ok:
-                    used_engine = "google-chrome-native"
-            else:
-                chrome_ok = await _run_chrome_capture(
-                    full_url,
-                    output_file,
-                    req.media_type,
-                    req.viewport_width,
-                    req.viewport_height,
-                    username=username,
-                    password=password,
-                    fake_mode=req.fake_mode,
-                )
-                if chrome_ok:
-                    used_engine = "google-chrome-native"
-                else:
-                    ok = await _run_playwright_cli(
-                        full_url,
-                        output_file,
-                        req.viewport_width,
-                        req.viewport_height,
-                        wait_timeout_ms,
-                    )
-                    if ok:
-                        used_engine = "playwright-chromium"
-
-        if not output_file.exists():
-            if not req.fake_mode:
-                sim_ok = await _run_chrome_capture(
-                    full_url,
-                    output_file,
-                    req.media_type,
-                    req.viewport_width,
-                    req.viewport_height,
-                    fake_mode=True,
-                )
-                if sim_ok:
-                    used_engine = "playwright-simulated"
-            if not output_file.exists():
-                payload = _PLACEHOLDER_WEBM if ext == "webm" else _generate_simulated_png()
-                output_file.write_bytes(payload)
+            used_engine = "google-chrome-native"
+        else:
+            ok, reason = await _run_chrome_capture(
+                full_url,
+                output_file,
+                req.media_type,
+                req.viewport_width,
+                req.viewport_height,
+                username=username,
+                password=password,
+            )
+            if not ok:
+                raise CaptureFailedError(f"The screenshot could not be taken: {reason}.")
+            used_engine = "google-chrome-native"
 
         artifact = CaptureArtifact(
             id=capture_id,

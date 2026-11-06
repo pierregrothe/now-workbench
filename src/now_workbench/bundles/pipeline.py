@@ -8,7 +8,7 @@ from pathlib import Path
 from pydantic import BaseModel, ConfigDict, Field
 
 from now_workbench.bundles.manager import BundleManager
-from now_workbench.capture.engine import PlaywrightCaptureEngine
+from now_workbench.capture.engine import CaptureFailedError, PlaywrightCaptureEngine
 from now_workbench.capture.models import CaptureArtifact, CaptureRequest
 from now_workbench.config.paths import safe_child
 from now_workbench.db.models import InstanceRecord, SeedOperationRecord
@@ -311,26 +311,36 @@ class DemoPipelineEngine:
         # 5. Record video proof
         video_url = ""
         video_filename = ""
+        video_note = "No video requested."
         if record_video:
-            proof = await self.record_video_proof(
-                bundle_id=bundle_id,
-                instance=instance,
-                caption=f"Verified Demo Execution Proof - {bundle_id}",
-                fake_mode=fake_mode,
-            )
-            video_url = proof.url
-            video_filename = proof.filename
+            try:
+                proof = await self.record_video_proof(
+                    bundle_id=bundle_id,
+                    instance=instance,
+                    caption=f"Verified Demo Execution Proof - {bundle_id}",
+                    fake_mode=fake_mode,
+                )
+            except CaptureFailedError as exc:
+                video_note = f"Video proof not recorded: {exc}"
+            else:
+                video_url, video_filename = proof.url, proof.filename
+                video_note = f"Video proof recorded: {video_filename}"
 
-        n_inst = len(installed_plugins)
+        still_missing = self.evaluate_bundle(bundle_id, instance, fake_mode=fake_mode)
+        missing = still_missing.missing_plugins
         n_props = prop_result.applied_count
         n_rec = len(seed_result.created_records)
         stg_pass = test_result.passed_stages
         stg_tot = test_result.total_stages
+        complete = test_result.all_passed and not missing and (video_url or not record_video)
+        lead = "Demo pipeline completed" if complete else "Demo pipeline finished with problems"
         msg = (
-            f"Successfully executed demo pipeline for '{bundle_id}' on {instance.name}: "
-            f"{n_inst} modules activated, {n_props} properties configured, "
-            f"{n_rec} records seeded, {stg_pass}/{stg_tot} stages verified. "
-            f"Video proof recorded: {video_filename}"
+            f"{lead} for '{bundle_id}' on {instance.name}: "
+            f"{len(still_missing.required_plugins) - len(missing)}/"
+            f"{len(still_missing.required_plugins)} required modules active"
+            + (f", still missing: {', '.join(missing)}" if missing else "")
+            + f"; {n_props} properties configured; {n_rec} records seeded; "
+            f"{stg_pass}/{stg_tot} stages verified. {video_note}"
         )
 
         return DemoPipelineSummary(
@@ -343,6 +353,6 @@ class DemoPipelineEngine:
             test_passed=test_result.all_passed,
             video_proof_url=video_url,
             video_proof_filename=video_filename,
-            status="success" if test_result.all_passed else "partial",
+            status="success" if complete else "partial",
             message=msg,
         )

@@ -167,7 +167,7 @@ def test_agent_tools_pipeline_parity(tmp_path: Path, synthesized_demo, monkeypat
 
         # 4. run_demo_pipeline tool produces media-player tile
         res_pipe = execute_tool(ctx, "run_demo_pipeline", {"bundle_id": bundle_id})
-        assert "Successfully executed demo pipeline" in res_pipe.summary
+        assert "Demo pipeline completed" in res_pipe.summary
         assert len(res_pipe.tiles) == 1
         media_tile = res_pipe.tiles[0]
         assert media_tile.type == "media-player"

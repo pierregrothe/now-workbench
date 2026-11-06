@@ -14,7 +14,7 @@ from now_workbench.bundles.pipeline import (
     DemoPipelineEngine,
     DemoPipelineSummary,
 )
-from now_workbench.capture.engine import PlaywrightCaptureEngine
+from now_workbench.capture.engine import CaptureFailedError, PlaywrightCaptureEngine
 from now_workbench.capture.models import CaptureArtifact, CaptureRequest
 from now_workbench.config.paths import safe_child
 from now_workbench.config.settings import settings
@@ -505,14 +505,17 @@ async def create_demo_capture(bundle_id: str, req: CaptureRequest) -> CaptureArt
         viewport_height=req.viewport_height,
         fake_mode=req.fake_mode or prefs.capture_fake_mode,
     )
-    return await engine.capture(
-        merged_req,
-        instance_url=inst_url,
-        wait_timeout_ms=prefs.capture_wait_timeout_ms,
-        username=username,
-        password=password,
-        release=inst.release if inst else "Xanadu",
-    )
+    try:
+        return await engine.capture(
+            merged_req,
+            instance_url=inst_url,
+            wait_timeout_ms=prefs.capture_wait_timeout_ms,
+            username=username,
+            password=password,
+            release=inst.release if inst else "Xanadu",
+        )
+    except CaptureFailedError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
 
 
 @router.get("/{bundle_id}/captures/{filename}")

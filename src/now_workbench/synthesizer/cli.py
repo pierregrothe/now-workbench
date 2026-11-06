@@ -6,7 +6,7 @@ import typer
 from rich.console import Console
 from rich.panel import Panel
 
-from now_workbench.capture.engine import PlaywrightCaptureEngine
+from now_workbench.capture.engine import CaptureFailedError, PlaywrightCaptureEngine
 from now_workbench.capture.models import CaptureRequest
 from now_workbench.config.settings import settings
 from now_workbench.db.session import db_session
@@ -79,22 +79,26 @@ def capture_demo_cmd(
         raise typer.Exit(code=1)
 
     engine = PlaywrightCaptureEngine(bundles_dir=settings.get_bundles_dir())
-    artifact = asyncio.run(
-        engine.capture(
-            CaptureRequest(
-                bundle_id=bundle_id,
-                instance_id=instance,
-                target_path=target_path,
-                media_type=media_type,
-                label=label,
-                fake_mode=fake,
-            ),
-            instance_url=inst.url,
-            username=inst.username,
-            password=inst.password,
-            release=inst.release,
+    try:
+        artifact = asyncio.run(
+            engine.capture(
+                CaptureRequest(
+                    bundle_id=bundle_id,
+                    instance_id=instance,
+                    target_path=target_path,
+                    media_type=media_type,
+                    label=label,
+                    fake_mode=fake,
+                ),
+                instance_url=inst.url,
+                username=inst.username,
+                password=inst.password,
+                release=inst.release,
+            )
         )
-    )
+    except CaptureFailedError as exc:
+        console.print(f"[bold red]Capture failed:[/bold red] {exc}")
+        raise typer.Exit(code=1) from exc
     msg = (
         f"[bold green]Captured {artifact.media_type}:[/bold green] {artifact.filename}\n"
         f"  - Instance: {artifact.instance_url}{artifact.target_path}\n"

@@ -9,7 +9,9 @@ import fs from "node:fs";
 import path from "node:path";
 import puppeteer from "../../web/node_modules/puppeteer-core/lib/puppeteer/puppeteer-core.js";
 
-const CHROME_PATH = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
+// CHROME_PATH comes from the environment in the container (Chromium); macOS Chrome otherwise.
+const CHROME_PATH =
+  process.env.CHROME_PATH || "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 
 function parseArgs() {
   const args = process.argv.slice(2);
@@ -519,6 +521,7 @@ async function main() {
       "--no-sandbox",
       "--disable-setuid-sandbox",
       "--disable-gpu",
+      "--disable-dev-shm-usage",
       `--window-size=${opts.width},${opts.height}`,
       "--disable-web-security",
       "--ignore-certificate-errors",

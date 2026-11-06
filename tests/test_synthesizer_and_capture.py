@@ -6,11 +6,12 @@ import os
 import stat
 from pathlib import Path
 
+import pytest
 from fastapi.testclient import TestClient
 from typer.testing import CliRunner
 
 from now_workbench.api.app import create_app
-from now_workbench.capture.engine import PlaywrightCaptureEngine
+from now_workbench.capture.engine import CaptureFailedError, PlaywrightCaptureEngine
 from now_workbench.capture.models import CaptureRequest
 from now_workbench.cli import app as cli_app
 from now_workbench.config.settings import settings
@@ -120,59 +121,46 @@ async def test_playwright_capture_engine_fake_screenshot_and_video(tmp_path: Pat
     assert not Path(vid_artifact.file_path).exists()
 
 
-async def test_playwright_capture_engine_live_cli_execution(tmp_path: Path) -> None:
-    """Verify PlaywrightCaptureEngine(fake_mode=False) invokes npx playwright screenshot."""
+async def test_capture_live_screenshot_uses_the_browser_script(tmp_path: Path) -> None:
+    """A live screenshot runs the Chrome capture script through Node and is labelled live."""
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
-    npx_script = bin_dir / "npx"
-    npx_script.write_text(
-        "#!/bin/sh\nfor last; do true; done\nprintf '\\211PNG\\r\\n\\032\\n' > \"$last\"\nexit 0\n",
+    node = bin_dir / "node"
+    # Stand-in for Node + Chrome: write a >500-byte PNG to the --output path.
+    node.write_text(
+        '#!/bin/sh\nwhile [ $# -gt 0 ]; do [ "$1" = --output ] && out="$2"; shift; done\n'
+        "cat > /dev/null\nprintf '\\211PNG\\r\\n\\032\\n' > \"$out\"\n"
+        'head -c 600 /dev/zero >> "$out"\nexit 0\n',
         encoding="utf-8",
     )
-    npx_script.chmod(npx_script.stat().st_mode | stat.S_IEXEC)
-
+    node.chmod(node.stat().st_mode | stat.S_IEXEC)
     old_path = os.environ.get("PATH", "")
     os.environ["PATH"] = f"{bin_dir}:{old_path}"
     try:
         engine = PlaywrightCaptureEngine(bundles_dir=tmp_path / "bundles")
         req = CaptureRequest(
-            bundle_id="live-bundle",
-            target_path="/incident_list.do",
-            media_type="screenshot",
-            fake_mode=False,
+            bundle_id="live-bundle", target_path="/incident_list.do", media_type="screenshot"
         )
         artifact = await engine.capture(req, instance_url="https://dev99999.service-now.com")
-        assert artifact.engine in ("google-chrome-native", "playwright-chromium")
-
-        # Video mode in live engine uses deterministic fallback container
-        vid_req = CaptureRequest(
-            bundle_id="live-bundle",
-            target_path="/incident_list.do",
-            media_type="video",
-            fake_mode=False,
-        )
-        vid_artifact = await engine.capture(
-            vid_req, instance_url="https://dev99999.service-now.com"
-        )
-        assert vid_artifact.engine in ("google-chrome-native", "playwright-simulated")
+        assert artifact.engine == "google-chrome-native"
+        assert Path(artifact.file_path).stat().st_size > 500
     finally:
         os.environ["PATH"] = old_path
 
 
-async def test_playwright_capture_engine_missing_npx(tmp_path: Path) -> None:
-    """Verify _run_playwright_cli returns False cleanly when npx is not on PATH."""
+async def test_capture_live_failure_raises_and_saves_nothing(tmp_path: Path) -> None:
+    """Without a browser, a live capture fails loudly; no placeholder is passed off as real."""
     old_path = os.environ.get("PATH", "")
     os.environ["PATH"] = str(tmp_path / "empty-bin")
     try:
         engine = PlaywrightCaptureEngine(bundles_dir=tmp_path / "bundles")
-        req = CaptureRequest(
-            bundle_id="fallback-bundle",
-            target_path="/incident_list.do",
-            media_type="screenshot",
-            fake_mode=False,
-        )
-        artifact = await engine.capture(req, instance_url="https://dev99999.service-now.com")
-        assert artifact.engine == "playwright-simulated"
+        for media in ("screenshot", "video"):
+            req = CaptureRequest(
+                bundle_id="fallback-bundle", target_path="/incident_list.do", media_type=media
+            )
+            with pytest.raises(CaptureFailedError, match="could not be"):
+                await engine.capture(req, instance_url="https://dev99999.service-now.com")
+        assert engine.list_captures("fallback-bundle") == []
     finally:
         os.environ["PATH"] = old_path
 
