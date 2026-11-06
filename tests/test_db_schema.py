@@ -295,3 +295,30 @@ def test_apply_migrations_v1_to_v2_keeps_instances_and_drops_release() -> None:
     tables = {r["name"] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table';")}
     assert {"instance_profiles", "instance_nodes"} <= tables
     conn.close()
+
+
+def test_apply_migrations_v2_to_v3_adds_purpose_and_renames_reported_fields() -> None:
+    """v3 defaults existing instances to 'demo' and keeps reported profile values."""
+    from now_workbench.db.schema import MIGRATIONS
+
+    conn = sqlite3.connect(":memory:")
+    conn.row_factory = sqlite3.Row
+    conn.executescript(
+        f"BEGIN;\n{MIGRATIONS[0]}\n{MIGRATIONS[1]}\nPRAGMA user_version = 2;\nCOMMIT;"
+    )
+    conn.execute(
+        "INSERT INTO instances (id, name, url, credentials_sealed) "
+        "VALUES ('v2', 'Demo', 'https://d.service-now.com', x'01');"
+    )
+    conn.execute(
+        "INSERT INTO instance_profiles (instance_id, environment, is_production) "
+        "VALUES ('v2', 'prod', 1);"
+    )
+    conn.commit()
+    assert apply_migrations(conn) == SCHEMA_VERSION
+    assert conn.execute("SELECT purpose FROM instances;").fetchone()["purpose"] == "demo"
+    row = conn.execute(
+        "SELECT instance_type, production_property FROM instance_profiles;"
+    ).fetchone()
+    assert (row["instance_type"], row["production_property"]) == ("prod", 1)
+    conn.close()

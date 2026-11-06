@@ -50,7 +50,9 @@ test('connect form has no release picker; release is detected, not chosen', asyn
 
   // The release family is read from the instance build (glide.war), never asked for.
   await expect(page.getByText(/Release Family/)).toHaveCount(0);
-  await expect(page.locator('select')).toHaveCount(0);
+  // The only selector is the owner-declared purpose; there is nothing for the release.
+  await expect(page.locator('select')).toHaveCount(1);
+  await expect(page.getByLabel('Purpose')).toBeVisible();
 
   await page.getByPlaceholder('e.g. Novartis BioHealth Sub-Prod').fill('Form Instance');
   await page.getByPlaceholder('https://instancename.service-now.com').fill('fake://form.service-now.com');
@@ -99,8 +101,9 @@ test('detected platform profile is shown: environment, datacenter, nodes, CPU, m
     release: 'Brazil',
     build_tag: 'glide-brazil-08-01-2027__patch0',
     build_date: '2027-08-15',
-    environment: 'dev',
-    is_production: false,
+    installation_name: 'Lab Server',
+    instance_type: 'prod',
+    production_property: true,
     datacenter: 'yyz3',
     db_product: 'MySQL',
     db_version: '5.8',
@@ -113,12 +116,38 @@ test('detected platform profile is shown: environment, datacenter, nodes, CPU, m
   // A release name the code has never seen is displayed as reported by the instance.
   await expect(page.getByText('Brazil Family')).toBeVisible();
   const facts = page.getByTestId('profile-facts');
-  await expect(facts).toContainText('DEV');
+  // Platform-reported values are labelled as reported, not shown as a verdict.
+  await expect(facts).toContainText('Instance type (reported)');
+  await expect(facts).toContainText('prod, production property true');
+  await expect(facts).toContainText('Lab Server');
   await expect(facts).toContainText('yyz3');
   await expect(facts).toContainText('2/2 online');
   await expect(facts).toContainText('2000 / 4000 MB (50%)');
   await expect(facts).toContainText('SUSTAINED_OVER');
   const row = page.getByRole('table').getByRole('row', { name: /Profiled Instance/ });
   await expect(row).toContainText('Brazil');
-  await expect(row).toContainText('DEV');
+  // The badge is the owner's declared purpose (default demo), even though the
+  // platform reports type "prod" for this instance.
+  await expect(page.getByTestId('row-purpose')).toHaveText('Demo');
+  await expect(page.getByTestId('hero-purpose')).toHaveText('Demo');
+});
+
+test('purpose is declared by the user; only "Production" is flagged red', async ({ page }) => {
+  await openInstancesPanel(page);
+
+  await page.getByPlaceholder('e.g. Novartis BioHealth Sub-Prod').fill('Purpose Instance');
+  await page.getByPlaceholder('https://instancename.service-now.com').fill('fake://purpose.service-now.com');
+  await page.getByLabel('Purpose').selectOption('production');
+  await page.getByTitle('Connect Instance').click();
+
+  const badge = page.getByTestId('row-purpose');
+  await expect(badge).toHaveText('Production');
+  await expect(badge).toHaveClass(/prod/);
+
+  // Edit it back to a non-production purpose: the red flag goes away.
+  await page.getByTitle('Edit Credentials').click();
+  await page.locator('#edit-purpose').selectOption('demo');
+  await page.getByTitle('Save Changes').click();
+  await expect(page.getByTestId('row-purpose')).toHaveText('Demo');
+  await expect(page.getByTestId('row-purpose')).not.toHaveClass(/prod/);
 });

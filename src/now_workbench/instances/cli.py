@@ -6,11 +6,23 @@ from rich.table import Table
 
 from now_workbench.connectivity import check_and_record_instance
 from now_workbench.db.models import (
+    INSTANCE_PURPOSES,
     InstanceCreate,
+    InstancePurpose,
     InstanceRecord,
     InstanceUpdate,
 )
 from now_workbench.db.session import db_session
+
+
+def _parse_purpose(value: str) -> InstancePurpose:
+    """Validate a --purpose value against the allowed instance purposes."""
+    for allowed in INSTANCE_PURPOSES:
+        if value.strip().lower() == allowed:
+            return allowed
+    choices = ", ".join(INSTANCE_PURPOSES)
+    raise typer.BadParameter(f"'{value}' is not one of: {choices}", param_hint="--purpose")
+
 
 console = Console()
 instance_app = typer.Typer(name="instance", help="Manage registered ServiceNow instances")
@@ -86,9 +98,14 @@ def add_instance_cmd(
     instance_id: str | None = typer.Option(None, "--id", help="Explicit ID for the instance"),
     username: str = typer.Option("admin", "--username", "-u", help="ServiceNow username"),
     password: str = typer.Option("", "--password", "-p", help="ServiceNow password"),
+    purpose: str = typer.Option(
+        "demo",
+        "--purpose",
+        help="What you use it for: demo, development, test, or production",
+    ),
     default: bool = typer.Option(False, "--default", "-d", help="Set as active default"),
 ) -> None:
-    """Register a new ServiceNow instance."""
+    """Register a new ServiceNow instance (release and platform facts are detected)."""
     with db_session() as repo:
         rec = repo.add_instance(
             InstanceCreate(
@@ -98,6 +115,7 @@ def add_instance_cmd(
                 username=username,
                 password=password,
                 auth_type="basic",
+                purpose=_parse_purpose(purpose),
                 is_default=default,
             )
         )

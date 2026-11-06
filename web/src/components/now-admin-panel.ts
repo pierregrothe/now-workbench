@@ -20,8 +20,11 @@ export interface InstanceProfileData {
   build_tag: string | null;
   build_date: string | null;
   platform_name: string | null;
-  environment: string | null;
-  is_production: boolean | null;
+  installation_name: string | null;
+  /** Platform-reported provisioning type: a standalone demo instance reports "prod". */
+  instance_type: string | null;
+  /** Value of glide.installation.production (admin-editable property). */
+  production_property: boolean | null;
   datacenter: string | null;
   db_product: string | null;
   db_version: string | null;
@@ -40,17 +43,30 @@ export interface InstanceData {
   is_default: boolean;
   status: string;
   last_checked: string | null;
+  purpose: InstancePurpose;
   profile?: InstanceProfileData | null;
 }
 
 const PRESSURE_RANK: Record<string, number> = { UNDER: 0, NOMINAL: 1, OVER: 2, SUSTAINED_OVER: 3 };
 
-function environmentLabel(profile: InstanceProfileData): string {
-  const env = (profile.environment || '').toUpperCase();
-  if (env) return env;
-  if (profile.is_production === true) return 'PROD';
-  if (profile.is_production === false) return 'NON-PROD';
-  return 'UNKNOWN';
+/** What the owner uses the instance for: declared, never detected (ADR-014). */
+export type InstancePurpose = 'demo' | 'development' | 'test' | 'production';
+
+const PURPOSES: Array<[InstancePurpose, string]> = [
+  ['demo', 'Demo'],
+  ['development', 'Development'],
+  ['test', 'Test'],
+  ['production', 'Production'],
+];
+
+function purposeLabel(purpose: InstancePurpose): string {
+  return PURPOSES.find(([value]) => value === purpose)?.[1] ?? purpose;
+}
+
+function renderPurposeOptions(selected: InstancePurpose) {
+  return PURPOSES.map(
+    ([value, label]) => html`<option value=${value} ?selected=${value === selected}>${label}</option>`,
+  );
 }
 
 interface DiagnosticsData {
@@ -197,6 +213,11 @@ export class NowAdminPanel extends LitElement {
       background: #fef2f2;
       color: #b42318;
       border-color: #fecaca;
+    }
+
+    .badge-release.purpose-production {
+      background: #b42318;
+      border-color: #fda29b;
     }
 
     .row-dc {
@@ -817,6 +838,8 @@ export class NowAdminPanel extends LitElement {
   @state() private newUsername = 'admin';
   @state() private newPassword = '';
   @state() private newSetDefault = true;
+  @state() private newPurpose: InstancePurpose = 'demo';
+  @state() private editPurpose: InstancePurpose = 'demo';
 
   connectedCallback(): void {
     super.connectedCallback();
@@ -900,6 +923,7 @@ export class NowAdminPanel extends LitElement {
     this.editUsername = inst.username;
     this.editPassword = '';
     this.editRelease = inst.release;
+    this.editPurpose = inst.purpose;
     this.confirmingDeleteId = null;
     this.actionFeedback = '';
   }
@@ -917,6 +941,7 @@ export class NowAdminPanel extends LitElement {
         name: this.editName.trim(),
         url: this.editUrl.trim(),
         username: this.editUsername.trim(),
+        purpose: this.editPurpose,
       };
       if (this.editPassword.trim()) {
         payload.password = this.editPassword.trim();
@@ -983,6 +1008,7 @@ export class NowAdminPanel extends LitElement {
           url: cleanUrl,
           username: this.newUsername.trim() || 'admin',
           password: this.newPassword.trim(),
+          purpose: this.newPurpose,
           is_default: this.newSetDefault,
         }),
       });
@@ -1020,7 +1046,7 @@ export class NowAdminPanel extends LitElement {
     const profile = inst.profile;
     if (!profile) {
       return html`<div class="profile-empty" data-testid="profile-empty">
-        Platform details (release, environment, datacenter, nodes, CPU, memory) are read from
+        Platform details (release, instance type, datacenter, nodes, CPU, memory) are read from
         the instance on the first successful connection test.
       </div>`;
     }
@@ -1034,7 +1060,14 @@ export class NowAdminPanel extends LitElement {
       .filter((p): p is string => !!p)
       .sort((a, b) => (PRESSURE_RANK[b] ?? 0) - (PRESSURE_RANK[a] ?? 0))[0];
     const facts: Array<[string, string, boolean]> = [
-      ['Environment', environmentLabel(profile), false],
+      ['Installation (reported)', profile.installation_name ?? '--', false],
+      [
+        'Instance type (reported)',
+        [profile.instance_type, profile.production_property === null ? null : `production property ${profile.production_property}`]
+          .filter(Boolean)
+          .join(', ') || '--',
+        false,
+      ],
       ['Datacenter', profile.datacenter ?? '--', false],
       ['Nodes', nodes.length ? `${online}/${nodes.length} online` : '--', online < nodes.length],
       [
@@ -1081,6 +1114,12 @@ export class NowAdminPanel extends LitElement {
                       <span class="badge-release">
                         ${activeInst.release === 'Unknown' ? 'Release not detected' : `${activeInst.release} Family`}
                       </span>
+                      <span
+                        class="badge-release ${activeInst.purpose === 'production' ? 'purpose-production' : ''}"
+                        data-testid="hero-purpose"
+                        title="Purpose you declared for this instance"
+                        >${purposeLabel(activeInst.purpose)}</span
+                      >
                     </div>
                     <span class="status-badge ${this.testingInstanceId === activeInst.id ? 'testing' : activeInst.status}">
                       <span class="dot-indicator"></span>
@@ -1211,12 +1250,14 @@ export class NowAdminPanel extends LitElement {
                         </td>
                         <td>
                           <span style="font-weight: 600; color: #475467;">${inst.release}</span>
-                          ${inst.profile
-                            ? html`<span class="env-badge ${environmentLabel(inst.profile) === 'PROD' ? 'prod' : ''}"
-                                  >${environmentLabel(inst.profile)}</span
-                                >${inst.profile.datacenter
-                                  ? html`<span class="row-dc">${inst.profile.datacenter}</span>`
-                                  : ''}`
+                          <span
+                            class="env-badge ${inst.purpose === 'production' ? 'prod' : ''}"
+                            data-testid="row-purpose"
+                            title="Purpose you declared for this instance"
+                            >${purposeLabel(inst.purpose)}</span
+                          >
+                          ${inst.profile?.datacenter
+                            ? html`<span class="row-dc">${inst.profile.datacenter}</span>`
                             : ''}
                         </td>
                         <td>
@@ -1312,6 +1353,17 @@ export class NowAdminPanel extends LitElement {
                                         readonly
                                         title="Read from the instance build (glide.war) on every connection test"
                                       />
+                                    </div>
+                                    <div class="form-group">
+                                      <label class="form-label" for="edit-purpose">Purpose</label>
+                                      <select
+                                        id="edit-purpose"
+                                        class="form-input"
+                                        @change=${(e: Event) =>
+                                          (this.editPurpose = (e.target as HTMLSelectElement).value as InstancePurpose)}
+                                      >
+                                        ${renderPurposeOptions(this.editPurpose)}
+                                      </select>
                                     </div>
                                     <div class="form-group">
                                       <label class="form-label">Service Account Username</label>
@@ -1430,6 +1482,17 @@ export class NowAdminPanel extends LitElement {
                   .value=${this.newPassword}
                   @input=${(e: Event) => (this.newPassword = (e.target as HTMLInputElement).value)}
                 />
+              </div>
+
+              <div class="form-group">
+                <label class="form-label" for="new-purpose">Purpose</label>
+                <select
+                  id="new-purpose"
+                  class="form-input"
+                  @change=${(e: Event) => (this.newPurpose = (e.target as HTMLSelectElement).value as InstancePurpose)}
+                >
+                  ${renderPurposeOptions(this.newPurpose)}
+                </select>
               </div>
 
               <div class="form-group">

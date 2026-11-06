@@ -2,6 +2,7 @@
 
 **Status:** accepted
 **Date:** 2026-11-06
+**Amended:** 2026-11-06 (schema v3: reported facts vs. declared purpose)
 **Supersedes:** the 2026-11-06 decision-log entry "Instance release family is detected,
 never user-selected" (glide.war-only detection, still stored in `instances.release`)
 
@@ -81,3 +82,25 @@ and does not accept REST basic auth, so it is not used.
 - Tests use an in-memory `httpx.MockTransport` ServiceNow (no network, no mocks).
   Playwright seeds profiles through the real repository code, because `fake://`
   instances are never profiled.
+
+## Amendment: reported facts are not intent
+
+**Finding.** The first version showed a red "PROD" badge for the owner's instance because
+`instance_type` is `prod` and `glide.installation.production` is `true`. The instance is
+a demo: `glide.installation.name` is "Demo Server", and the host is `demoalecto...`.
+ServiceNow provisions standalone demo/trial instances with type `prod`, so the platform
+value describes *how the instance was provisioned*, not what the owner uses it for.
+
+**Decision (schema v3).**
+1. `instances.purpose` (`demo | development | test | production`, default `demo`) is
+   **declared by the owner**, enforced by a `CHECK` constraint and a `Literal` type, and
+   settable in the UI, CLI (`--purpose`) and Otto tools. It is the only thing that
+   drives warning styling (red badge for `production`).
+2. The platform values are renamed to say what they are and are shown labelled
+   "(reported)": `environment` becomes `instance_type`, `is_production` becomes
+   `production_property`. `installation_name` (`glide.installation.name`) is added.
+3. Purpose is never inferred from reported values, and a connection test never changes
+   it. Release and platform facts stay detected-only; purpose stays declared-only.
+
+**Consequence.** Guarding destructive operations (seed, deploy, reset) on instances
+marked `production` is now possible and reliable. It is not implemented yet.

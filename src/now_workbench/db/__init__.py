@@ -1,6 +1,7 @@
 """Database package for now-workbench."""
 
 from now_workbench.db.models import (
+    INSTANCE_PURPOSES,
     MAX_THREAD_CONTEXT_MESSAGES,
     UNKNOWN_RELEASE,
     ChatMessageCreate,
@@ -12,6 +13,7 @@ from now_workbench.db.models import (
     InstanceNode,
     InstanceProfile,
     InstancePublic,
+    InstancePurpose,
     InstanceRecord,
     InstanceUpdate,
     TemplateInstantiationRequest,
@@ -21,6 +23,7 @@ from now_workbench.db.repository import DatabaseRepository
 from now_workbench.db.session import db_session, get_db_path, init_db
 
 __all__ = [
+    "INSTANCE_PURPOSES",
     "MAX_THREAD_CONTEXT_MESSAGES",
     "ChatMessageCreate",
     "ChatMessageRecord",
@@ -32,6 +35,7 @@ __all__ = [
     "InstanceCreate",
     "InstanceNode",
     "InstanceProfile",
+    "InstancePurpose",
     "InstancePublic",
     "InstanceRecord",
     "InstanceUpdate",

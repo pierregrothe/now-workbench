@@ -11,7 +11,7 @@ from now_workbench.ai.tools.base import (
     resolve_instance,
 )
 from now_workbench.connectivity import check_and_record_instance
-from now_workbench.db import InstanceCreate, InstanceRecord, InstanceUpdate
+from now_workbench.db import INSTANCE_PURPOSES, InstanceCreate, InstanceRecord, InstanceUpdate
 
 
 def _dicts(instances: list[InstanceRecord]) -> list[dict[str, Any]]:
@@ -51,12 +51,15 @@ def _add_instance(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
     url = str(args["url"]).strip().rstrip("/")
     existing = ctx.repo.list_instances()
     created = ctx.repo.add_instance(
-        InstanceCreate(
-            name=str(args.get("name") or url.split("://")[-1].split(".")[0]),
-            url=url,
-            username=str(args.get("username") or "admin"),
-            password=str(args.get("password") or ""),
-            is_default=bool(args.get("make_default")) or not existing,
+        InstanceCreate.model_validate(
+            {
+                "name": str(args.get("name") or url.split("://")[-1].split(".")[0]),
+                "url": url,
+                "username": str(args.get("username") or "admin"),
+                "password": str(args.get("password") or ""),
+                "purpose": str(args.get("purpose") or "demo"),
+                "is_default": bool(args.get("make_default")) or not existing,
+            }
         )
     )
     status, msg, _ = check_and_record_instance(
@@ -74,7 +77,9 @@ def _rename_instance(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
 
 def _update_instance(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
     inst = resolve_instance(ctx.repo, args.get("instance"))
-    fields = {k: args[k] for k in ("url", "username", "password") if args.get(k) is not None}
+    fields = {
+        k: args[k] for k in ("url", "username", "password", "purpose") if args.get(k) is not None
+    }
     if not fields:
         return ToolResult(summary="No fields to update were provided.", ok=False)
     rec = ctx.repo.update_instance(inst.id, InstanceUpdate(**fields))
@@ -143,6 +148,12 @@ def _delete_instances(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
 
 _REF = {"type": "string", "description": "Instance id, name, or part of its URL"}
 
+_PURPOSE: dict[str, Any] = {
+    "type": "string",
+    "enum": list(INSTANCE_PURPOSES),
+    "description": "What the user uses the instance for (declared, not detected).",
+}
+
 register(
     ToolSpec(
         name="list_instances",
@@ -167,6 +178,7 @@ register(
             "name": {"type": "string"},
             "username": {"type": "string"},
             "password": {"type": "string"},
+            "purpose": _PURPOSE,
             "make_default": {"type": "boolean"},
         },
         required=["url"],
@@ -189,12 +201,16 @@ register(
 register(
     ToolSpec(
         name="update_instance",
-        description="Change an instance's URL, username, or password (release is detected).",
+        description=(
+            "Change an instance's URL, username, password, or purpose "
+            "(release and platform facts are detected, never set)."
+        ),
         properties={
             "instance": _REF,
             "url": {"type": "string"},
             "username": {"type": "string"},
             "password": {"type": "string"},
+            "purpose": _PURPOSE,
         },
         required=["instance"],
         handler=_update_instance,

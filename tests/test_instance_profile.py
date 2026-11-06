@@ -139,6 +139,7 @@ def _servicenow(admin: bool = True, props: bool = True) -> httpx.MockTransport:
                     "result": [
                         {"name": "glide.war", "value": WAR},
                         {"name": "glide.installation.production", "value": "false"},
+                        {"name": "glide.installation.name", "value": "Acme Dev"},
                         {"name": "instance_name", "value": "acme"},
                     ]
                 },
@@ -171,14 +172,15 @@ def _servicenow(admin: bool = True, props: bool = True) -> httpx.MockTransport:
 
 
 def test_collect_instance_profile_admin_reads_everything() -> None:
-    """An admin account yields release, environment, datacenter, and per-node resources."""
+    """An admin account yields release, reported type, datacenter, and per-node resources."""
     profile = collect_instance_profile(_instance(), client=httpx.Client(transport=_servicenow()))
     assert profile is not None
-    assert (profile.release, profile.environment, profile.is_production) == (
+    assert (profile.release, profile.instance_type, profile.production_property) == (
         "Australia",
         "dev",
         False,
     )
+    assert profile.installation_name == "Acme Dev"
     assert profile.datacenter == "yyz3"
     assert profile.build_date == "2026-10-13"
     assert profile.platform_name == "acme"
@@ -244,7 +246,7 @@ def test_check_and_record_instance_stores_profile_and_release() -> None:
     profile = repo.get_instance_profile(inst.id)
     assert status == "authenticated"
     assert stored is not None and stored.release == "Australia"
-    assert profile is not None and len(profile.nodes) == 2 and profile.is_production is False
+    assert profile is not None and len(profile.nodes) == 2 and profile.production_property is False
     repo.close()
 
 
@@ -276,7 +278,7 @@ def test_save_instance_profile_replaces_nodes() -> None:
     repo.save_instance_profile(InstanceProfile(instance_id=inst.id, release="Australia"))
     profile = repo.get_instance_profile(inst.id)
     assert profile is not None and profile.release == "Australia" and profile.nodes == []
-    assert profile.is_production is None
+    assert profile.production_property is None
     repo.close()
 
 
@@ -343,3 +345,40 @@ def test_collect_instance_profile_non_numeric_stats_are_dropped() -> None:
     assert profile is not None
     assert profile.nodes[0].cpu_count is None
     assert profile.nodes[0].memory_max_mb == 2028.0
+
+
+def test_instance_purpose_defaults_to_demo_and_is_independent_of_reported_type() -> None:
+    """A demo instance that ServiceNow reports as "prod" stays a demo unless the owner says so."""
+    repo, inst = _repo_with_instance("https://acme.service-now.com")
+    assert inst.purpose == "demo"
+    repo.save_instance_profile(
+        InstanceProfile(instance_id=inst.id, instance_type="prod", production_property=True)
+    )
+    stored = repo.get_instance(inst.id)
+    assert stored is not None and stored.purpose == "demo"
+    updated = repo.update_instance(inst.id, InstanceUpdate(purpose="production"))
+    assert updated is not None and updated.purpose == "production"
+    renamed = repo.update_instance(inst.id, InstanceUpdate(name="Acme 2"))
+    assert renamed is not None and renamed.purpose == "production"
+    repo.close()
+
+
+def test_instances_api_purpose_validation_and_public_view() -> None:
+    """The API accepts declared purposes, rejects others, and exposes purpose publicly."""
+    from fastapi.testclient import TestClient
+
+    from now_workbench.api.app import create_app
+
+    client = TestClient(create_app())
+    bad = client.post(
+        "/api/instances",
+        json={"name": "Bad", "url": "fake://bad.service-now.com", "purpose": "prod"},
+    )
+    assert bad.status_code == 422
+    made = client.post(
+        "/api/instances",
+        json={"name": "Lab", "url": "fake://lab.service-now.com", "purpose": "test"},
+    )
+    assert made.status_code == 200 and made.json()["purpose"] == "test"
+    changed = client.put(f"/api/instances/{made.json()['id']}", json={"purpose": "development"})
+    assert changed.json()["purpose"] == "development"

@@ -300,3 +300,20 @@ hardcoded name list kept drifting. The owner wants all key facts (prod/dev, data
 **Consequences:**
 - New ServiceNow releases need no code change; memory figures are JVM heap per node.
 
+---
+
+### 2026-11-06 -- ADR-014 amendment: reported platform type vs. declared purpose
+
+**Status:** accepted
+
+**Context:**
+A standalone demo instance reports `instance_type=prod` and `glide.installation.production=true`; the
+UI showed a red PROD badge for it, which was misleading.
+
+**Decision:**
+1. New `instances.purpose` (demo/development/test/production, default demo), declared by the owner.
+2. Reported values renamed `instance_type` / `production_property` and labelled "(reported)".
+
+**Consequences:**
+- Warning styling and future production guards key off the owner's declaration, never the platform's.
+

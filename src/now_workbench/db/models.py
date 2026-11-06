@@ -1,11 +1,16 @@
 """Pydantic models for database entities in now-workbench."""
 
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
 UNKNOWN_RELEASE = "Unknown"
+
+# What the owner uses the instance for. Declared, never detected: ServiceNow reports how an
+# instance was provisioned (a standalone demo reports "prod"), not what it is for.
+InstancePurpose = Literal["demo", "development", "test", "production"]
+INSTANCE_PURPOSES: tuple[InstancePurpose, ...] = ("demo", "development", "test", "production")
 
 
 class InstanceNode(BaseModel):
@@ -38,8 +43,10 @@ class InstanceProfile(BaseModel):
     build_tag: str | None = None
     build_date: str | None = None
     platform_name: str | None = None
-    environment: str | None = None
-    is_production: bool | None = None
+    installation_name: str | None = None
+    # Platform-reported provisioning facts -- NOT the owner's intent (see InstancePurpose).
+    instance_type: str | None = None
+    production_property: bool | None = None
     datacenter: str | None = None
     db_product: str | None = None
     db_version: str | None = None
@@ -64,6 +71,7 @@ class InstanceRecord(BaseModel):
     password: str = ""
     auth_type: str = "basic"
     release: str = UNKNOWN_RELEASE  # read-only: from the detected profile (ADR-014)
+    purpose: InstancePurpose = "demo"
     is_default: bool = False
     status: str = "unknown"
     last_checked: datetime | None = None
@@ -78,6 +86,7 @@ class InstanceRecord(BaseModel):
             has_password=bool(self.password),
             auth_type=self.auth_type,
             release=self.release,
+            purpose=self.purpose,
             is_default=self.is_default,
             status=self.status,
             last_checked=self.last_checked,
@@ -97,6 +106,7 @@ class InstancePublic(BaseModel):
     has_password: bool
     auth_type: str
     release: str
+    purpose: InstancePurpose
     is_default: bool
     status: str
     last_checked: datetime | None = None
@@ -114,6 +124,7 @@ class InstanceCreate(BaseModel):
     username: str = "admin"
     password: str = ""
     auth_type: str = "basic"
+    purpose: InstancePurpose = "demo"
     is_default: bool = False
 
 
@@ -127,6 +138,7 @@ class InstanceUpdate(BaseModel):
     username: str | None = None
     password: str | None = None
     auth_type: str | None = None
+    purpose: InstancePurpose | None = None
     is_default: bool | None = None
 
 

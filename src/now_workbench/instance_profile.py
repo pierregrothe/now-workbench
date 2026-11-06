@@ -7,7 +7,8 @@
 Three read-only GETs, each best-effort (an account without admin rights still gets
 whatever ``sys_properties`` exposes):
 
-1. ``sys_properties``: build identifier, production flag, platform instance name.
+1. ``sys_properties``: build identifier, production property, installation and
+   instance names.
 2. ``sys_cluster_state``: one row per application node (hostname, status, release).
 3. ``sys_cluster_node_stats``: per-node diagnostics XML (CPU, memory, DB, Java, OS).
 
@@ -31,7 +32,12 @@ __all__ = [
     "parse_node_stats",
 ]
 
-_PROPERTY_NAMES = (BUILD_PROPERTY, "glide.installation.production", "instance_name")
+_PROPERTY_NAMES = (
+    BUILD_PROPERTY,
+    "glide.installation.production",
+    "glide.installation.name",
+    "instance_name",
+)
 
 # Diagnostics XML elements kept from sys_cluster_node_stats.stats.
 _STAT_KEYS = (
@@ -200,8 +206,9 @@ def _assemble_profile(
         build_tag=first.get("glide.build.tag") or (war.removesuffix(".zip") or None),
         build_date=parse_build_date(first.get("glide.build.date", "")),
         platform_name=props.get("instance_name") or None,
-        environment=first.get("instance_type"),
-        is_production=None if production is None else production.lower() == "true",
+        installation_name=props.get("glide.installation.name") or None,
+        instance_type=first.get("instance_type"),
+        production_property=None if production is None else production.lower() == "true",
         datacenter=datacenters.most_common(1)[0][0] if datacenters else None,
         db_product=first.get("db.product_name"),
         db_version=first.get("db.product_version"),

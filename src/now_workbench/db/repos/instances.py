@@ -22,7 +22,7 @@ __all__ = ["InstanceRepositoryMixin", "row_to_instance"]
 _SELECT_INSTANCE = f"""
     SELECT i.id, i.name, i.url, i.auth_type, i.credentials_sealed,
            COALESCE(p.release, '{UNKNOWN_RELEASE}') AS release,
-           i.is_default, i.status, i.last_checked
+           i.purpose, i.is_default, i.status, i.last_checked
     FROM instances i
     LEFT JOIN instance_profiles p ON p.instance_id = i.id
 """
@@ -32,8 +32,9 @@ _PROFILE_COLUMNS = (
     "build_tag",
     "build_date",
     "platform_name",
-    "environment",
-    "is_production",
+    "installation_name",
+    "instance_type",
+    "production_property",
     "datacenter",
     "db_product",
     "db_version",
@@ -86,6 +87,7 @@ def row_to_instance(row: sqlite3.Row) -> InstanceRecord:
         password=password,
         auth_type=row["auth_type"],
         release=row["release"],
+        purpose=row["purpose"],
         is_default=bool(row["is_default"]),
         status=row["status"],
         last_checked=datetime.fromisoformat(row["last_checked"]) if row["last_checked"] else None,
@@ -137,13 +139,14 @@ class InstanceRepositoryMixin:
                 self.conn.execute(
                     """
                     INSERT INTO instances (id, name, url, auth_type, credentials_sealed,
-                                           is_default)
-                    VALUES (?, ?, ?, ?, ?, ?)
+                                           purpose, is_default)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
                     ON CONFLICT(id) DO UPDATE SET
                         name = excluded.name,
                         url = excluded.url,
                         auth_type = excluded.auth_type,
                         credentials_sealed = excluded.credentials_sealed,
+                        purpose = excluded.purpose,
                         is_default = excluded.is_default,
                         updated_at = excluded.updated_at;
                     """,
@@ -153,6 +156,7 @@ class InstanceRepositoryMixin:
                         inst.url,
                         inst.auth_type,
                         sealed,
+                        inst.purpose,
                         int(inst.is_default),
                     ),
                 )
@@ -184,8 +188,8 @@ class InstanceRepositoryMixin:
     def save_instance_profile(self, profile: InstanceProfile) -> None:
         """Replace an instance's detected platform profile and node list atomically."""
         values = profile.model_dump(include=set(_PROFILE_COLUMNS))
-        if values["is_production"] is not None:
-            values["is_production"] = int(values["is_production"])
+        if values["production_property"] is not None:
+            values["production_property"] = int(values["production_property"])
         cols = ", ".join(_PROFILE_COLUMNS)
         marks = ", ".join("?" for _ in _PROFILE_COLUMNS)
         updates = ", ".join(f"{c} = excluded.{c}" for c in _PROFILE_COLUMNS)
@@ -239,8 +243,8 @@ class InstanceRepositoryMixin:
             (instance_id,),
         ).fetchall()
         data = {c: row[c] for c in _PROFILE_COLUMNS}
-        if data["is_production"] is not None:
-            data["is_production"] = bool(data["is_production"])
+        if data["production_property"] is not None:
+            data["production_property"] = bool(data["production_property"])
         return InstanceProfile(
             instance_id=instance_id,
             captured_at=datetime.fromisoformat(row["captured_at"]),
@@ -272,7 +276,7 @@ class InstanceRepositoryMixin:
                     """
                     UPDATE instances
                     SET name = ?, url = ?, auth_type = ?, credentials_sealed = ?,
-                        is_default = ?, updated_at = ?
+                        purpose = ?, is_default = ?, updated_at = ?
                     WHERE id = ?;
                     """,
                     (
@@ -280,6 +284,7 @@ class InstanceRepositoryMixin:
                         new_url,
                         update.auth_type if update.auth_type is not None else existing.auth_type,
                         _seal_credentials(existing.id, username, password),
+                        update.purpose if update.purpose is not None else existing.purpose,
                         int(is_default),
                         _utc_now(),
                         existing.id,

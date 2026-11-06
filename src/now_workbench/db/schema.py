@@ -140,7 +140,19 @@ CREATE TABLE instance_nodes (
 ) STRICT, WITHOUT ROWID;
 """
 
-MIGRATIONS: tuple[str, ...] = (_V1, _V2)
+# v3 (ADR-014 amendment): separate what ServiceNow *reports* from what the owner
+# *intends*. instance_type / production_property are platform-reported provisioning
+# facts (a standalone demo instance reports "prod"); purpose is user-declared.
+_V3 = """
+ALTER TABLE instances ADD COLUMN purpose TEXT NOT NULL DEFAULT 'demo'
+    CHECK (purpose IN ('demo', 'development', 'test', 'production'));
+
+ALTER TABLE instance_profiles RENAME COLUMN environment TO instance_type;
+ALTER TABLE instance_profiles RENAME COLUMN is_production TO production_property;
+ALTER TABLE instance_profiles ADD COLUMN installation_name TEXT;
+"""
+
+MIGRATIONS: tuple[str, ...] = (_V1, _V2, _V3)
 SCHEMA_VERSION = len(MIGRATIONS)
 
 
