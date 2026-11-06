@@ -43,6 +43,19 @@ containers (DOCKER-USER: 10/8, 172.16/12, 192.168/16, link-local, CGNAT) and the
 containers use public DNS (1.1.1.1) because the LAN resolver is blocked. Check with
 `sudo iptables -S DOCKER-USER` and `sudo iptables -S INPUT | grep br-workbench`.
 
+### Home network DNS
+
+The home DNS servers (BIND on the NAS) answer every `*.grothe.ca` name with srv01chambly, where
+Caddy serves the homelab apps directly. The workbench must not be served that way (it would skip
+Cloudflare Access, and the app refuses traffic without an Access token), so the zone needs one
+record overriding the wildcard:
+
+```
+workbench   IN CNAME   workbench.grothe.ca.cdn.cloudflare.net.
+```
+
+Outside users are unaffected; without it, devices at home get a TLS error for this name.
+
 ## 3. First run
 
 Open `https://workbench.grothe.ca`, sign in with Google or an email code, and enter the setup
