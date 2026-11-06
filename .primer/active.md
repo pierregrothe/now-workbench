@@ -2,33 +2,39 @@
 
 Last updated: 2026-11-06
 Last sync: 2026-11-06
-Branch: `main`
+Branch: `main` (local only, not pushed)
 Python Version: `3.14.10`
 
 ## Current Focus
 
-`main` -- post-EPIC-016 hardening: live media capture against real instances and platform
-release compatibility (minimum-release validation, workspace evolution). No epic in flight;
-EPIC-014/015/016 are done. Capability inventory lives in progress.md.
+`main` -- ready for the first container deploy on srv01chambly behind Cloudflare Access
+(ADR-016/017, runbook `docs/deploy.md`). Otto-style UI alignment (PRD-002) built; deep-fix
+review findings merged.
 
 ## Recent Changes
 
 (no merge commits; last 5 commits on `main`)
-- fc7adb3 feat(ui): display minimum release requirement in catalog cards and modal
-- 0d9a2ee feat(releases): add minimum platform version validation and workspace evolution resolver
-- 76ec279 feat(capture): enable natural video duration and respect playbook wait pacing
-- 2a14288 feat(capture): remove cursor label badge and record clean pointer demo
-- c06ea93 feat(doctor): inspect database credentials and record Otto live pipeline proof
+- e51f974 feat(deploy): first-run setup code, team roles in the database, hardened container
+- b2a71a6 feat(auth): Cloudflare Access sign-in with admin and consultant roles; Otto-style icons
+- 380778d feat(profile): profile picture, built-in avatars and servicenow.com email-code approval
+- e881792 feat(ui): settings left menu, detail side panel, live home tiles, shared tile chrome
+- b7d3d71 feat(ui): align chat, tiles and areas to the observed Otto look and feel
 
 ## Open Blockers
 
-1. Pre-push gate fails: coverage 90% vs required 100% (see progress.md Known Issues).
+1. Pre-push gate fails: coverage 93% vs required 100%, so `main` cannot be pushed yet.
+2. The container image was never built or run (Docker is not installed on the dev Mac); the
+   first `docker compose up` on srv01chambly is its first real test.
+3. Cloudflare Access is not configured yet (owner: Google/Apple login methods, Access app for
+   the `workbench` hostname, tunnel public hostname, `.env` on the server).
+4. A placeholder `.env` (copy of `.env.example`) sits in the repo root; locally it switches
+   `workbench serve` into Cloudflare mode. The owner should delete it on the Mac.
 
 ## Next Steps
 
-1. Architecture review (ADR-015, proposed): settle its 4 open questions, then accept it and
-   restructure into `platform/`, `domains/`, `interfaces/` in small green steps.
-2. Then fix review findings (silent failures, UI fallbacks), then raise coverage on the
-   final layout (pre-push floor is 100%; currently 91%).
-3. Decide next product direction: no roadmap.md or epics/ exist yet -- consider
-   `/primer roadmap` or `/primer brainstorm`.
+1. Owner deploys per `docs/deploy.md`; read the setup code from `docker logs`, become admin,
+   enter the Claude key and instances in the UI. Fix whatever the first build reveals.
+2. Raise coverage to the 100% pre-push floor, then push `main`.
+3. ADR-015 (proposed): settle its open questions, accept, restructure in small green steps
+   (held findings reuse-001/002, rules-003 belong there).
+4. PRD-002 leftovers: chat feedback row (needs backend storage), check off its acceptance list.

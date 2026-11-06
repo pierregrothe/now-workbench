@@ -6,11 +6,11 @@ Last updated: 2026-11-06
 
 ### Computed Numbers (2026-11-06)
 
-- Tests: 123 collected (`pytest --collect-only`)
-- Enforcement: 9 blocking pre-commit/pre-push gates + 8 baseline-tracked ratchets (governance.md)
+- Tests: 401 collected (`pytest --collect-only`); 45 Playwright e2e specs; coverage 93%
+- Enforcement: 10 blocking pre-commit/pre-push gates + 8 baseline-tracked ratchets (governance.md)
 - Ratchet baseline store: 2 entries in `.ratchet/baselines.json`
 - Domains with `protocols.py`/`factory.py`: 0
-- ADRs: 11 (`.primer/adr/`) | PRDs: 0
+- ADRs: 17 (`.primer/adr/`) | PRDs: 2 (`.primer/prd/`)
 
 ### Capability Inventory (by epic)
 
@@ -70,12 +70,32 @@ Last updated: 2026-11-06
 - Platform release compatibility (`releases/`): minimum-release validation, workspace evolution
   resolver, minimum release shown on catalog cards and modal.
 - `workbench doctor` inspects stored database credentials.
+- Versioned SQLite schema (v6) with AES-256-GCM sealed credentials and Claude key (ADR-012).
+- Instance platform profile detected at connection (release, nodes, memory, build, database);
+  the release is never typed, declared purpose kept apart from reported type (ADR-014).
+- Deep-fix hardening: bundle-id path guard, loopback-only CORS/WS origins, honest failure
+  reporting across pipeline, seed, properties, capture and plugins; UI never fabricates state.
+- Otto-style UI (PRD-002): warm canvas, avatar messages, docked prompt, collapsible steps built
+  from real tool runs, one-shot approval cards, detail side panel, live home tiles, left-menu
+  Settings, ServiceNow-matched icons.
+- Sign-in through Cloudflare Access (Apple, Google) with verified-token checks; admin and
+  Solution Consultant roles stored in the database and managed on a Team screen; first admin
+  by a one-time setup code from the server log; fail-closed when exposed without Access
+  (ADR-016/017).
+- Per-user profile: display name, 12 built-in avatars or an uploaded picture.
+- Hardened container (non-root, no capabilities, loopback port, `/healthz`), separate volumes
+  for database and master key, `workbench backup` (ADR-017, `docs/deploy.md`).
 
 ## Known Issues
 
-- Coverage is 90% against the pre-push gate's `--cov-fail-under=100`: pushes are blocked until
+- Coverage is 93% against the pre-push gate's `--cov-fail-under=100`: pushes are blocked until
   untested legacy paths (e.g. `api/instances.py` test-all/cleanup, `api/app.py` WS routes) are covered.
-- UI "offline fallback" branches in several components may fabricate state (ADR-013 audit list);
-  each needs a Playwright spec proving an explicit error/empty state instead.
+- Container image and compose file are unverified (never built); Cloudflare Access is designed and
+  tested with generated keys only, never with a live Cloudflare token.
+- Some components outside the deep-fix scope may still carry offline fallbacks (ADR-013 audit
+  list); the held architecture findings (reuse-001/002, rules-003) wait for ADR-015.
+- Otto's follow-up replies can misreport their own tool use (history carries text only).
+- Chat feedback (thumbs, Get Help) is not built: it needs backend storage first.
+- `now-otto-drawer` is unmounted dead code; CLI bundle-id arguments are not path-guarded.
 - Architecture policies `otto-copilot`, `demo-bundles`, `sqlite-persistence` are `unguarded`
   (no mechanical checks; agent-enforced via CLAUDE.md only).

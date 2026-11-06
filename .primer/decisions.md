@@ -7,12 +7,10 @@ Append-only record of architectural and design decisions for `now-workbench`.
 ### 2026-10-29 -- ADR-001: Hybrid Runtime with Python Core & Lit Web Components
 
 **Status:** accepted
-
 **Context:**
 `@servicenow/sdk` runs on Node.js, but Python 3.14 + Pydantic v2 gives agents higher velocity
 and cleaner schema validation; the UI must replicate ServiceNow's Lux design language.
 Full rationale: `.primer/adr/ADR-001-hybrid-runtime-python-lit.md`.
-
 **Decision:**
 1. Use **Python 3.14** for the core backend, CLI (Typer + Rich), and REST/WebSocket API (FastAPI).
 2. Use **Lit Web Components** (TypeScript + Vite) for the frontend, mimicking ServiceNow's
@@ -30,11 +28,9 @@ Full rationale: `.primer/adr/ADR-001-hybrid-runtime-python-lit.md`.
 ### 2026-10-29 -- ADR-002: Otto AI Copilot via Claude API
 
 **Status:** accepted
-
 **Context:**
 Users need an intelligent conversational assistant within the workbench to navigate demos,
 troubleshoot `now-sdk` compile errors, explain Fluent code, and automate repetitive tasks.
-
 **Decision:**
 Integrate an embedded **Otto** copilot powered by the Anthropic Claude API (`anthropic` SDK).
 The backend maintains an async WebSocket connection streaming Claude completions, with
@@ -93,11 +89,9 @@ PEP 621 `[project]` / `[dependency-groups]` support, and seamless caching.
 ### 2026-10-29 -- ADR-005: Constitutional Governance and 3-Tier Enforcement Model
 
 **Status:** accepted
-
 **Context:**
 Humans and AI agents co-develop `now-workbench`; a graduated (not "block or ignore")
 governance model prevents regressions and drift. Full text: ADR-005 in `.primer/adr/`.
-
 **Decision:**
 1. Adopt Primer's 3-Tier Enforcement Model:
    - Tier 1: Deterministic blocking pre-commit gates (Ruff, Mypy, Pytest fakes, file-size, primer-reconcile).
@@ -264,12 +258,10 @@ could see it because the defect lived only in the rendered UI.
 ### 2026-11-06 -- Instance release family is detected, never user-selected
 
 **Status:** accepted
-
 **Context:**
 The connect form asked for the release family and defaulted to Zurich; a live instance running
 Australia was stored as Zurich, and Australia was missing from `RELEASE_FAMILIES` (unknown names
 compared lexically, so it ranked as the *oldest* release).
-
 **Decision:**
 1. `check_and_record_instance()` is the single "test this instance" path (all 12 former
    verify+update call sites): on authentication it reads `glide.war` from `sys_properties`

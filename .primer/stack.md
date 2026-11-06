@@ -7,7 +7,7 @@
 - **ServiceNow SDK Runtime**: Node.js 20+ LTS with `@servicenow/sdk`
 - **Frontend**: Lit 3.x (Web Components / TypeScript + Vite)
 - **Database**: Embedded SQLite (STRICT tables, WAL, `foreign_keys=ON`), `PRAGMA user_version` migrations in `db/schema.py`, scoped `db_session` (ADR-006, ADR-012)
-- **Containerization**: Multi-stage Docker image (Node.js build stage -> Python + Node runtime + uv)
+- **Containerization**: Multi-stage Docker image (Node.js build stage -> Python + Node runtime + uv), non-root, deployed on srv01chambly behind Cloudflare Access (ADR-016/017, `docs/deploy.md`)
 
 ## Layout
 

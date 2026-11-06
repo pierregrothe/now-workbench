@@ -70,7 +70,7 @@ local git hooks and harness hooks are the primary gates.
 
 ## ADR Catalog
 
-<!-- govtable:adr-catalog:start (count=15) -->
+<!-- govtable:adr-catalog:start (count=17) -->
 | ADR | Title | Enforcement | Status |
 |-----|-------|-------------|--------|
 | 001 | Hybrid Runtime with Python Core & Lit Web Components | hook | accepted |
@@ -88,6 +88,8 @@ local git hooks and harness hooks are the primary gates.
 | 013 | Playwright End-to-End UI Testing Against the Real Backend | hook | accepted |
 | 014 | Instance Platform Profile Detected at Connection | architecture | accepted |
 | 015 | Domain-Oriented Package Architecture with Enforced Layers | architecture | proposed |
+| 016 | Cloudflare Access Sign-in and Roles | architecture | accepted |
+| 017 | Container Deployment and First-Run Setup | architecture | accepted |
 <!-- govtable:adr-catalog:end -->
 
 Full ADR files: `.primer/adr/`
