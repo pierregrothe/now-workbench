@@ -152,11 +152,7 @@ class InstanceRepositoryMixin:
         new_name = update.name if update.name is not None else existing.name
         new_url = update.url if update.url is not None else existing.url
         new_user = update.username if update.username is not None else existing.username
-        new_pwd = (
-            encrypt_secret(update.password)
-            if update.password is not None and update.password != ""
-            else existing.password
-        )
+        new_pwd = encrypt_secret(update.password or existing.password)
         new_auth = update.auth_type if update.auth_type is not None else existing.auth_type
         new_rel = update.release if update.release is not None else existing.release
         new_def = update.is_default if update.is_default is not None else existing.is_default

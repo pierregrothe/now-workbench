@@ -7,6 +7,7 @@ from now_workbench.db import (
     ChatThreadCreate,
     DatabaseRepository,
     InstanceCreate,
+    InstanceUpdate,
     TemplateRecord,
     db_session,
     init_db,
@@ -265,4 +266,26 @@ def test_get_default_instance_fallback_when_none_marked() -> None:
     assert fetched is not None
     assert fetched.id == inst.id
     assert fetched.is_default is True
+    conn.close()
+
+
+def test_update_instance_without_password_keeps_password_encrypted() -> None:
+    """Verify a non-credential update never rewrites the stored password as plaintext."""
+    conn = init_db(":memory:")
+    repo = DatabaseRepository(conn)
+    inst = repo.add_instance(
+        InstanceCreate(
+            name="Enc Inst",
+            url="https://enc.service-now.com",
+            username="admin",
+            password="S3cret!",
+            release="Zurich",
+        )
+    )
+    repo.update_instance(inst.id, InstanceUpdate(name="Enc Inst Renamed"))
+    stored = conn.execute("SELECT password FROM instances WHERE id = ?;", (inst.id,)).fetchone()
+    assert stored["password"].startswith("enc:v1:")
+    fetched = repo.get_instance(inst.id)
+    assert fetched is not None
+    assert fetched.password == "S3cret!"
     conn.close()
