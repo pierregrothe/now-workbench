@@ -110,7 +110,7 @@ async def test_deploy_and_seed_deploys_when_project_present(
         inst = repo.get_default_instance()
         assert inst is not None
         engine = DemoPipelineEngine(bundles_dir=bundles, repo=repo)
-        seed, note = await engine.deploy_and_seed(SAMPLE, inst, fake_mode=True)
+        seed, note, _renames = await engine.deploy_and_seed(SAMPLE, inst, fake_mode=True)
         assert note == "Fluent app deployed."
         assert seed.status == "completed"
         monkeypatch.setattr(pipeline_mod, "NowSdkRunner", _BadRunner)

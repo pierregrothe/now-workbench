@@ -365,3 +365,11 @@ image blocks. Administrators set one global limit set: question and age caps per
 per-file size, and per-conversation file count and total (defaults 20 questions, 30 days,
 10 MB, 10 files, 25 MB). Types are detected from the bytes; enforcement is server-side on every
 path. Details: `.primer/adr/ADR-021-attachments-and-conversation-limits.md`.
+
+### 2026-11-06 -- ADR-022: Deploying a demo's Fluent app
+
+The pipeline generates one SDK project per bundle and vendor: scope x_<vendor>_<6 hex>,
+vendor read from the instance, tables renamed into the scope (seeds and runbook stages
+follow), shared SDK toolchain, build then install with the SDK's non-interactive CI
+credentials. Bundles that already are SDK projects deploy as is; bundles without Fluent
+sources skip deploy. Details: `.primer/adr/ADR-022-fluent-app-deploy-from-demo-bundles.md`.

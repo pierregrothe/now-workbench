@@ -11,6 +11,7 @@ from now_workbench.bundles.manager import BundleManager
 from now_workbench.capture.engine import CaptureFailedError, PlaywrightCaptureEngine
 from now_workbench.capture.models import CaptureArtifact, CaptureRequest
 from now_workbench.config.paths import safe_child
+from now_workbench.config.settings import settings
 from now_workbench.db.models import InstanceRecord, SeedOperationRecord
 from now_workbench.db.repository import DatabaseRepository
 from now_workbench.plugins.manager import PluginManager
@@ -20,6 +21,7 @@ from now_workbench.properties.models import PropertyApplyResult
 from now_workbench.releases import evaluate_release_prerequisites
 from now_workbench.runbooks.engine import RunbookEngine
 from now_workbench.runbooks.models import RunbookTestResult
+from now_workbench.sdk.project import SdkProject, SdkProjectError, prepare_project
 from now_workbench.sdk.runner import NowSdkRunner
 from now_workbench.seed.engine import SeedEngine
 
@@ -184,52 +186,109 @@ class DemoPipelineEngine:
         bundle_id: str,
         instance: InstanceRecord,
         fake_mode: bool = False,
-    ) -> tuple[SeedOperationRecord, str]:
-        """Deploy the bundle's Fluent SDK project (when it has one) and seed demo records.
+    ) -> tuple[SeedOperationRecord, str, dict[str, str]]:
+        """Deploy the bundle's Fluent app and seed demo records (ADR-022).
+
+        A bundle that is already an SDK project (package.json) is installed as is. A bundle
+        with Fluent sources gets a generated project scoped to the instance's vendor prefix;
+        its tables are renamed into that scope and the seed records follow the rename.
 
         Returns:
-            The seed operation, and what happened to the deploy step.
+            The seed operation, what happened to the deploy step, and the table rename map.
 
         Raises:
-            PipelineStepError: The SDK project failed to deploy.
+            PipelineStepError: The app could not be generated, built or installed.
         """
         bundle_path = self._get_bundle_path(bundle_id)
+        simulated = fake_mode or instance.url.startswith("fake://")
+        table_map: dict[str, str] = {}
 
         if (bundle_path / "package.json").exists():
-            runner = NowSdkRunner(fake_mode=fake_mode)
-            deploy_result = await runner.deploy(
-                project_dir=bundle_path,
-                instance_url=instance.url,
-                username=instance.username,
-                password=instance.password,
-            )
-            if not deploy_result.success:
-                raise PipelineStepError(
-                    f"SDK deploy failed (exit code {deploy_result.exit_code}): "
-                    f"{deploy_result.output.strip()}"
-                )
+            await self._install(bundle_path, instance, fake_mode)
             deploy_note = "Fluent app deployed."
+        elif not list((bundle_path / "fluent").glob("*.now.ts")):
+            deploy_note = "Deploy skipped: the bundle has no Fluent sources."
+        elif simulated:
+            deploy_note = "Fluent app deploy simulated (fake instance)."
         else:
-            # Most demo bundles carry Fluent sources for reference, not a buildable SDK project.
-            deploy_note = "Deploy skipped: the bundle has no Fluent SDK project (package.json)."
+            project = await self._generate_project(bundle_id, bundle_path, instance)
+            await self._install(project.path, instance, fake_mode)
+            table_map = project.table_map
+            deploy_note = (
+                f"Fluent app deployed in scope {project.scope} "
+                f"({len(table_map)} table(s) created in that scope)."
+            )
 
         seed_engine = SeedEngine(repository=self.repo, fake_mode=fake_mode)
         seed = await seed_engine.load_and_seed(
             bundle_id=bundle_id,
             bundle_path=bundle_path,
             instance_id=instance.id,
+            table_map=table_map,
         )
-        return seed, deploy_note
+        return seed, deploy_note, table_map
+
+    async def _generate_project(
+        self, bundle_id: str, bundle_path: Path, instance: InstanceRecord
+    ) -> SdkProject:
+        vendor_key = "glide.appcreator.company.code"
+        vendor = (await PropertyEngine().read_live_values([vendor_key], instance)).get(vendor_key)
+        if not vendor:
+            raise PipelineStepError(
+                f"Could not read the vendor prefix ({vendor_key}) from {instance.name}."
+            )
+        name = self.bundle_manager.inspect_bundle(bundle_path).manifest.name
+        try:
+            return await prepare_project(
+                bundle_path, bundle_id, name, vendor, settings.workspace_dir
+            )
+        except SdkProjectError as exc:
+            raise PipelineStepError(f"Fluent app could not be built: {exc}") from exc
+
+    async def _install(self, project_dir: Path, instance: InstanceRecord, fake_mode: bool) -> None:
+        result = await NowSdkRunner(fake_mode=fake_mode).deploy(
+            project_dir=project_dir,
+            instance_url=instance.url,
+            username=instance.username,
+            password=instance.password,
+        )
+        if not result.success:
+            raise PipelineStepError(
+                f"SDK deploy failed (exit code {result.exit_code}): {result.output.strip()}"
+            )
 
     async def test_demo_script(
         self,
         bundle_id: str,
         instance: InstanceRecord,
         fake_mode: bool = False,
+        table_map: dict[str, str] | None = None,
     ) -> RunbookTestResult:
-        """Test all walkthrough runbook stages against the instance."""
+        """Test all walkthrough runbook stages against the instance.
+
+        Args:
+            bundle_id: Bundle id.
+            instance: Target instance.
+            fake_mode: Simulate the checks.
+            table_map: Table renames from a deployed Fluent app (ADR-022).
+        """
         bundle_path = self._get_bundle_path(bundle_id)
         guide = self.runbook_engine.load_runbook(bundle_path, bundle_id=bundle_id)
+        if guide and table_map:
+            guide = guide.model_copy(
+                update={
+                    "stages": [
+                        st.model_copy(
+                            update={
+                                "target_table": table_map.get(
+                                    st.target_table or "", st.target_table
+                                )
+                            }
+                        )
+                        for st in guide.stages
+                    ]
+                }
+            )
         if not guide or not guide.stages:
             return RunbookTestResult(
                 bundle_id=bundle_id,
@@ -304,7 +363,7 @@ class DemoPipelineEngine:
 
         # 3. Deploy & seed demo records
         try:
-            seed_result, deploy_note = await self.deploy_and_seed(
+            seed_result, deploy_note, table_map = await self.deploy_and_seed(
                 bundle_id, instance, fake_mode=fake_mode
             )
         except PipelineStepError as exc:
@@ -319,7 +378,9 @@ class DemoPipelineEngine:
             )
 
         # 4. Test demo script runbook stages
-        test_result = await self.test_demo_script(bundle_id, instance, fake_mode=fake_mode)
+        test_result = await self.test_demo_script(
+            bundle_id, instance, fake_mode=fake_mode, table_map=table_map
+        )
 
         # 5. Record video proof
         video_url = ""

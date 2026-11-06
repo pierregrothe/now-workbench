@@ -123,11 +123,23 @@ class SeedEngine:
         bundle_id: str,
         bundle_path: Path,
         instance_id: str | None = None,
+        table_map: dict[str, str] | None = None,
     ) -> SeedOperationRecord:
-        """Load and seed records from bundle seed directory into target instance."""
+        """Load and seed records from bundle seed directory into target instance.
+
+        Args:
+            bundle_id: Bundle id.
+            bundle_path: Bundle directory.
+            instance_id: Target instance (default when None).
+            table_map: Table renames from a deployed Fluent app (ADR-022).
+        """
         inst = self._resolve_instance(instance_id)
         seed_dir = bundle_path / "seed"
-        payloads = self._read_seed_payloads(seed_dir)
+        renames = table_map or {}
+        payloads = [
+            (renames.get(table, table), fields)
+            for table, fields in self._read_seed_payloads(seed_dir)
+        ]
 
         if not payloads:
             raise ValueError(f"No seed records found in {seed_dir}")

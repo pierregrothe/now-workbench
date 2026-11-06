@@ -100,10 +100,10 @@ async def test_run_full_pipeline_property_failure_reports_failed(tmp_path: Path)
 
 
 @pytest.mark.asyncio
-async def test_deploy_and_seed_without_sdk_project_skips_deploy_and_seeds(
+async def test_deploy_and_seed_without_sdk_project_on_fake_instance_simulates_deploy(
     tmp_path: Path, monkeypatch
 ):
-    """A bundle without package.json is seeded; the deploy step says why it was skipped."""
+    """A bundle without package.json on a simulated instance is seeded; deploy is simulated."""
     bundles_dir, bundle_id = _setup(tmp_path)
     (bundles_dir / bundle_id / "package.json").unlink()
     monkeypatch.setattr(pipeline_mod, "NowSdkRunner", _FailingRunner)
@@ -112,6 +112,7 @@ async def test_deploy_and_seed_without_sdk_project_skips_deploy_and_seeds(
             InstanceCreate(id="i1", name="I1", url="https://a.service-now.com", is_default=True)
         )
         engine = DemoPipelineEngine(bundles_dir=bundles_dir, repo=repo)
-        seed, note = await engine.deploy_and_seed(bundle_id, inst, fake_mode=True)
+        seed, note, renames = await engine.deploy_and_seed(bundle_id, inst, fake_mode=True)
         assert seed.status == "completed"
-        assert "Deploy skipped" in note
+        assert "simulated" in note
+        assert renames == {}

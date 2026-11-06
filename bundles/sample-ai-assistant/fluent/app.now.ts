@@ -1,4 +1,4 @@
-import { Record, Table } from '@servicenow/sdk/core'
+import { Table, StringColumn, ReferenceColumn, BooleanColumn, IntegerColumn } from '@servicenow/sdk/core'
 
 /**
  * Autonomous AI Case Routing Log
@@ -8,20 +8,19 @@ export const x_demo_ai_routing_log = Table({
     name: 'x_demo_ai_routing_log',
     label: 'AI Routing Log',
     schema: {
-        incident_ref: Record({
+        incident_ref: ReferenceColumn({
             label: 'Incident Reference',
-            reference: 'incident',
+            referenceTable: 'incident',
             mandatory: true,
         }),
-        predicted_category: Record({
+        predicted_category: StringColumn({
             label: 'Predicted Category',
             maxLength: 40,
         }),
-        confidence_score: Record({
+        confidence_score: IntegerColumn({
             label: 'Confidence Score (0-100)',
-            maxLength: 10,
         }),
-        auto_routed: Record({
+        auto_routed: BooleanColumn({
             label: 'Auto-Routed by Agent',
         }),
     },
