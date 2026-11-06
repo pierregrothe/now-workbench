@@ -26,8 +26,9 @@ EPIC-014/015/016 are done. Capability inventory lives in progress.md.
 
 ## Next Steps
 
-1. Raise coverage to 100% (or agree a ratcheted floor) so pushes are unblocked.
-2. Register instances and the Claude API key (sealed per ADR-012); back up
-   `~/.config/now-workbench/master.key` separately from `data/`.
+1. Architecture review (ADR-015, proposed): settle its 4 open questions, then accept it and
+   restructure into `platform/`, `domains/`, `interfaces/` in small green steps.
+2. Then fix review findings (silent failures, UI fallbacks), then raise coverage on the
+   final layout (pre-push floor is 100%; currently 91%).
 3. Decide next product direction: no roadmap.md or epics/ exist yet -- consider
    `/primer roadmap` or `/primer brainstorm`.
