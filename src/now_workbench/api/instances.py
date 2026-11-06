@@ -7,7 +7,7 @@ from fastapi import APIRouter, HTTPException
 from now_workbench.connectivity import verify_instance_authentication
 from now_workbench.db import (
     InstanceCreate,
-    InstanceRecord,
+    InstancePublic,
     InstanceUpdate,
     db_session,
 )
@@ -15,35 +15,41 @@ from now_workbench.db import (
 router = APIRouter(prefix="/api/instances", tags=["instances"])
 
 
-@router.get("", response_model=list[InstanceRecord])
-def list_instances() -> list[InstanceRecord]:
-    """List all registered ServiceNow instances."""
+@router.get("", response_model=list[InstancePublic])
+def list_instances() -> list[InstancePublic]:
+    """List all registered ServiceNow instances (passwords withheld)."""
     with db_session() as repo:
-        return repo.list_instances()
+        return [inst.to_public() for inst in repo.list_instances()]
 
 
-@router.post("", response_model=InstanceRecord)
-def register_instance(inst: InstanceCreate) -> InstanceRecord:
+@router.post("", response_model=InstancePublic)
+def register_instance(inst: InstanceCreate) -> InstancePublic:
     """Register a new instance and verify initial status."""
     with db_session() as repo:
-        created = repo.add_instance(inst)
+        try:
+            created = repo.add_instance(inst)
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
         prefs = repo.get_workbench_preferences()
         status, _, _ = verify_instance_authentication(created, fake_mode=prefs.sdk_fake_mode)
         repo.update_instance_status(created.id, status)
-        return repo.get_instance(created.id) or created
+        return (repo.get_instance(created.id) or created).to_public()
 
 
-@router.put("/{instance_id}", response_model=InstanceRecord)
-def update_instance_endpoint(instance_id: str, update: InstanceUpdate) -> InstanceRecord:
+@router.put("/{instance_id}", response_model=InstancePublic)
+def update_instance_endpoint(instance_id: str, update: InstanceUpdate) -> InstancePublic:
     """Update an existing instance (rename, credentials, release) and auto-verify."""
     with db_session() as repo:
-        rec = repo.update_instance(instance_id, update)
+        try:
+            rec = repo.update_instance(instance_id, update)
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
         if not rec:
             raise HTTPException(status_code=404, detail="Instance not found.")
         prefs = repo.get_workbench_preferences()
         status, _, _ = verify_instance_authentication(rec, fake_mode=prefs.sdk_fake_mode)
         repo.update_instance_status(instance_id, status)
-        return repo.get_instance(instance_id) or rec
+        return (repo.get_instance(instance_id) or rec).to_public()
 
 
 @router.delete("/{instance_id}")

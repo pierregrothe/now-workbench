@@ -1,131 +1,135 @@
-"""Preferences and secret repository mixin."""
+"""Preferences and sealed-secret repository mixin (ADR-012)."""
 
 import json
 import sqlite3
 from datetime import UTC, datetime
 from typing import Any
 
-from now_workbench.config.crypto import decrypt_secret, encrypt_secret, mask_api_key
+from now_workbench.config.crypto import mask_api_key, seal_secret, unseal_secret
 from now_workbench.db.models import (
     WorkbenchPreferences,
     WorkbenchPreferencesUpdate,
 )
 
+__all__ = ["PreferencesRepositoryMixin"]
+
+ANTHROPIC_KEY_SECRET = "anthropic_api_key"
+_DERIVED_FIELDS = ("anthropic_api_key_masked", "has_anthropic_api_key")
+
+
+def _secret_context(name: str) -> str:
+    """Return the GCM binding label for a named application secret."""
+    return f"secret:{name}"
+
 
 class PreferencesRepositoryMixin:
-    """Mixin providing preferences and AES-256 secret encryption storage."""
+    """Mixin providing the preferences singleton and named sealed secrets."""
 
     conn: sqlite3.Connection
 
-    def _load_raw_preferences_dict(self) -> dict[str, Any]:
-        """Load raw stored preferences dictionary from SQLite or initialize encrypted default."""
-        cursor = self.conn.execute(
-            "SELECT payload FROM workbench_preferences WHERE id = 'default';"
-        )
-        row = cursor.fetchone()
+    def get_secret(self, name: str) -> str:
+        """Return a decrypted named secret, or an empty string when unset."""
+        row = self.conn.execute("SELECT sealed FROM secrets WHERE name = ?;", (name,)).fetchone()
+        return unseal_secret(row["sealed"], _secret_context(name)) if row else ""
+
+    def set_secret(self, name: str, value: str) -> None:
+        """Seal and store a named secret; an empty value deletes it."""
+        with self.conn:
+            if not value:
+                self.conn.execute("DELETE FROM secrets WHERE name = ?;", (name,))
+                return
+            self.conn.execute(
+                """
+                INSERT INTO secrets (name, sealed, updated_at) VALUES (?, ?, ?)
+                ON CONFLICT(name) DO UPDATE SET
+                    sealed = excluded.sealed, updated_at = excluded.updated_at;
+                """,
+                (name, seal_secret(value, _secret_context(name)), datetime.now(UTC).isoformat()),
+            )
+
+    def _load_preferences_payload(self) -> dict[str, Any]:
+        """Load the non-secret preferences payload, initializing defaults on first use."""
+        row = self.conn.execute(
+            "SELECT payload FROM workbench_preferences WHERE id = 1;"
+        ).fetchone()
         if row:
             return dict(json.loads(row["payload"]))
 
         from now_workbench.config.settings import settings
 
-        raw_key = settings.anthropic_api_key.strip()
-        encrypted_key = encrypt_secret(raw_key) if raw_key else ""
-        default_prefs = WorkbenchPreferences(
-            anthropic_api_key_masked=mask_api_key(raw_key),
-            has_anthropic_api_key=bool(raw_key),
-            claude_model=settings.claude_model,
+        env_key = settings.anthropic_api_key.strip()
+        if env_key and not self.get_secret(ANTHROPIC_KEY_SECRET):
+            self.set_secret(ANTHROPIC_KEY_SECRET, env_key)
+        payload = WorkbenchPreferences(claude_model=settings.claude_model).model_dump(
+            exclude=set(_DERIVED_FIELDS)
         )
-        stored = default_prefs.model_dump()
-        stored.pop("anthropic_api_key_masked", None)
-        stored.pop("has_anthropic_api_key", None)
-        stored["anthropic_api_key_encrypted"] = encrypted_key
+        self._write_preferences_payload(payload)
+        return payload
 
+    def _write_preferences_payload(self, payload: dict[str, Any]) -> None:
+        """Persist the preferences singleton row."""
         with self.conn:
             self.conn.execute(
                 """
-                INSERT INTO workbench_preferences (id, payload, updated_at)
-                VALUES ('default', ?, ?);
+                INSERT INTO workbench_preferences (id, payload, updated_at) VALUES (1, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                    payload = excluded.payload, updated_at = excluded.updated_at;
                 """,
-                (json.dumps(stored), default_prefs.updated_at),
+                (json.dumps(payload), payload["updated_at"]),
             )
-        return stored
 
     def get_decrypted_anthropic_api_key(self) -> str:
-        """Decrypt and return the stored Claude AI API key for internal backend use."""
-        stored = self._load_raw_preferences_dict()
-        enc_val = str(stored.get("anthropic_api_key_encrypted", ""))
-        return decrypt_secret(enc_val)
+        """Decrypt and return the stored Claude API key for internal backend use."""
+        self._load_preferences_payload()
+        return self.get_secret(ANTHROPIC_KEY_SECRET)
 
     def get_workbench_preferences(self) -> WorkbenchPreferences:
-        """Fetch persisted Now Workbench preferences with masked API key preview."""
-        stored = self._load_raw_preferences_dict()
-        enc_val = str(stored.pop("anthropic_api_key_encrypted", ""))
-        raw_key = decrypt_secret(enc_val)
-        stored["anthropic_api_key_masked"] = mask_api_key(raw_key)
-        stored["has_anthropic_api_key"] = bool(raw_key)
-        return WorkbenchPreferences(**stored)
+        """Fetch preferences with a masked API key preview (never the key itself)."""
+        payload = self._load_preferences_payload()
+        raw_key = self.get_secret(ANTHROPIC_KEY_SECRET)
+        return WorkbenchPreferences(
+            **payload,
+            anthropic_api_key_masked=mask_api_key(raw_key),
+            has_anthropic_api_key=bool(raw_key),
+        )
 
     def update_workbench_preferences(
         self, update: WorkbenchPreferencesUpdate
     ) -> WorkbenchPreferences:
-        """Encrypt secrets and merge partial updates into persisted preferences."""
-        stored = self._load_raw_preferences_dict()
-        patch_data = update.model_dump(exclude_none=True)
+        """Merge a partial update; a new API key is sealed into the secrets table.
 
-        if "anthropic_api_key" in patch_data:
-            new_raw_key = str(patch_data.pop("anthropic_api_key")).strip()
-            # Ignore masked preview strings if accidentally echoed back
-            if "..." not in new_raw_key:
-                if new_raw_key:
-                    existing_enc = str(stored.get("anthropic_api_key_encrypted", "")).strip()
-                    if existing_enc:
-                        msg = (
-                            "An active API key exists. You must explicitly delete "
-                            "the existing key before setting a new key."
-                        )
-                        raise ValueError(msg)
-                    stored["anthropic_api_key_encrypted"] = encrypt_secret(new_raw_key)
-                else:
-                    stored["anthropic_api_key_encrypted"] = ""
-
-        stored.update(patch_data)
-        now_iso = datetime.now(UTC).isoformat()
-        stored["updated_at"] = now_iso
-
-        with self.conn:
-            self.conn.execute(
-                """
-                INSERT INTO workbench_preferences (id, payload, updated_at)
-                VALUES ('default', ?, ?)
-                ON CONFLICT(id) DO UPDATE SET
-                    payload=excluded.payload,
-                    updated_at=excluded.updated_at;
-                """,
-                (json.dumps(stored), now_iso),
-            )
+        Raises:
+            ValueError: A new key was supplied while one is already stored.
+        """
+        payload = self._load_preferences_payload()
+        patch = update.model_dump(exclude_none=True)
+        new_key = (
+            str(patch.pop("anthropic_api_key", "")).strip()
+            if "anthropic_api_key" in patch
+            else None
+        )
+        # A masked preview echoed back by the UI is never a real key.
+        if new_key is not None and "..." not in new_key:
+            if new_key and self.get_secret(ANTHROPIC_KEY_SECRET):
+                msg = (
+                    "An active API key exists. You must explicitly delete "
+                    "the existing key before setting a new key."
+                )
+                raise ValueError(msg)
+            self.set_secret(ANTHROPIC_KEY_SECRET, new_key)
+        payload.update(patch)
+        payload["updated_at"] = datetime.now(UTC).isoformat()
+        self._write_preferences_payload(payload)
         return self.get_workbench_preferences()
 
     def delete_anthropic_api_key(self) -> WorkbenchPreferences:
-        """Explicitly remove and clear the stored Claude AI API key."""
-        stored = self._load_raw_preferences_dict()
-        stored["anthropic_api_key_encrypted"] = ""
-        now_iso = datetime.now(UTC).isoformat()
-        stored["updated_at"] = now_iso
-        with self.conn:
-            self.conn.execute(
-                """
-                INSERT INTO workbench_preferences (id, payload, updated_at)
-                VALUES ('default', ?, ?)
-                ON CONFLICT(id) DO UPDATE SET
-                    payload=excluded.payload,
-                    updated_at=excluded.updated_at;
-                """,
-                (json.dumps(stored), now_iso),
-            )
+        """Explicitly remove the stored Claude API key."""
+        self.set_secret(ANTHROPIC_KEY_SECRET, "")
         return self.get_workbench_preferences()
 
     def reset_workbench_preferences(self) -> WorkbenchPreferences:
-        """Reset Now Workbench preferences to factory defaults."""
+        """Reset preferences and the stored API key to factory (environment) defaults."""
         with self.conn:
-            self.conn.execute("DELETE FROM workbench_preferences WHERE id = 'default';")
+            self.conn.execute("DELETE FROM workbench_preferences WHERE id = 1;")
+            self.conn.execute("DELETE FROM secrets WHERE name = ?;", (ANTHROPIC_KEY_SECRET,))
         return self.get_workbench_preferences()

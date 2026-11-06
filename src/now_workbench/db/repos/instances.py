@@ -1,10 +1,11 @@
-"""Instance and plugin repository mixin."""
+"""Instance and plugin repository mixin with sealed credentials (ADR-012)."""
 
+import json
 import sqlite3
 import uuid
 from datetime import UTC, datetime
 
-from now_workbench.config.crypto import decrypt_secret, encrypt_secret
+from now_workbench.config.crypto import seal_secret, unseal_secret
 from now_workbench.db.models import (
     InstanceCreate,
     InstanceRecord,
@@ -12,15 +13,44 @@ from now_workbench.db.models import (
 )
 from now_workbench.plugins.models import PluginRecord
 
+__all__ = ["InstanceRepositoryMixin", "row_to_instance"]
+
+_INSTANCE_COLUMNS = (
+    "id, name, url, auth_type, credentials_sealed, release, is_default, status, last_checked"
+)
+
+
+def _credentials_context(instance_id: str) -> str:
+    """Return the GCM binding label tying a credential blob to one instance row."""
+    return f"instance:{instance_id}"
+
+
+def _seal_credentials(instance_id: str, username: str, password: str) -> bytes:
+    """Encrypt the username/password pair as one authenticated blob."""
+    payload = json.dumps({"username": username, "password": password}, separators=(",", ":"))
+    return seal_secret(payload, _credentials_context(instance_id))
+
+
+def _unseal_credentials(instance_id: str, sealed: bytes) -> tuple[str, str]:
+    """Decrypt a credential blob back into ``(username, password)``."""
+    data = json.loads(unseal_secret(sealed, _credentials_context(instance_id)))
+    return str(data["username"]), str(data["password"])
+
+
+def _utc_now() -> str:
+    """Return the current UTC time in the schema's ISO-8601 ``Z`` format."""
+    return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
+
 
 def row_to_instance(row: sqlite3.Row) -> InstanceRecord:
-    """Convert a SQLite row into an InstanceRecord."""
+    """Convert a SQLite row into an InstanceRecord with decrypted credentials."""
+    username, password = _unseal_credentials(row["id"], row["credentials_sealed"])
     return InstanceRecord(
         id=row["id"],
         name=row["name"],
         url=row["url"],
-        username=row["username"],
-        password=decrypt_secret(row["password"]),
+        username=username,
+        password=password,
         auth_type=row["auth_type"],
         release=row["release"],
         is_default=bool(row["is_default"]),
@@ -35,169 +65,150 @@ class InstanceRepositoryMixin:
     conn: sqlite3.Connection
 
     def list_instances(self) -> list[InstanceRecord]:
-        """Return all registered ServiceNow instances."""
+        """Return all registered ServiceNow instances, default first."""
         cursor = self.conn.execute(
-            """
-            SELECT id, name, url, username, password, auth_type, release,
-                   is_default, status, last_checked
-            FROM instances ORDER BY is_default DESC, name ASC;
-            """
+            f"SELECT {_INSTANCE_COLUMNS} FROM instances ORDER BY is_default DESC, name ASC;"
         )
         return [row_to_instance(row) for row in cursor.fetchall()]
 
     def get_instance(self, instance_id: str) -> InstanceRecord | None:
-        """Fetch a specific instance by its identifier or exact name."""
-        cursor = self.conn.execute(
-            """
-            SELECT id, name, url, username, password, auth_type, release,
-                   is_default, status, last_checked
-            FROM instances WHERE id = ? OR LOWER(name) = LOWER(?);
-            """,
+        """Fetch an instance by identifier or case-insensitive unique name."""
+        row = self.conn.execute(
+            f"SELECT {_INSTANCE_COLUMNS} FROM instances WHERE id = ? OR name = ? LIMIT 1;",
             (instance_id, instance_id),
-        )
-        row = cursor.fetchone()
+        ).fetchone()
         return row_to_instance(row) if row else None
 
     def get_default_instance(self) -> InstanceRecord | None:
-        """Fetch the currently active default instance."""
-        cursor = self.conn.execute(
-            """
-            SELECT id, name, url, username, password, auth_type, release,
-                   is_default, status, last_checked
-            FROM instances WHERE is_default = 1 LIMIT 1;
-            """
-        )
-        row = cursor.fetchone()
-        if not row:
-            cursor = self.conn.execute(
-                """
-                SELECT id, name, url, username, password, auth_type, release,
-                       is_default, status, last_checked
-                FROM instances ORDER BY name ASC LIMIT 1;
-                """
-            )
-            row = cursor.fetchone()
-            if row:
-                with self.conn:
-                    self.conn.execute(
-                        "UPDATE instances SET is_default = 1 WHERE id = ?;",
-                        (row["id"],),
-                    )
-                return self.get_instance(row["id"])
-        return row_to_instance(row) if row else None
+        """Fetch the default instance, promoting the first one by name if none is set."""
+        row = self.conn.execute(
+            f"SELECT {_INSTANCE_COLUMNS} FROM instances WHERE is_default = 1;"
+        ).fetchone()
+        if row:
+            return row_to_instance(row)
+        first = self.conn.execute("SELECT id FROM instances ORDER BY name ASC LIMIT 1;").fetchone()
+        if not first:
+            return None
+        with self.conn:
+            self.conn.execute("UPDATE instances SET is_default = 1 WHERE id = ?;", (first["id"],))
+        return self.get_instance(first["id"])
 
     def add_instance(self, inst: InstanceCreate) -> InstanceRecord:
-        """Register a new instance into the registry."""
+        """Register (or replace by id) an instance in the registry.
+
+        Raises:
+            ValueError: Another instance already uses this name.
+        """
         inst_id = inst.id or f"inst-{uuid.uuid4().hex[:8]}"
-        with self.conn:
-            if inst.is_default:
-                self.conn.execute("UPDATE instances SET is_default = 0;")
-            self.conn.execute(
-                """
-                INSERT INTO instances (id, name, url, username, password, auth_type,
-                                       release, is_default, status)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'unknown')
-                ON CONFLICT(id) DO UPDATE SET
-                    name=excluded.name,
-                    url=excluded.url,
-                    username=excluded.username,
-                    password=excluded.password,
-                    auth_type=excluded.auth_type,
-                    release=excluded.release,
-                    is_default=excluded.is_default;
-                """,
-                (
-                    inst_id,
-                    inst.name,
-                    inst.url,
-                    inst.username,
-                    encrypt_secret(inst.password),
-                    inst.auth_type,
-                    inst.release,
-                    1 if inst.is_default else 0,
-                ),
-            )
+        sealed = _seal_credentials(inst_id, inst.username, inst.password)
+        try:
+            with self.conn:
+                if inst.is_default:
+                    self.conn.execute("UPDATE instances SET is_default = 0 WHERE is_default = 1;")
+                self.conn.execute(
+                    """
+                    INSERT INTO instances (id, name, url, auth_type, credentials_sealed,
+                                           release, is_default)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(id) DO UPDATE SET
+                        name = excluded.name,
+                        url = excluded.url,
+                        auth_type = excluded.auth_type,
+                        credentials_sealed = excluded.credentials_sealed,
+                        release = excluded.release,
+                        is_default = excluded.is_default,
+                        updated_at = excluded.updated_at;
+                    """,
+                    (
+                        inst_id,
+                        inst.name,
+                        inst.url,
+                        inst.auth_type,
+                        sealed,
+                        inst.release,
+                        int(inst.is_default),
+                    ),
+                )
+        except sqlite3.IntegrityError as exc:
+            raise ValueError(f"An instance named '{inst.name}' already exists.") from exc
         ret = self.get_instance(inst_id)
         assert ret is not None
         return ret
 
     def set_default_instance(self, instance_id: str) -> bool:
-        """Mark a specific instance as active default."""
+        """Mark a specific instance as the active default."""
         with self.conn:
-            cursor = self.conn.execute("SELECT 1 FROM instances WHERE id = ?;", (instance_id,))
-            if not cursor.fetchone():
+            if not self.conn.execute(
+                "SELECT 1 FROM instances WHERE id = ?;", (instance_id,)
+            ).fetchone():
                 return False
-            self.conn.execute("UPDATE instances SET is_default = 0;")
+            self.conn.execute("UPDATE instances SET is_default = 0 WHERE is_default = 1;")
             self.conn.execute("UPDATE instances SET is_default = 1 WHERE id = ?;", (instance_id,))
             return True
 
     def update_instance_status(self, instance_id: str, status: str) -> None:
-        """Update connectivity status and last_checked timestamp."""
+        """Update connectivity status and the last_checked timestamp."""
         with self.conn:
             self.conn.execute(
-                """
-                UPDATE instances
-                SET status = ?, last_checked = ?
-                WHERE id = ?;
-                """,
+                "UPDATE instances SET status = ?, last_checked = ? WHERE id = ?;",
                 (status, datetime.now(UTC).isoformat(), instance_id),
             )
 
     def update_instance(self, instance_id: str, update: InstanceUpdate) -> InstanceRecord | None:
-        """Update an existing instance (rename, endpoint, credentials, release)."""
+        """Update an existing instance; credentials are always re-sealed, never plaintext.
+
+        Raises:
+            ValueError: The new name collides with another instance.
+        """
         existing = self.get_instance(instance_id)
         if not existing:
             return None
-
-        new_name = update.name if update.name is not None else existing.name
-        new_url = update.url if update.url is not None else existing.url
-        new_user = update.username if update.username is not None else existing.username
-        new_pwd = encrypt_secret(update.password or existing.password)
-        new_auth = update.auth_type if update.auth_type is not None else existing.auth_type
-        new_rel = update.release if update.release is not None else existing.release
-        new_def = update.is_default if update.is_default is not None else existing.is_default
-
-        with self.conn:
-            if new_def:
-                self.conn.execute("UPDATE instances SET is_default = 0;")
-            self.conn.execute(
-                """
-                UPDATE instances
-                SET name = ?, url = ?, username = ?, password = ?,
-                    auth_type = ?, release = ?, is_default = ?
-                WHERE id = ?;
-                """,
-                (
-                    new_name,
-                    new_url,
-                    new_user,
-                    new_pwd,
-                    new_auth,
-                    new_rel,
-                    1 if new_def else 0,
-                    existing.id,
-                ),
-            )
+        username = update.username if update.username is not None else existing.username
+        password = update.password or existing.password
+        is_default = update.is_default if update.is_default is not None else existing.is_default
+        try:
+            with self.conn:
+                if is_default:
+                    self.conn.execute(
+                        "UPDATE instances SET is_default = 0 WHERE is_default = 1 AND id != ?;",
+                        (existing.id,),
+                    )
+                self.conn.execute(
+                    """
+                    UPDATE instances
+                    SET name = ?, url = ?, auth_type = ?, credentials_sealed = ?,
+                        release = ?, is_default = ?, updated_at = ?
+                    WHERE id = ?;
+                    """,
+                    (
+                        update.name if update.name is not None else existing.name,
+                        update.url if update.url is not None else existing.url,
+                        update.auth_type if update.auth_type is not None else existing.auth_type,
+                        _seal_credentials(existing.id, username, password),
+                        update.release if update.release is not None else existing.release,
+                        int(is_default),
+                        _utc_now(),
+                        existing.id,
+                    ),
+                )
+        except sqlite3.IntegrityError as exc:
+            raise ValueError(f"An instance named '{update.name}' already exists.") from exc
         return self.get_instance(existing.id)
 
     def delete_instance(self, instance_id: str) -> bool:
-        """Remove an instance from the registry."""
+        """Remove an instance (its plugins cascade) and re-elect a default if needed."""
         existing = self.get_instance(instance_id)
         if not existing:
             return False
-
         with self.conn:
             self.conn.execute("DELETE FROM instances WHERE id = ?;", (existing.id,))
-            has_default = self.conn.execute(
-                "SELECT 1 FROM instances WHERE is_default = 1 LIMIT 1;"
-            ).fetchone()
-            if not has_default:
-                self.conn.execute(
-                    """
-                    UPDATE instances SET is_default = 1
-                    WHERE id = (SELECT id FROM instances ORDER BY name ASC LIMIT 1);
-                    """
-                )
+            self.conn.execute(
+                """
+                UPDATE instances SET is_default = 1
+                WHERE NOT EXISTS (SELECT 1 FROM instances WHERE is_default = 1)
+                  AND id = (SELECT id FROM instances ORDER BY name ASC LIMIT 1);
+                """
+            )
         return True
 
     def list_instance_plugins(self, instance_id: str) -> list[PluginRecord]:
@@ -225,11 +236,7 @@ class InstanceRepositoryMixin:
     def has_instance_plugin(self, instance_id: str, plugin_id: str) -> bool:
         """Check if an instance has a specific plugin installed."""
         row = self.conn.execute(
-            """
-            SELECT 1 FROM instance_plugins
-            WHERE instance_id = ? AND plugin_id = ?
-            LIMIT 1;
-            """,
+            "SELECT 1 FROM instance_plugins WHERE instance_id = ? AND plugin_id = ? LIMIT 1;",
             (instance_id, plugin_id),
         ).fetchone()
         return row is not None

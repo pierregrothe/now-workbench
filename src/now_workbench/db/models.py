@@ -7,7 +7,10 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class InstanceRecord(BaseModel):
-    """Registered ServiceNow instance."""
+    """Registered ServiceNow instance with decrypted credentials (backend use only).
+
+    Never return this model from an API route: use ``InstancePublic`` (ADR-012).
+    """
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -20,6 +23,38 @@ class InstanceRecord(BaseModel):
     release: str = "Zurich"
     is_default: bool = False
     status: str = "unknown"
+    last_checked: datetime | None = None
+
+    def to_public(self) -> InstancePublic:
+        """Return the API-safe view of this instance (password withheld)."""
+        return InstancePublic(
+            id=self.id,
+            name=self.name,
+            url=self.url,
+            username=self.username,
+            has_password=bool(self.password),
+            auth_type=self.auth_type,
+            release=self.release,
+            is_default=self.is_default,
+            status=self.status,
+            last_checked=self.last_checked,
+        )
+
+
+class InstancePublic(BaseModel):
+    """API-safe view of a registered instance: the password never leaves the backend."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    id: str
+    name: str
+    url: str
+    username: str
+    has_password: bool
+    auth_type: str
+    release: str
+    is_default: bool
+    status: str
     last_checked: datetime | None = None
 
 

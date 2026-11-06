@@ -1,103 +1,139 @@
-"""Authenticated encryption at rest and key masking for sensitive workbench secrets."""
+"""AES-256-GCM encryption at rest for workbench secrets (ADR-012).
 
-from __future__ import annotations
+Secrets (instance credentials, the Claude API key) are sealed with AES-256-GCM
+under a 256-bit master key that lives OUTSIDE the data directory, so a copy of
+``workbench.db`` alone never yields plaintext. Every ciphertext is bound to a
+context string (passed as GCM associated data), so a sealed blob cannot be
+moved to another row or secret slot without failing authentication.
+
+Master key resolution order:
+  1. ``WORKBENCH_MASTER_KEY`` -- urlsafe base64 of exactly 32 bytes.
+  2. ``WORKBENCH_KEY_FILE`` -- path to a key file (created on first use).
+  3. ``$XDG_CONFIG_HOME/now-workbench/master.key`` (default ``~/.config``).
+"""
 
 import base64
-import hashlib
-import hmac
 import os
 import secrets
+from functools import lru_cache
 from pathlib import Path
 
-_PREFIX = "enc:v1:"
-_SALT_LEN = 16
-_NONCE_LEN = 16
-_TAG_LEN = 32
+from cryptography.exceptions import InvalidTag
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+
+__all__ = [
+    "SecretDecryptionError",
+    "mask_api_key",
+    "resolve_key_file",
+    "seal_secret",
+    "unseal_secret",
+]
+
+_FORMAT_VERSION = b"\x01"
+_NONCE_LEN = 12
+_KEY_LEN = 32
 
 
-def _get_master_secret() -> bytes:
-    """Resolve or generate the local master key used to encrypt SQLite secrets."""
-    env_key = os.environ.get("WORKBENCH_MASTER_KEY")
+class SecretDecryptionError(ValueError):
+    """Raised when a sealed secret cannot be authenticated or decrypted."""
+
+
+def resolve_key_file() -> Path:
+    """Return the master key file path from the environment or XDG defaults.
+
+    Returns:
+        Absolute path of the key file (it may not exist yet).
+    """
+    explicit = os.environ.get("WORKBENCH_KEY_FILE")
+    if explicit:
+        return Path(explicit).expanduser().resolve()
+    config_home = os.environ.get("XDG_CONFIG_HOME") or str(Path.home() / ".config")
+    return Path(config_home).expanduser().resolve() / "now-workbench" / "master.key"
+
+
+def _decode_key(encoded: str, source: str) -> bytes:
+    """Decode a urlsafe base64 master key and enforce its 256-bit length."""
+    try:
+        key = base64.urlsafe_b64decode(encoded.strip().encode("ascii"))
+    except ValueError as exc:
+        raise ValueError(f"{source} is not valid urlsafe base64.") from exc
+    if len(key) != _KEY_LEN:
+        raise ValueError(f"{source} must decode to exactly {_KEY_LEN} bytes.")
+    return key
+
+
+def _read_or_create_key_file(path: Path) -> bytes:
+    """Load the key file, creating it with owner-only permissions on first use."""
+    if path.exists():
+        return _decode_key(path.read_text(encoding="ascii"), str(path))
+    path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    encoded = base64.urlsafe_b64encode(secrets.token_bytes(_KEY_LEN)).decode("ascii")
+    try:
+        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    except FileExistsError:
+        # Lost a creation race with another process: use the winner's key.
+        return _decode_key(path.read_text(encoding="ascii"), str(path))
+    with os.fdopen(fd, "w", encoding="ascii") as handle:
+        handle.write(encoded + "\n")
+    return _decode_key(encoded, str(path))
+
+
+@lru_cache(maxsize=8)
+def _cipher_for(env_key: str, key_path: str) -> AESGCM:
+    """Build (and cache per key source) the AES-GCM cipher."""
     if env_key:
-        return env_key.encode("utf-8")
-
-    from now_workbench.config.settings import settings
-
-    env_data = os.environ.get("WORKBENCH_DATA_DIR")
-    data_dir = Path(env_data).resolve() if env_data else settings.data_dir
-    data_dir.mkdir(parents=True, exist_ok=True)
-    key_file = data_dir / ".workbench_master.key"
-    if key_file.exists():
-        return key_file.read_bytes()
-
-    generated = secrets.token_hex(32).encode("ascii")
-    key_file.write_bytes(generated)
-    key_file.chmod(0o600)
-    return generated
+        return AESGCM(_decode_key(env_key, "WORKBENCH_MASTER_KEY"))
+    return AESGCM(_read_or_create_key_file(Path(key_path)))
 
 
-def _derive_subkeys(master: bytes, salt: bytes) -> tuple[bytes, bytes]:
-    """Derive 32-byte encryption key and 32-byte MAC key via PBKDF2-HMAC-SHA256."""
-    derived = hashlib.pbkdf2_hmac("sha256", master, salt, 100_000, dklen=64)
-    return derived[:32], derived[32:]
+def _cipher() -> AESGCM:
+    """Return the AES-GCM cipher for the currently configured master key."""
+    return _cipher_for(os.environ.get("WORKBENCH_MASTER_KEY", ""), str(resolve_key_file()))
 
 
-def _xor_keystream(enc_key: bytes, nonce: bytes, data: bytes) -> bytes:
-    """XOR data with an HMAC-SHA256 counter-mode keystream."""
-    out = bytearray(len(data))
-    block_count = (len(data) + 31) // 32
-    for counter in range(block_count):
-        block = hmac.new(enc_key, nonce + counter.to_bytes(4, "big"), hashlib.sha256).digest()
-        start = counter * 32
-        end = min(start + 32, len(data))
-        for idx in range(start, end):
-            out[idx] = data[idx] ^ block[idx - start]
-    return bytes(out)
+def seal_secret(plaintext: str, context: str) -> bytes:
+    """Encrypt a secret with AES-256-GCM, bound to a context string.
 
+    Args:
+        plaintext: Secret value to encrypt.
+        context: Binding label (e.g. ``instance:<id>``); required again to unseal.
 
-def encrypt_secret(plaintext: str) -> str:
-    """Encrypt a sensitive string into an authenticated 'enc:v1:...' ciphertext."""
-    if not plaintext:
-        return ""
-    if plaintext.startswith(_PREFIX):
-        return plaintext
-
-    master = _get_master_secret()
-    salt = secrets.token_bytes(_SALT_LEN)
+    Returns:
+        ``version || nonce || ciphertext+tag`` as raw bytes for a BLOB column.
+    """
     nonce = secrets.token_bytes(_NONCE_LEN)
-    enc_key, mac_key = _derive_subkeys(master, salt)
-
-    ciphertext = _xor_keystream(enc_key, nonce, plaintext.encode("utf-8"))
-    tag = hmac.new(mac_key, salt + nonce + ciphertext, hashlib.sha256).digest()
-    blob = base64.urlsafe_b64encode(salt + nonce + tag + ciphertext).decode("ascii")
-    return f"{_PREFIX}{blob}"
+    sealed = _cipher().encrypt(nonce, plaintext.encode("utf-8"), context.encode("utf-8"))
+    return _FORMAT_VERSION + nonce + sealed
 
 
-def decrypt_secret(token: str) -> str:
-    """Decrypt and authenticate an 'enc:v1:...' ciphertext back to plaintext."""
-    if not token:
-        return ""
-    if not token.startswith(_PREFIX):
-        return token
+def unseal_secret(blob: bytes, context: str) -> str:
+    """Decrypt and authenticate a blob produced by ``seal_secret``.
 
-    raw = base64.urlsafe_b64decode(token[len(_PREFIX) :].encode("ascii"))
-    salt = raw[:_SALT_LEN]
-    nonce = raw[_SALT_LEN : _SALT_LEN + _NONCE_LEN]
-    tag = raw[_SALT_LEN + _NONCE_LEN : _SALT_LEN + _NONCE_LEN + _TAG_LEN]
-    ciphertext = raw[_SALT_LEN + _NONCE_LEN + _TAG_LEN :]
+    Args:
+        blob: Sealed bytes read from the database.
+        context: The binding label used when sealing.
 
-    master = _get_master_secret()
-    enc_key, mac_key = _derive_subkeys(master, salt)
-    expected_tag = hmac.new(mac_key, salt + nonce + ciphertext, hashlib.sha256).digest()
-    if not hmac.compare_digest(tag, expected_tag):
-        raise ValueError("Encrypted secret failed authentication check.")
+    Returns:
+        The decrypted plaintext.
 
-    plaintext_bytes = _xor_keystream(enc_key, nonce, ciphertext)
-    return plaintext_bytes.decode("utf-8")
+    Raises:
+        SecretDecryptionError: Unknown format, wrong master key, wrong context,
+            or tampered ciphertext.
+    """
+    if blob[:1] != _FORMAT_VERSION or len(blob) <= 1 + _NONCE_LEN:
+        raise SecretDecryptionError("Unsupported sealed secret format.")
+    nonce = blob[1 : 1 + _NONCE_LEN]
+    try:
+        plain = _cipher().decrypt(nonce, blob[1 + _NONCE_LEN :], context.encode("utf-8"))
+    except InvalidTag as exc:
+        raise SecretDecryptionError(
+            "Secret failed authentication: wrong master key or tampered data."
+        ) from exc
+    return plain.decode("utf-8")
 
 
 def mask_api_key(plaintext: str) -> str:
-    """Return a non-sensitive masked preview of an API key for UI/CLI validation."""
+    """Return a non-sensitive masked preview of an API key for UI/CLI display."""
     clean = plaintext.strip()
     if not clean:
         return ""

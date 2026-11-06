@@ -53,7 +53,7 @@ def inspect_remediation_needs() -> RemediationPlan:
     probe = runner.probe_environment()
 
     root_dir = Path.cwd()
-    data_dir = Path(os.environ.get("WORKBENCH_DATA_DIR", settings.data_dir))
+    data_dir = settings.get_data_dir()
     bundles_dir = Path(os.environ.get("WORKBENCH_BUNDLES_DIR", settings.bundles_dir))
     workspace_dir = Path(os.environ.get("WORKBENCH_WORKSPACE_DIR", settings.workspace_dir))
     env_file = root_dir / ".env"
@@ -71,7 +71,7 @@ def inspect_remediation_needs() -> RemediationPlan:
 def remediate_directories(plan: RemediationPlan) -> list[RemediationAction]:
     """Create missing runtime storage directories."""
     actions: list[RemediationAction] = []
-    data_dir = Path(os.environ.get("WORKBENCH_DATA_DIR", settings.data_dir))
+    data_dir = settings.get_data_dir()
     bundles_dir = Path(os.environ.get("WORKBENCH_BUNDLES_DIR", settings.bundles_dir))
     workspace_dir = Path(os.environ.get("WORKBENCH_WORKSPACE_DIR", settings.workspace_dir))
     targets = [

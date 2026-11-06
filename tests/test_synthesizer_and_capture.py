@@ -410,55 +410,6 @@ def test_cli_demo_synthesize_and_capture(tmp_path: Path) -> None:
         object.__setattr__(settings, "bundles_dir", old_bundles)
 
 
-def test_crypto_encryption_tamper_and_masking(tmp_path: Path) -> None:
-    """Verify encrypt_secret, decrypt_secret, tamper detection, and mask_api_key."""
-    import pytest
-
-    from now_workbench.config.crypto import decrypt_secret, encrypt_secret, mask_api_key
-
-    assert encrypt_secret("") == ""
-    assert decrypt_secret("") == ""
-    assert decrypt_secret("legacy-plain") == "legacy-plain"
-
-    assert mask_api_key("") == ""
-    assert mask_api_key("abcd") == "****"
-    assert mask_api_key("shortkey") == "sh...ey"
-    assert mask_api_key("sk-ant-api03-secret1234") == "sk-ant-...1234"
-
-    # Test with generated master key file in WORKBENCH_DATA_DIR
-    old_data = os.environ.get("WORKBENCH_DATA_DIR")
-    old_master = os.environ.get("WORKBENCH_MASTER_KEY")
-    os.environ["WORKBENCH_DATA_DIR"] = str(tmp_path)
-    os.environ.pop("WORKBENCH_MASTER_KEY", None)
-    try:
-        token = encrypt_secret("sk-ant-api03-supersecret9999")
-        assert token.startswith("enc:v1:")
-        assert "supersecret9999" not in token
-        # Idempotent when already encrypted
-        assert encrypt_secret(token) == token
-        # Second call reads existing .workbench_master.key file
-        assert decrypt_secret(token) == "sk-ant-api03-supersecret9999"
-
-        # Tamper with ciphertext -> ValueError
-        tampered = token[:-4] + ("AAAA" if not token.endswith("AAAA") else "BBBB")
-        with pytest.raises(ValueError, match="authentication check"):
-            decrypt_secret(tampered)
-
-        # Also test WORKBENCH_MASTER_KEY env override
-        os.environ["WORKBENCH_MASTER_KEY"] = "custom-env-master-secret"
-        env_token = encrypt_secret("sk-ant-env-secret")
-        assert decrypt_secret(env_token) == "sk-ant-env-secret"
-    finally:
-        if old_data is None:
-            os.environ.pop("WORKBENCH_DATA_DIR", None)
-        else:
-            os.environ["WORKBENCH_DATA_DIR"] = old_data
-        if old_master is None:
-            os.environ.pop("WORKBENCH_MASTER_KEY", None)
-        else:
-            os.environ["WORKBENCH_MASTER_KEY"] = old_master
-
-
 def test_workbench_settings_api_and_cli(tmp_path: Path) -> None:
     """Verify encrypted SQLite storage, masked /api/settings responses, and CLI config."""
 
@@ -487,7 +438,7 @@ def _run_workbench_settings_assertions() -> None:
     assert "anthropic_api_key" not in initial
 
     # 2. PUT updated settings including Claude AI API Key and Media Capture defaults
-    raw_secret = "sk-ant-api03-livekey9876"
+    raw_secret = "sk-ant-test-livekey9876"
     put_res = client.put(
         "/api/settings",
         json={
@@ -520,12 +471,14 @@ def _run_workbench_settings_assertions() -> None:
 
     # Verify the raw SQLite payload is encrypted at rest and never contains the raw secret
     with db_session() as repo:
-        row = repo.conn.execute(
-            "SELECT payload FROM workbench_preferences WHERE id = 'default';"
-        ).fetchone()
-        assert row is not None
-        assert raw_secret not in row["payload"]
-        assert "enc:v1:" in row["payload"]
+        payload = repo.conn.execute(
+            "SELECT payload FROM workbench_preferences WHERE id = 1;"
+        ).fetchone()["payload"]
+        sealed = repo.conn.execute(
+            "SELECT sealed FROM secrets WHERE name = 'anthropic_api_key';"
+        ).fetchone()["sealed"]
+        assert raw_secret not in payload
+        assert raw_secret.encode() not in sealed
         assert repo.get_decrypted_anthropic_api_key() == raw_secret
 
     # Verify echoing a masked string does not overwrite the encrypted key

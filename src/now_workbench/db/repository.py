@@ -9,10 +9,7 @@ from now_workbench.db.repos import (
     SeedRepositoryMixin,
     TemplateRepositoryMixin,
     ThreadRepositoryMixin,
-    row_to_instance,
 )
-
-_row_to_instance = row_to_instance
 
 
 class DatabaseRepository(

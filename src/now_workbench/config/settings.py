@@ -41,6 +41,17 @@ class Settings(BaseSettings):
     now_sdk_bin: str = Field(default="now-sdk", description="Path or command for now-sdk")
     node_bin: str = Field(default="node", description="Path or command for node")
 
+    def get_data_dir(self) -> Path:
+        """Return resolved data directory respecting a runtime WORKBENCH_DATA_DIR override.
+
+        ``data_dir`` is captured once at import; reading the environment here lets tests
+        and multi-workspace runs redirect storage after the settings object exists.
+        """
+        env_dir = os.environ.get("WORKBENCH_DATA_DIR")
+        if env_dir:
+            return Path(env_dir).resolve()
+        return self.data_dir
+
     def get_bundles_dir(self) -> Path:
         """Return resolved bundles directory respecting WORKBENCH_BUNDLES_DIR env override."""
         env_dir = os.environ.get("WORKBENCH_BUNDLES_DIR")

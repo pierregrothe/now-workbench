@@ -117,14 +117,10 @@ class ThreadRepositoryMixin:
         return self.get_thread(thread_id)
 
     def delete_thread(self, thread_id: str) -> bool:
-        """Delete a conversational thread and all its messages from SQLite."""
-        existing = self.get_thread(thread_id)
-        if not existing:
-            return False
+        """Delete a conversational thread; its messages cascade (ON DELETE CASCADE)."""
         with self.conn:
-            self.conn.execute("DELETE FROM chat_messages WHERE thread_id = ?;", (thread_id,))
-            self.conn.execute("DELETE FROM chat_threads WHERE id = ?;", (thread_id,))
-        return True
+            cursor = self.conn.execute("DELETE FROM chat_threads WHERE id = ?;", (thread_id,))
+        return cursor.rowcount > 0
 
     def list_messages(self, thread_id: str) -> list[ChatMessageRecord]:
         """Return all messages in a conversational thread in chronological order."""

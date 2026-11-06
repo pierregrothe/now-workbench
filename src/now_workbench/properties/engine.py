@@ -49,7 +49,7 @@ class PropertyEngine:
     """Manages transactional application and rollback of ServiceNow system properties."""
 
     def __init__(self, snapshots_dir: Path | None = None) -> None:
-        self.snapshots_dir = snapshots_dir or (settings.data_dir / "snapshots" / "properties")
+        self.snapshots_dir = snapshots_dir or (settings.get_data_dir() / "snapshots" / "properties")
         self.snapshots_dir.mkdir(parents=True, exist_ok=True)
 
     def read_bundle_properties(self, bundle_path: Path) -> dict[str, str]:

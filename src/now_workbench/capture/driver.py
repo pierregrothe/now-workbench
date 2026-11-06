@@ -210,7 +210,7 @@ class PlaywrightPlaybookDriver:
     """Orchestrates interactive demonstration playbooks using Chrome and Playwright."""
 
     def __init__(self, data_dir: Path | None = None) -> None:
-        self.data_dir = data_dir or settings.data_dir
+        self.data_dir = data_dir or settings.get_data_dir()
         self.sessions_dir = self.data_dir / "sessions"
         self.sessions_dir.mkdir(parents=True, exist_ok=True)
 

@@ -14,8 +14,14 @@ services:
       - WORKBENCH_SN_PASSWORD=${WORKBENCH_SN_PASSWORD:-}
       - WORKBENCH_ANTHROPIC_API_KEY=${WORKBENCH_ANTHROPIC_API_KEY:-${ANTHROPIC_API_KEY:-}}
       - WORKBENCH_CLAUDE_MODEL=claude-sonnet-5-5
+      # AES-256-GCM master key (ADR-012): kept OUT of ./data so a copied DB alone is useless.
+      - WORKBENCH_KEY_FILE=/run/workbench-keys/master.key
     volumes:
       - ./bundles:/app/bundles
       - ./workspaces:/app/workspaces
       - ./data:/app/data
+      - workbench-keys:/run/workbench-keys
     restart: unless-stopped
+
+volumes:
+  workbench-keys:

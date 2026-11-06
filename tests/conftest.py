@@ -13,6 +13,8 @@ def isolate_workbench_db(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Pat
     data_dir = tmp_path / "workbench_data"
     data_dir.mkdir(parents=True, exist_ok=True)
     monkeypatch.setenv("WORKBENCH_DATA_DIR", str(data_dir))
+    monkeypatch.setenv("WORKBENCH_KEY_FILE", str(tmp_path / "keys" / "master.key"))
+    monkeypatch.delenv("WORKBENCH_MASTER_KEY", raising=False)
     test_db = data_dir / "workbench.db"
 
     with db_session(test_db) as repo:

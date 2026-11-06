@@ -1,6 +1,8 @@
 """FastAPI backend server for now-workbench."""
 
 import uuid
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
@@ -92,12 +94,21 @@ def _mount_static_ui(app: FastAPI) -> None:
         app.mount("/", StaticFiles(directory=settings.static_dir, html=True), name="static")
 
 
+@asynccontextmanager
+async def _lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    """Seed the database at server startup -- never at import, so importing is side-effect free."""
+    with db_session() as repo:
+        seed_database(repo)
+    yield
+
+
 def create_app() -> FastAPI:
     """Factory creating and configuring the FastAPI app."""
     app = FastAPI(
         title="now-workbench",
         description="AI-native developer & demonstration workbench for ServiceNow SDK",
         version="0.2.0",
+        lifespan=_lifespan,
     )
 
     app.add_middleware(
@@ -107,9 +118,6 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
-
-    with db_session() as repo:
-        seed_database(repo)
 
     app.include_router(instances_router)
     app.include_router(templates_router)

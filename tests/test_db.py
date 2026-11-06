@@ -283,8 +283,10 @@ def test_update_instance_without_password_keeps_password_encrypted() -> None:
         )
     )
     repo.update_instance(inst.id, InstanceUpdate(name="Enc Inst Renamed"))
-    stored = conn.execute("SELECT password FROM instances WHERE id = ?;", (inst.id,)).fetchone()
-    assert stored["password"].startswith("enc:v1:")
+    sealed = conn.execute(
+        "SELECT credentials_sealed FROM instances WHERE id = ?;", (inst.id,)
+    ).fetchone()["credentials_sealed"]
+    assert b"S3cret!" not in sealed
     fetched = repo.get_instance(inst.id)
     assert fetched is not None
     assert fetched.password == "S3cret!"
