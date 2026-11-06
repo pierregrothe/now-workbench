@@ -2,7 +2,11 @@
 // Shared Playwright fixtures: API-level state reset and navigation helpers (ADR-013).
 // Author: Pierre Grothe
 // Date: 2026-11-06
+import { execFileSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import { test as base, expect, type APIRequestContext, type Page } from '@playwright/test';
+
+const REPO_ROOT = fileURLToPath(new URL('../..', import.meta.url));
 
 export interface InstanceSeed {
   name: string;
@@ -30,6 +34,25 @@ export async function seedInstance(
   const res = await request.post('/api/instances', { data: seed });
   expect(res.status(), await res.text()).toBe(200);
   return (await res.json()) as { id: string };
+}
+
+/**
+ * Store a detected platform profile through the real repository code, exactly as a
+ * live connection test would (fake:// instances are never probed, ADR-014).
+ */
+export function seedProfile(profile: Record<string, unknown>): void {
+  const script = [
+    'import json, sys',
+    'from now_workbench.db import InstanceProfile, db_session',
+    'with db_session() as repo:',
+    '    repo.save_instance_profile(InstanceProfile.model_validate(json.load(sys.stdin)))',
+  ].join('\n');
+  execFileSync('uv', ['run', 'python', '-c', script], {
+    cwd: REPO_ROOT,
+    input: JSON.stringify(profile),
+    env: { ...process.env, WORKBENCH_DATA_DIR: '.e2e/data', WORKBENCH_KEY_FILE: '.e2e/keys/master.key' },
+    stdio: ['pipe', 'inherit', 'inherit'],
+  });
 }
 
 /** Open Workbench Settings -> ServiceNow Instances. */

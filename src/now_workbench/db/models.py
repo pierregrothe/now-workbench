@@ -5,6 +5,49 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
+UNKNOWN_RELEASE = "Unknown"
+
+
+class InstanceNode(BaseModel):
+    """One application node of an instance, as reported by sys_cluster_state (ADR-014)."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    node_id: str
+    hostname: str
+    datacenter: str | None = None
+    status: str
+    cpu_count: int | None = None
+    memory_max_mb: float | None = None
+    memory_in_use_mb: float | None = None
+    memory_pressure: str | None = None
+    started_at: datetime | None = None
+
+
+class InstanceProfile(BaseModel):
+    """Platform facts read from the instance at connection time (ADR-014).
+
+    Every field is optional: what can be read depends on the account's roles
+    (``sys_properties`` vs. the admin-only cluster tables).
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    instance_id: str
+    release: str | None = None
+    build_tag: str | None = None
+    build_date: str | None = None
+    platform_name: str | None = None
+    environment: str | None = None
+    is_production: bool | None = None
+    datacenter: str | None = None
+    db_product: str | None = None
+    db_version: str | None = None
+    java_version: str | None = None
+    os: str | None = None
+    nodes: list[InstanceNode] = Field(default_factory=list)
+    captured_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+
 
 class InstanceRecord(BaseModel):
     """Registered ServiceNow instance with decrypted credentials (backend use only).
@@ -20,12 +63,12 @@ class InstanceRecord(BaseModel):
     username: str = "admin"
     password: str = ""
     auth_type: str = "basic"
-    release: str = "Unknown"  # detected from glide.war on first successful check
+    release: str = UNKNOWN_RELEASE  # read-only: from the detected profile (ADR-014)
     is_default: bool = False
     status: str = "unknown"
     last_checked: datetime | None = None
 
-    def to_public(self) -> InstancePublic:
+    def to_public(self, profile: InstanceProfile | None = None) -> InstancePublic:
         """Return the API-safe view of this instance (password withheld)."""
         return InstancePublic(
             id=self.id,
@@ -38,6 +81,7 @@ class InstanceRecord(BaseModel):
             is_default=self.is_default,
             status=self.status,
             last_checked=self.last_checked,
+            profile=profile,
         )
 
 
@@ -56,6 +100,7 @@ class InstancePublic(BaseModel):
     is_default: bool
     status: str
     last_checked: datetime | None = None
+    profile: InstanceProfile | None = None
 
 
 class InstanceCreate(BaseModel):
@@ -69,7 +114,6 @@ class InstanceCreate(BaseModel):
     username: str = "admin"
     password: str = ""
     auth_type: str = "basic"
-    release: str = "Unknown"  # detected from glide.war on first successful check
     is_default: bool = False
 
 
@@ -83,7 +127,6 @@ class InstanceUpdate(BaseModel):
     username: str | None = None
     password: str | None = None
     auth_type: str | None = None
-    release: str | None = None
     is_default: bool | None = None
 
 

@@ -4,6 +4,10 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+# Historical releases in chronological order. Used ONLY to order the release names that
+# requirements mention (bundle min_release, feature minimums). An instance reports its
+# own release at connection (ADR-014); a name missing here is, by construction, newer
+# than every entry, so a new ServiceNow release never requires a code change.
 RELEASE_FAMILIES: tuple[str, ...] = (
     "Rome",
     "San Diego",

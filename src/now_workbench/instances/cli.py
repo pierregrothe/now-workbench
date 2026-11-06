@@ -86,9 +86,6 @@ def add_instance_cmd(
     instance_id: str | None = typer.Option(None, "--id", help="Explicit ID for the instance"),
     username: str = typer.Option("admin", "--username", "-u", help="ServiceNow username"),
     password: str = typer.Option("", "--password", "-p", help="ServiceNow password"),
-    release: str = typer.Option(
-        "Unknown", "--release", "-r", help="Override only; detected automatically from the instance"
-    ),
     default: bool = typer.Option(False, "--default", "-d", help="Set as active default"),
 ) -> None:
     """Register a new ServiceNow instance."""
@@ -101,13 +98,15 @@ def add_instance_cmd(
                 username=username,
                 password=password,
                 auth_type="basic",
-                release=release,
                 is_default=default,
             )
         )
+        status, msg, _ = check_and_record_instance(repo, rec)
+        detected = repo.get_instance(rec.id) or rec
     console.print(
         f"[green][OK][/green] Registered [bold]{rec.name}[/bold] (ID: [cyan]{rec.id}[/cyan])"
     )
+    console.print(f"  Connection: {status} ({msg}); detected release: {detected.release}")
     if default:
         console.print(f"[green]*[/green] Set as active default instance: {rec.url}")
 

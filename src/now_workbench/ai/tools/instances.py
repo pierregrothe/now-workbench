@@ -56,7 +56,6 @@ def _add_instance(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
             url=url,
             username=str(args.get("username") or "admin"),
             password=str(args.get("password") or ""),
-            release=str(args.get("release") or "Unknown"),
             is_default=bool(args.get("make_default")) or not existing,
         )
     )
@@ -75,9 +74,7 @@ def _rename_instance(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
 
 def _update_instance(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
     inst = resolve_instance(ctx.repo, args.get("instance"))
-    fields = {
-        k: args[k] for k in ("url", "username", "password", "release") if args.get(k) is not None
-    }
+    fields = {k: args[k] for k in ("url", "username", "password") if args.get(k) is not None}
     if not fields:
         return ToolResult(summary="No fields to update were provided.", ok=False)
     rec = ctx.repo.update_instance(inst.id, InstanceUpdate(**fields))
@@ -161,13 +158,15 @@ register(
 register(
     ToolSpec(
         name="add_instance",
-        description="Register a new ServiceNow instance and verify its authentication.",
+        description=(
+            "Register a new ServiceNow instance, verify its authentication, and detect its "
+            "release, environment, datacenter and nodes from the instance itself."
+        ),
         properties={
             "url": {"type": "string"},
             "name": {"type": "string"},
             "username": {"type": "string"},
             "password": {"type": "string"},
-            "release": {"type": "string"},
             "make_default": {"type": "boolean"},
         },
         required=["url"],
@@ -190,13 +189,12 @@ register(
 register(
     ToolSpec(
         name="update_instance",
-        description="Change an instance's URL, username, password, or release.",
+        description="Change an instance's URL, username, or password (release is detected).",
         properties={
             "instance": _REF,
             "url": {"type": "string"},
             "username": {"type": "string"},
             "password": {"type": "string"},
-            "release": {"type": "string"},
         },
         required=["instance"],
         handler=_update_instance,

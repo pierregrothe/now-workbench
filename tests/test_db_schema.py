@@ -274,3 +274,24 @@ def test_get_data_dir_without_override_uses_settings_default(
 
     monkeypatch.delenv("WORKBENCH_DATA_DIR")
     assert settings.get_data_dir() == settings.data_dir
+
+
+def test_apply_migrations_v1_to_v2_keeps_instances_and_drops_release() -> None:
+    """Upgrading a v1 registry keeps instances; the stored release column is removed."""
+    from now_workbench.db.schema import MIGRATIONS
+
+    conn = sqlite3.connect(":memory:")
+    conn.row_factory = sqlite3.Row
+    conn.executescript(f"BEGIN;\n{MIGRATIONS[0]}\nPRAGMA user_version = 1;\nCOMMIT;")
+    conn.execute(
+        "INSERT INTO instances (id, name, url, credentials_sealed, release) "
+        "VALUES ('v1', 'Legacy', 'https://l.service-now.com', x'01', 'Zurich');"
+    )
+    conn.commit()
+    assert apply_migrations(conn) == SCHEMA_VERSION
+    cols = {r["name"] for r in conn.execute("PRAGMA table_info(instances);")}
+    assert "release" not in cols
+    assert conn.execute("SELECT name FROM instances;").fetchone()["name"] == "Legacy"
+    tables = {r["name"] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table';")}
+    assert {"instance_profiles", "instance_nodes"} <= tables
+    conn.close()

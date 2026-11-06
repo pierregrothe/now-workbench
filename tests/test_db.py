@@ -31,7 +31,6 @@ def test_instance_registry_lifecycle() -> None:
             url="https://demoalectriallwfau164179.service-now.com",
             username="admin",
             password="secret_password",
-            release="Zurich",
             is_default=True,
         )
     )
@@ -44,7 +43,6 @@ def test_instance_registry_lifecycle() -> None:
             id="acme-sandbox",
             name="Acme Corp Sandbox",
             url="https://acmesandbox.service-now.com",
-            release="Australia",
             is_default=False,
         )
     )
@@ -82,7 +80,6 @@ def test_instance_registry_lifecycle() -> None:
             name="Acme Renamed Corp",
             username="new_sc_user",
             password="new_secret_pwd",
-            release="Xanadu",
         ),
     )
     assert up_rec is not None
@@ -257,7 +254,6 @@ def test_get_default_instance_fallback_when_none_marked() -> None:
             url="https://fallback.service-now.com",
             username="admin",
             password="pwd",
-            release="Zurich",
             is_default=False,
         )
     )
@@ -279,7 +275,6 @@ def test_update_instance_without_password_keeps_password_encrypted() -> None:
             url="https://enc.service-now.com",
             username="admin",
             password="S3cret!",
-            release="Zurich",
         )
     )
     repo.update_instance(inst.id, InstanceUpdate(name="Enc Inst Renamed"))

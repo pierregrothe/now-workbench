@@ -1,5 +1,6 @@
 """ServiceNow platform release hierarchy and capability evaluation."""
 
+from now_workbench.db.models import UNKNOWN_RELEASE
 from now_workbench.releases.models import (
     RELEASE_FAMILIES,
     ReleaseCompatibilityResult,
@@ -49,13 +50,25 @@ def normalize_release(name: str) -> str:
     return cleaned.title()
 
 
+def is_release_detected(name: str) -> bool:
+    """Return True when a real release name is known (not empty or ``Unknown``)."""
+    return name.strip().lower() not in ("", UNKNOWN_RELEASE.lower())
+
+
 def get_release_index(name: str) -> int:
-    """Return index of the release family in chronological order, or -1 if unknown."""
+    """Return the chronological rank of a release.
+
+    Listed releases rank by position; an undetected release ranks -1 (oldest, the
+    conservative choice); any other name ranks after every listed release, because
+    the list only holds releases that shipped before it was written (ADR-014).
+    """
+    if not is_release_detected(name):
+        return -1
     norm = normalize_release(name)
     try:
         return RELEASE_FAMILIES.index(norm)
     except ValueError:
-        return -1
+        return len(RELEASE_FAMILIES)
 
 
 def compare_releases(release_a: str, release_b: str) -> int:
@@ -68,17 +81,6 @@ def compare_releases(release_a: str, release_b: str) -> int:
     """
     idx_a = get_release_index(release_a)
     idx_b = get_release_index(release_b)
-
-    if idx_a == -1 or idx_b == -1:
-        # Fallback to lexical comparison if unknown
-        norm_a = normalize_release(release_a)
-        norm_b = normalize_release(release_b)
-        if norm_a < norm_b:
-            return -1
-        if norm_a > norm_b:
-            return 1
-        return 0
-
     if idx_a < idx_b:
         return -1
     if idx_a > idx_b:
@@ -87,7 +89,12 @@ def compare_releases(release_a: str, release_b: str) -> int:
 
 
 def is_release_compatible(instance_release: str, min_release: str) -> bool:
-    """Return True if instance_release meets or exceeds min_release."""
+    """Return True if instance_release meets or exceeds min_release.
+
+    An undetected instance release is never compatible: it cannot be verified.
+    """
+    if not is_release_detected(instance_release):
+        return False
     return compare_releases(instance_release, min_release) >= 0
 
 
@@ -123,7 +130,12 @@ def evaluate_release_prerequisites(
                     if not is_release_compatible(norm_inst, feat_min):
                         unsupported.append(feat_name)
 
-    if not is_compat:
+    if not is_release_detected(norm_inst):
+        reason = (
+            "Instance release has not been detected yet. Run a connection test so the "
+            f"workbench can read it from the instance before deploying for {norm_min}."
+        )
+    elif not is_compat:
         reason = (
             f"Instance release '{norm_inst}' is below the required minimum release '{norm_min}'. "
             f"Cannot run demonstrations designed for {norm_min} on {norm_inst}."

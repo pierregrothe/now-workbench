@@ -35,7 +35,6 @@ def test_api_instances_and_admin_diagnostics() -> None:
             "username": "admin",
             "password": "pwd",
             "auth_type": "basic",
-            "release": "Zurich",
             "is_default": False,
         },
     )
@@ -62,14 +61,15 @@ def test_api_instances_and_admin_diagnostics() -> None:
             "name": "Acme Renamed Demo",
             "username": "demo_admin",
             "password": "new_secure_pwd",
-            "release": "Xanadu",
         },
     )
     assert update_resp.status_code == 200
     updated = update_resp.json()
     assert updated["name"] == "Acme Renamed Demo"
     assert updated["username"] == "demo_admin"
-    assert updated["release"] == "Xanadu"
+    # The release is detected from the instance (ADR-014) and cannot be set by clients.
+    rejected = client.put("/api/instances/acme-dev-subprod", json={"release": "Xanadu"})
+    assert rejected.status_code == 422
 
     # Query by name works seamlessly
     query_by_name = client.get("/api/instances")

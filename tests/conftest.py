@@ -26,7 +26,6 @@ def isolate_workbench_db(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Pat
                 username="admin",
                 password="",
                 auth_type="basic",
-                release="Zurich",
                 is_default=True,
             )
         )

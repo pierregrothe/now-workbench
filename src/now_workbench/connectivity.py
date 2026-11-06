@@ -5,9 +5,9 @@ import httpx
 from now_workbench.config.settings import settings
 from now_workbench.db.models import InstanceRecord
 from now_workbench.db.repository import DatabaseRepository
-from now_workbench.releases import BUILD_PROPERTY, parse_release_family
+from now_workbench.instance_profile import collect_instance_profile
 
-__all__ = ["check_and_record_instance", "detect_instance_release", "verify_instance_authentication"]
+__all__ = ["check_and_record_instance", "verify_instance_authentication"]
 
 
 def verify_instance_authentication(
@@ -62,37 +62,6 @@ def _is_simulated(inst: InstanceRecord, fake_mode: bool) -> bool:
     )
 
 
-def detect_instance_release(
-    inst: InstanceRecord,
-    timeout: float = 5.0,
-    client: httpx.Client | None = None,
-) -> str | None:
-    """Read the instance's ``glide.war`` build property and return its release family.
-
-    Args:
-        inst: Instance with decrypted credentials.
-        timeout: Request timeout in seconds.
-        client: Optional preconfigured HTTP client (closed after use).
-
-    Returns:
-        The release family (e.g. ``"Australia"``), or ``None`` when the property is not
-        readable with these credentials or the instance cannot be reached.
-    """
-    url = f"{inst.url.rstrip('/')}/api/now/table/sys_properties"
-    params = {"sysparm_query": f"name={BUILD_PROPERTY}", "sysparm_fields": "value"}
-    auth = (inst.username, inst.password) if inst.auth_type == "basic" else None
-    try:
-        http_ctx = client if client is not None else httpx.Client(timeout=timeout)
-        with http_ctx as cl:
-            res = cl.get(url, params=params, auth=auth, headers={"Accept": "application/json"})
-        if res.status_code != 200:
-            return None
-        rows = res.json().get("result") or []
-        return parse_release_family(str(rows[0].get("value", ""))) if rows else None
-    except httpx.HTTPError, ValueError:
-        return None
-
-
 def check_and_record_instance(
     repo: DatabaseRepository,
     inst: InstanceRecord,
@@ -100,10 +69,11 @@ def check_and_record_instance(
     fake_mode: bool = False,
     transport: httpx.BaseTransport | None = None,
 ) -> tuple[str, str, int]:
-    """Verify authentication, detect the release when authenticated, and persist both.
+    """Verify authentication and, when authenticated, refresh the platform profile.
 
-    The single entry point for "test this instance": every caller gets the same
-    status semantics and the registry release always reflects the live build.
+    The single entry point for "test this instance" (ADR-014): every caller gets the
+    same status semantics, and the stored release, environment, datacenter and node
+    facts always come from the live instance -- never from user input.
 
     Args:
         repo: Repository to record the result in.
@@ -124,8 +94,9 @@ def check_and_record_instance(
     status, message, code = verify_instance_authentication(
         inst, timeout=timeout, client=client(), fake_mode=fake_mode
     )
-    release = None
+    repo.update_instance_status(inst.id, status)
     if status == "authenticated" and not _is_simulated(inst, fake_mode):
-        release = detect_instance_release(inst, timeout=timeout, client=client())
-    repo.update_instance_status(inst.id, status, release=release)
+        profile = collect_instance_profile(inst, client=client(), timeout=timeout)
+        if profile is not None:
+            repo.save_instance_profile(profile)
     return status, message, code

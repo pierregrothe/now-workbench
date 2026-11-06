@@ -2,7 +2,7 @@
 // Admin panel renders the real instance registry and never exposes passwords (ADR-011, ADR-012).
 // Author: Pierre Grothe
 // Date: 2026-11-06
-import { expect, openInstancesPanel, seedInstance, test } from './fixtures';
+import { expect, openInstancesPanel, seedInstance, seedProfile, test } from './fixtures';
 
 test('empty registry renders an empty state, never a sample instance', async ({ page }) => {
   await openInstancesPanel(page);
@@ -61,4 +61,64 @@ test('connect form has no release picker; release is detected, not chosen', asyn
   await expect(row).toBeVisible();
   // Simulated (fake://) instances are never probed, so no release is invented.
   await expect(row).toContainText('Unknown');
+});
+
+test('unprofiled instance says details come from the first connection test', async ({
+  page,
+  request,
+}) => {
+  await seedInstance(request, { name: 'Fresh Instance', url: 'fake://fresh.service-now.com', is_default: true });
+  await openInstancesPanel(page);
+
+  await expect(page.getByText('Release not detected')).toBeVisible();
+  await expect(page.getByTestId('profile-empty')).toContainText('first successful connection test');
+  await expect(page.getByTestId('profile-facts')).toHaveCount(0);
+});
+
+test('detected platform profile is shown: environment, datacenter, nodes, CPU, memory', async ({
+  page,
+  request,
+}) => {
+  const inst = await seedInstance(request, {
+    name: 'Profiled Instance',
+    url: 'fake://profiled.service-now.com',
+    is_default: true,
+  });
+  const node = (n: number, pressure: string) => ({
+    node_id: `n${n}`,
+    hostname: `app${n}.yyz3.service-now.com`,
+    datacenter: 'yyz3',
+    status: 'online',
+    cpu_count: 64,
+    memory_max_mb: 2000,
+    memory_in_use_mb: 1000,
+    memory_pressure: pressure,
+  });
+  seedProfile({
+    instance_id: inst.id,
+    release: 'Brazil',
+    build_tag: 'glide-brazil-08-01-2027__patch0',
+    build_date: '2027-08-15',
+    environment: 'dev',
+    is_production: false,
+    datacenter: 'yyz3',
+    db_product: 'MySQL',
+    db_version: '5.8',
+    java_version: '21.0.11',
+    nodes: [node(1, 'NOMINAL'), node(2, 'SUSTAINED_OVER')],
+  });
+
+  await openInstancesPanel(page);
+
+  // A release name the code has never seen is displayed as reported by the instance.
+  await expect(page.getByText('Brazil Family')).toBeVisible();
+  const facts = page.getByTestId('profile-facts');
+  await expect(facts).toContainText('DEV');
+  await expect(facts).toContainText('yyz3');
+  await expect(facts).toContainText('2/2 online');
+  await expect(facts).toContainText('2000 / 4000 MB (50%)');
+  await expect(facts).toContainText('SUSTAINED_OVER');
+  const row = page.getByRole('table').getByRole('row', { name: /Profiled Instance/ });
+  await expect(row).toContainText('Brazil');
+  await expect(row).toContainText('DEV');
 });

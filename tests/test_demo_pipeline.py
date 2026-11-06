@@ -11,7 +11,7 @@ from now_workbench.ai.tools import execute_tool
 from now_workbench.ai.tools.base import ToolContext
 from now_workbench.bundles.pipeline import DemoPipelineEngine
 from now_workbench.cli import app
-from now_workbench.db import InstanceCreate, db_session
+from now_workbench.db import InstanceCreate, InstanceProfile, db_session
 from now_workbench.synthesizer.engine import UseCaseSynthesizer
 from now_workbench.synthesizer.models import UseCaseSynthesisRequest
 
@@ -44,10 +44,13 @@ def test_evaluate_and_install_modules(tmp_path: Path, synthesized_demo):
                 id="inst-test-01",
                 name="Test Dev Instance",
                 url="https://testdev.service-now.com",
-                release="Zurich",
                 is_default=True,
             )
         )
+        # The release is detected at connection (ADR-014); simulate a detected profile.
+        repo.save_instance_profile(InstanceProfile(instance_id="inst-test-01", release="Zurich"))
+        inst = repo.get_instance("inst-test-01")
+        assert inst is not None
 
         engine = DemoPipelineEngine(bundles_dir=bundles_dir, repo=repo)
 
@@ -84,10 +87,13 @@ async def test_full_demo_pipeline_with_video_proof(tmp_path: Path, synthesized_d
                 id="inst-zurich-poc",
                 name="Zurich Healthcare POC",
                 url="https://zurich-poc.service-now.com",
-                release="Zurich",
                 is_default=True,
             )
         )
+        # The release is detected at connection (ADR-014); simulate a detected profile.
+        repo.save_instance_profile(InstanceProfile(instance_id="inst-zurich-poc", release="Zurich"))
+        inst = repo.get_instance("inst-zurich-poc")
+        assert inst is not None
 
         engine = DemoPipelineEngine(bundles_dir=bundles_dir, repo=repo)
         summary = await engine.run_full_pipeline(
@@ -133,9 +139,12 @@ def test_agent_tools_pipeline_parity(tmp_path: Path, synthesized_demo, monkeypat
                 id="inst-agent-target",
                 name="Agent Primary Target",
                 url="https://agent-target.service-now.com",
-                release="Zurich",
                 is_default=True,
             )
+        )
+        # The release is detected at connection (ADR-014); simulate a detected profile.
+        repo.save_instance_profile(
+            InstanceProfile(instance_id="inst-agent-target", release="Zurich")
         )
         ctx = ToolContext(repo=repo, fake_mode=True)
 
@@ -183,10 +192,11 @@ def test_cli_pipeline_commands(tmp_path: Path, synthesized_demo, monkeypatch):
                 id="inst-cli-test",
                 name="CLI Test Instance",
                 url="https://cli-test.service-now.com",
-                release="Zurich",
                 is_default=True,
             )
         )
+        # The release is detected at connection (ADR-014); simulate a detected profile.
+        repo.save_instance_profile(InstanceProfile(instance_id="inst-cli-test", release="Zurich"))
 
     runner = CliRunner(env={"COLUMNS": "250"})
 

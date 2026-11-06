@@ -22,7 +22,6 @@ async def test_seed_engine_lifecycle(tmp_path: Path) -> None:
             url="https://testsandbox.service-now.com",
             username="admin",
             password="secret_password",
-            release="Zurich",
             is_default=True,
         )
     )

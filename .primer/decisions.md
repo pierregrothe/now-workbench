@@ -281,3 +281,22 @@ compared lexically, so it ranked as the *oldest* release).
 **Consequences:**
 - Release-gated features (ADR-009 workspaces, minimum-release checks) use the instance's real build.
 
+---
+
+### 2026-11-06 -- ADR-014: Instance Platform Profile Detected at Connection
+
+**Status:** accepted (supersedes the "release family is detected" entry above)
+
+**Context:**
+Release names cannot be planned like version numbers; a stored, settable release column plus a
+hardcoded name list kept drifting. The owner wants all key facts (prod/dev, datacenter, CPU, memory).
+
+**Decision:**
+1. Schema v2 drops `instances.release`; release is derived from `instance_profiles` and never input.
+2. Every successful check reads `sys_properties`, `sys_cluster_state`, `sys_cluster_node_stats`
+   into `instance_profiles` + `instance_nodes` (best-effort; never invented for `fake://`).
+3. Unlisted release names rank newest; `Unknown` never satisfies a requirement.
+
+**Consequences:**
+- New ServiceNow releases need no code change; memory figures are JVM heap per node.
+

@@ -17,9 +17,11 @@ router = APIRouter(prefix="/api/instances", tags=["instances"])
 
 @router.get("", response_model=list[InstancePublic])
 def list_instances() -> list[InstancePublic]:
-    """List all registered ServiceNow instances (passwords withheld)."""
+    """List registered instances with their detected platform profile (passwords withheld)."""
     with db_session() as repo:
-        return [inst.to_public() for inst in repo.list_instances()]
+        return [
+            inst.to_public(repo.get_instance_profile(inst.id)) for inst in repo.list_instances()
+        ]
 
 
 @router.post("", response_model=InstancePublic)
@@ -32,7 +34,9 @@ def register_instance(inst: InstanceCreate) -> InstancePublic:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
         prefs = repo.get_workbench_preferences()
         check_and_record_instance(repo, created, fake_mode=prefs.sdk_fake_mode)
-        return (repo.get_instance(created.id) or created).to_public()
+        return (repo.get_instance(created.id) or created).to_public(
+            repo.get_instance_profile(created.id)
+        )
 
 
 @router.put("/{instance_id}", response_model=InstancePublic)
@@ -47,7 +51,7 @@ def update_instance_endpoint(instance_id: str, update: InstanceUpdate) -> Instan
             raise HTTPException(status_code=404, detail="Instance not found.")
         prefs = repo.get_workbench_preferences()
         check_and_record_instance(repo, rec, fake_mode=prefs.sdk_fake_mode)
-        return (repo.get_instance(instance_id) or rec).to_public()
+        return (repo.get_instance(instance_id) or rec).to_public(repo.get_instance_profile(rec.id))
 
 
 @router.delete("/{instance_id}")

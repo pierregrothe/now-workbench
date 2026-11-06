@@ -7,7 +7,10 @@ from datetime import UTC, datetime
 
 from now_workbench.config.crypto import seal_secret, unseal_secret
 from now_workbench.db.models import (
+    UNKNOWN_RELEASE,
     InstanceCreate,
+    InstanceNode,
+    InstanceProfile,
     InstanceRecord,
     InstanceUpdate,
 )
@@ -15,8 +18,38 @@ from now_workbench.plugins.models import PluginRecord
 
 __all__ = ["InstanceRepositoryMixin", "row_to_instance"]
 
-_INSTANCE_COLUMNS = (
-    "id, name, url, auth_type, credentials_sealed, release, is_default, status, last_checked"
+# The release is never stored on the instance row: it comes from the detected profile.
+_SELECT_INSTANCE = f"""
+    SELECT i.id, i.name, i.url, i.auth_type, i.credentials_sealed,
+           COALESCE(p.release, '{UNKNOWN_RELEASE}') AS release,
+           i.is_default, i.status, i.last_checked
+    FROM instances i
+    LEFT JOIN instance_profiles p ON p.instance_id = i.id
+"""
+
+_PROFILE_COLUMNS = (
+    "release",
+    "build_tag",
+    "build_date",
+    "platform_name",
+    "environment",
+    "is_production",
+    "datacenter",
+    "db_product",
+    "db_version",
+    "java_version",
+    "os",
+)
+_NODE_COLUMNS = (
+    "node_id",
+    "hostname",
+    "datacenter",
+    "status",
+    "cpu_count",
+    "memory_max_mb",
+    "memory_in_use_mb",
+    "memory_pressure",
+    "started_at",
 )
 
 
@@ -66,24 +99,20 @@ class InstanceRepositoryMixin:
 
     def list_instances(self) -> list[InstanceRecord]:
         """Return all registered ServiceNow instances, default first."""
-        cursor = self.conn.execute(
-            f"SELECT {_INSTANCE_COLUMNS} FROM instances ORDER BY is_default DESC, name ASC;"
-        )
+        cursor = self.conn.execute(f"{_SELECT_INSTANCE} ORDER BY i.is_default DESC, i.name ASC;")
         return [row_to_instance(row) for row in cursor.fetchall()]
 
     def get_instance(self, instance_id: str) -> InstanceRecord | None:
         """Fetch an instance by identifier or case-insensitive unique name."""
         row = self.conn.execute(
-            f"SELECT {_INSTANCE_COLUMNS} FROM instances WHERE id = ? OR name = ? LIMIT 1;",
+            f"{_SELECT_INSTANCE} WHERE i.id = ? OR i.name = ? LIMIT 1;",
             (instance_id, instance_id),
         ).fetchone()
         return row_to_instance(row) if row else None
 
     def get_default_instance(self) -> InstanceRecord | None:
         """Fetch the default instance, promoting the first one by name if none is set."""
-        row = self.conn.execute(
-            f"SELECT {_INSTANCE_COLUMNS} FROM instances WHERE is_default = 1;"
-        ).fetchone()
+        row = self.conn.execute(f"{_SELECT_INSTANCE} WHERE i.is_default = 1;").fetchone()
         if row:
             return row_to_instance(row)
         first = self.conn.execute("SELECT id FROM instances ORDER BY name ASC LIMIT 1;").fetchone()
@@ -108,14 +137,13 @@ class InstanceRepositoryMixin:
                 self.conn.execute(
                     """
                     INSERT INTO instances (id, name, url, auth_type, credentials_sealed,
-                                           release, is_default)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                                           is_default)
+                    VALUES (?, ?, ?, ?, ?, ?)
                     ON CONFLICT(id) DO UPDATE SET
                         name = excluded.name,
                         url = excluded.url,
                         auth_type = excluded.auth_type,
                         credentials_sealed = excluded.credentials_sealed,
-                        release = excluded.release,
                         is_default = excluded.is_default,
                         updated_at = excluded.updated_at;
                     """,
@@ -125,7 +153,6 @@ class InstanceRepositoryMixin:
                         inst.url,
                         inst.auth_type,
                         sealed,
-                        inst.release,
                         int(inst.is_default),
                     ),
                 )
@@ -146,19 +173,80 @@ class InstanceRepositoryMixin:
             self.conn.execute("UPDATE instances SET is_default = 1 WHERE id = ?;", (instance_id,))
             return True
 
-    def update_instance_status(
-        self, instance_id: str, status: str, release: str | None = None
-    ) -> None:
-        """Update connectivity status and last_checked; also the release when detected."""
+    def update_instance_status(self, instance_id: str, status: str) -> None:
+        """Update connectivity status and the last_checked timestamp."""
         with self.conn:
             self.conn.execute(
-                """
-                UPDATE instances
-                SET status = ?, last_checked = ?, release = COALESCE(?, release)
-                WHERE id = ?;
-                """,
-                (status, datetime.now(UTC).isoformat(), release, instance_id),
+                "UPDATE instances SET status = ?, last_checked = ? WHERE id = ?;",
+                (status, datetime.now(UTC).isoformat(), instance_id),
             )
+
+    def save_instance_profile(self, profile: InstanceProfile) -> None:
+        """Replace an instance's detected platform profile and node list atomically."""
+        values = profile.model_dump(include=set(_PROFILE_COLUMNS))
+        if values["is_production"] is not None:
+            values["is_production"] = int(values["is_production"])
+        cols = ", ".join(_PROFILE_COLUMNS)
+        marks = ", ".join("?" for _ in _PROFILE_COLUMNS)
+        updates = ", ".join(f"{c} = excluded.{c}" for c in _PROFILE_COLUMNS)
+        with self.conn:
+            self.conn.execute(
+                f"""
+                INSERT INTO instance_profiles (instance_id, {cols}, captured_at)
+                VALUES (?, {marks}, ?)
+                ON CONFLICT(instance_id) DO UPDATE SET {updates},
+                    captured_at = excluded.captured_at;
+                """,
+                (
+                    profile.instance_id,
+                    *(values[c] for c in _PROFILE_COLUMNS),
+                    profile.captured_at.isoformat(),
+                ),
+            )
+            self.conn.execute(
+                "DELETE FROM instance_nodes WHERE instance_id = ?;", (profile.instance_id,)
+            )
+            node_cols = ", ".join(_NODE_COLUMNS)
+            node_marks = ", ".join("?" for _ in _NODE_COLUMNS)
+            self.conn.executemany(
+                f"INSERT INTO instance_nodes (instance_id, {node_cols}) VALUES (?, {node_marks});",
+                [
+                    (
+                        profile.instance_id,
+                        *(
+                            n.started_at.isoformat()
+                            if c == "started_at" and n.started_at
+                            else getattr(n, c)
+                            for c in _NODE_COLUMNS
+                        ),
+                    )
+                    for n in profile.nodes
+                ],
+            )
+
+    def get_instance_profile(self, instance_id: str) -> InstanceProfile | None:
+        """Return the last detected platform profile (with nodes), or None if never profiled."""
+        row = self.conn.execute(
+            f"SELECT {', '.join(_PROFILE_COLUMNS)}, captured_at FROM instance_profiles "
+            "WHERE instance_id = ?;",
+            (instance_id,),
+        ).fetchone()
+        if row is None:
+            return None
+        nodes = self.conn.execute(
+            f"SELECT {', '.join(_NODE_COLUMNS)} FROM instance_nodes "
+            "WHERE instance_id = ? ORDER BY hostname;",
+            (instance_id,),
+        ).fetchall()
+        data = {c: row[c] for c in _PROFILE_COLUMNS}
+        if data["is_production"] is not None:
+            data["is_production"] = bool(data["is_production"])
+        return InstanceProfile(
+            instance_id=instance_id,
+            captured_at=datetime.fromisoformat(row["captured_at"]),
+            nodes=[InstanceNode(**{c: n[c] for c in _NODE_COLUMNS}) for n in nodes],
+            **data,
+        )
 
     def update_instance(self, instance_id: str, update: InstanceUpdate) -> InstanceRecord | None:
         """Update an existing instance; credentials are always re-sealed, never plaintext.
@@ -172,6 +260,7 @@ class InstanceRepositoryMixin:
         username = update.username if update.username is not None else existing.username
         password = update.password or existing.password
         is_default = update.is_default if update.is_default is not None else existing.is_default
+        new_url = update.url if update.url is not None else existing.url
         try:
             with self.conn:
                 if is_default:
@@ -183,20 +272,27 @@ class InstanceRepositoryMixin:
                     """
                     UPDATE instances
                     SET name = ?, url = ?, auth_type = ?, credentials_sealed = ?,
-                        release = ?, is_default = ?, updated_at = ?
+                        is_default = ?, updated_at = ?
                     WHERE id = ?;
                     """,
                     (
                         update.name if update.name is not None else existing.name,
-                        update.url if update.url is not None else existing.url,
+                        new_url,
                         update.auth_type if update.auth_type is not None else existing.auth_type,
                         _seal_credentials(existing.id, username, password),
-                        update.release if update.release is not None else existing.release,
                         int(is_default),
                         _utc_now(),
                         existing.id,
                     ),
                 )
+                if new_url != existing.url:
+                    # A different endpoint is a different system: its profile is stale.
+                    self.conn.execute(
+                        "DELETE FROM instance_profiles WHERE instance_id = ?;", (existing.id,)
+                    )
+                    self.conn.execute(
+                        "DELETE FROM instance_nodes WHERE instance_id = ?;", (existing.id,)
+                    )
         except sqlite3.IntegrityError as exc:
             raise ValueError(f"An instance named '{update.name}' already exists.") from exc
         return self.get_instance(existing.id)

@@ -103,8 +103,6 @@ def test_cli_instance_commands() -> None:
             "cliuser",
             "--password",
             "clipassword",
-            "--release",
-            "Zurich",
             "--default",
         ],
     )

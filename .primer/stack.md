@@ -66,6 +66,7 @@ now-workbench/
 - `vite >= 5.4` -- Frontend bundler
 - `typescript >= 5.6` -- Strict TypeScript (`noEmit: true`)
 - `@playwright/test >= 1.65` (dev) -- End-to-end UI tests on local Chrome against the real backend (ADR-013)
+- `@types/node` (dev) -- Node typings for Playwright fixtures that seed state via the Python repository
 
 ## Dev Tools & Code Quality
 - `pytest >= 8.3` with `pytest-asyncio` and `pytest-cov` (100% coverage floor)

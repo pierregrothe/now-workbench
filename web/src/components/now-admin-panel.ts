@@ -1,6 +1,36 @@
 import { LitElement, html, css } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 
+/** One application node, as reported by the instance (ADR-014). */
+export interface InstanceNodeData {
+  node_id: string;
+  hostname: string;
+  datacenter: string | null;
+  status: string;
+  cpu_count: number | null;
+  memory_max_mb: number | null;
+  memory_in_use_mb: number | null;
+  memory_pressure: string | null;
+  started_at: string | null;
+}
+
+/** Platform facts read from the instance at connection time (ADR-014). */
+export interface InstanceProfileData {
+  release: string | null;
+  build_tag: string | null;
+  build_date: string | null;
+  platform_name: string | null;
+  environment: string | null;
+  is_production: boolean | null;
+  datacenter: string | null;
+  db_product: string | null;
+  db_version: string | null;
+  java_version: string | null;
+  os: string | null;
+  nodes: InstanceNodeData[];
+  captured_at: string;
+}
+
 export interface InstanceData {
   id: string;
   name: string;
@@ -10,6 +40,17 @@ export interface InstanceData {
   is_default: boolean;
   status: string;
   last_checked: string | null;
+  profile?: InstanceProfileData | null;
+}
+
+const PRESSURE_RANK: Record<string, number> = { UNDER: 0, NOMINAL: 1, OVER: 2, SUSTAINED_OVER: 3 };
+
+function environmentLabel(profile: InstanceProfileData): string {
+  const env = (profile.environment || '').toUpperCase();
+  if (env) return env;
+  if (profile.is_production === true) return 'PROD';
+  if (profile.is_production === false) return 'NON-PROD';
+  return 'UNKNOWN';
 }
 
 interface DiagnosticsData {
@@ -104,6 +145,64 @@ export class NowAdminPanel extends LitElement {
       letter-spacing: 0.5px;
       padding: 4px 10px;
       border-radius: 999px;
+    }
+
+    .profile-facts {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+      gap: 10px 18px;
+      padding: 14px 0 4px;
+      font-size: 12.5px;
+      color: #e2e8f0;
+    }
+
+    .profile-fact .fact-label {
+      display: block;
+      font-size: 10.5px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: #94a3b8;
+    }
+
+    .profile-fact .fact-value {
+      font-weight: 600;
+      color: #ffffff;
+      word-break: break-word;
+    }
+
+    .profile-fact .fact-value.warn {
+      color: #fbbf24;
+    }
+
+    .profile-empty {
+      padding: 12px 0 4px;
+      font-size: 12.5px;
+      color: #cbd5e1;
+      font-style: italic;
+    }
+
+    .env-badge {
+      display: inline-block;
+      margin-left: 6px;
+      padding: 1px 7px;
+      border-radius: 999px;
+      font-size: 10.5px;
+      font-weight: 700;
+      background: var(--now-bg-surface-0, #f1f5f9);
+      color: var(--now-text-secondary, #475467);
+      border: 1px solid var(--now-border-subtle, #e2e8f0);
+    }
+
+    .env-badge.prod {
+      background: #fef2f2;
+      color: #b42318;
+      border-color: #fecaca;
+    }
+
+    .row-dc {
+      display: block;
+      font-size: 11px;
+      color: var(--now-text-secondary, #6b7280);
     }
 
     .badge-release {
@@ -916,6 +1015,55 @@ export class NowAdminPanel extends LitElement {
     }
   }
 
+  /** Detected platform facts for the active instance (never user-entered; ADR-014). */
+  private renderProfileFacts(inst: InstanceData) {
+    const profile = inst.profile;
+    if (!profile) {
+      return html`<div class="profile-empty" data-testid="profile-empty">
+        Platform details (release, environment, datacenter, nodes, CPU, memory) are read from
+        the instance on the first successful connection test.
+      </div>`;
+    }
+    const nodes = profile.nodes;
+    const online = nodes.filter((n) => n.status === 'online').length;
+    const cpus = nodes.map((n) => n.cpu_count).filter((c): c is number => c !== null);
+    const heapMax = nodes.reduce((sum, n) => sum + (n.memory_max_mb ?? 0), 0);
+    const heapUsed = nodes.reduce((sum, n) => sum + (n.memory_in_use_mb ?? 0), 0);
+    const worst = nodes
+      .map((n) => n.memory_pressure)
+      .filter((p): p is string => !!p)
+      .sort((a, b) => (PRESSURE_RANK[b] ?? 0) - (PRESSURE_RANK[a] ?? 0))[0];
+    const facts: Array<[string, string, boolean]> = [
+      ['Environment', environmentLabel(profile), false],
+      ['Datacenter', profile.datacenter ?? '--', false],
+      ['Nodes', nodes.length ? `${online}/${nodes.length} online` : '--', online < nodes.length],
+      [
+        'CPUs per node',
+        cpus.length ? (Math.min(...cpus) === Math.max(...cpus) ? `${cpus[0]}` : `${Math.min(...cpus)}-${Math.max(...cpus)}`) : '--',
+        false,
+      ],
+      [
+        'JVM heap (all nodes)',
+        heapMax ? `${Math.round(heapUsed)} / ${Math.round(heapMax)} MB (${Math.round((heapUsed / heapMax) * 100)}%)` : '--',
+        false,
+      ],
+      ['Memory pressure (worst)', worst ?? '--', !!worst && (PRESSURE_RANK[worst] ?? 0) >= 2],
+      ['Build', profile.build_date ? `${profile.build_date}` : '--', false],
+      ['Database', [profile.db_product, profile.db_version].filter(Boolean).join(' ') || '--', false],
+      ['Java', profile.java_version ?? '--', false],
+    ];
+    return html`<div class="profile-facts" data-testid="profile-facts">
+      ${facts.map(
+        ([label, value, warn]) => html`<div class="profile-fact">
+          <span class="fact-label">${label}</span>
+          <span class="fact-value ${warn ? 'warn' : ''}" title=${label === 'Build' ? profile.build_tag ?? '' : ''}
+            >${value}</span
+          >
+        </div>`,
+      )}
+    </div>`;
+  }
+
   render() {
     const activeInst = this.instances.find((i) => i.is_default) || this.instances[0];
     const authCount = this.instances.filter((i) => i.status === 'authenticated').length;
@@ -930,7 +1078,9 @@ export class NowAdminPanel extends LitElement {
                   <div class="hero-top-row">
                     <div class="hero-badge-group">
                       <span class="badge-target">Active Deployment Target</span>
-                      <span class="badge-release">${activeInst.release} Family</span>
+                      <span class="badge-release">
+                        ${activeInst.release === 'Unknown' ? 'Release not detected' : `${activeInst.release} Family`}
+                      </span>
                     </div>
                     <span class="status-badge ${this.testingInstanceId === activeInst.id ? 'testing' : activeInst.status}">
                       <span class="dot-indicator"></span>
@@ -958,6 +1108,8 @@ export class NowAdminPanel extends LitElement {
                     </div>
                   </div>
 
+                  ${this.renderProfileFacts(activeInst)}
+
                   <div class="hero-bottom-bar">
                     <div class="hero-meta-group">
                       <span>Service Account: <strong>${activeInst.username}</strong></span>
@@ -966,7 +1118,7 @@ export class NowAdminPanel extends LitElement {
                         <strong>
                           ${activeInst.last_checked
                             ? activeInst.last_checked.slice(0, 19).replace('T', ' ')
-                            : 'Verified'}
+                            : 'Never'}
                         </strong>
                       </span>
                     </div>
@@ -1059,6 +1211,13 @@ export class NowAdminPanel extends LitElement {
                         </td>
                         <td>
                           <span style="font-weight: 600; color: #475467;">${inst.release}</span>
+                          ${inst.profile
+                            ? html`<span class="env-badge ${environmentLabel(inst.profile) === 'PROD' ? 'prod' : ''}"
+                                  >${environmentLabel(inst.profile)}</span
+                                >${inst.profile.datacenter
+                                  ? html`<span class="row-dc">${inst.profile.datacenter}</span>`
+                                  : ''}`
+                            : ''}
                         </td>
                         <td>
                           <span style="font-family: monospace; color: #334155;">${inst.username}</span>

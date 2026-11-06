@@ -103,7 +103,44 @@ CREATE TABLE secrets (
 ) STRICT, WITHOUT ROWID;
 """
 
-MIGRATIONS: tuple[str, ...] = (_V1,)
+# v2 (ADR-014): the release is detected from the instance, never user-entered. The
+# platform profile (build, environment, datacenter, nodes, CPU, memory) is captured
+# on every successful connection test.
+_V2 = f"""
+ALTER TABLE instances DROP COLUMN release;
+
+CREATE TABLE instance_profiles (
+    instance_id     TEXT PRIMARY KEY REFERENCES instances (id) ON DELETE CASCADE,
+    release         TEXT,
+    build_tag       TEXT,
+    build_date      TEXT,
+    platform_name   TEXT,
+    environment     TEXT,
+    is_production   INTEGER CHECK (is_production IS NULL OR is_production IN (0, 1)),
+    datacenter      TEXT,
+    db_product      TEXT,
+    db_version      TEXT,
+    java_version    TEXT,
+    os              TEXT,
+    captured_at     TEXT NOT NULL DEFAULT {_NOW}
+) STRICT;
+
+CREATE TABLE instance_nodes (
+    instance_id      TEXT NOT NULL REFERENCES instances (id) ON DELETE CASCADE,
+    node_id          TEXT NOT NULL,
+    hostname         TEXT NOT NULL,
+    datacenter       TEXT,
+    status           TEXT NOT NULL,
+    cpu_count        INTEGER,
+    memory_max_mb    REAL,
+    memory_in_use_mb REAL,
+    memory_pressure  TEXT,
+    started_at       TEXT,
+    PRIMARY KEY (instance_id, node_id)
+) STRICT, WITHOUT ROWID;
+"""
+
+MIGRATIONS: tuple[str, ...] = (_V1, _V2)
 SCHEMA_VERSION = len(MIGRATIONS)
 
 
