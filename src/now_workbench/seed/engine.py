@@ -151,6 +151,7 @@ class SeedEngine:
             instance_id=inst.id,
             status="failed" if failure else "completed",
             created_records=created,
+            error=str(failure)[:500] if failure else "",
         )
         self.repo.record_seed_operation(op)
         if failure:
@@ -159,6 +160,48 @@ class SeedEngine:
                 f"(roll back with operation id '{op_id}'): {failure}"
             ) from failure
         return op
+
+    async def verify(self, operation_id: str) -> list[tuple[SeedRecordItem, bool, str]]:
+        """Check, read-only, that each record a seed run created still exists on the instance.
+
+        Returns:
+            One ``(record, exists, detail)`` per created record.
+
+        Raises:
+            ValueError: The operation is unknown.
+        """
+        op = self.repo.get_seed_operation(operation_id)
+        if not op:
+            raise ValueError(f"Seed operation '{operation_id}' not found.")
+        if self.fake_mode:
+            return [(item, True, "simulated") for item in op.created_records]
+        inst = self._resolve_instance(op.instance_id)
+        auth: Any = (
+            httpx.BasicAuth(inst.username, inst.password)
+            if inst.auth_type == "basic"
+            else httpx.USE_CLIENT_DEFAULT
+        )
+        out: list[tuple[SeedRecordItem, bool, str]] = []
+        async with httpx.AsyncClient(transport=self.transport) as client:
+            for item in op.created_records:
+                url = f"{inst.url.rstrip('/')}/api/now/table/{item.table}/{item.sys_id}"
+                try:
+                    resp = await client.get(
+                        url,
+                        auth=auth,
+                        params={"sysparm_fields": "sys_id,number,short_description"},
+                        headers={"Accept": "application/json"},
+                        timeout=15.0,
+                    )
+                except httpx.HTTPError as exc:
+                    out.append((item, False, f"could not ask the instance: {exc}"))
+                    continue
+                if resp.status_code == 200:
+                    row = resp.json().get("result", {})
+                    out.append((item, True, str(row.get("number") or row.get("sys_id", ""))))
+                else:
+                    out.append((item, False, f"HTTP {resp.status_code}"))
+        return out
 
     async def rollback(self, operation_id: str) -> tuple[int, list[str]]:
         """Roll back (delete) all records created in a seed operation."""

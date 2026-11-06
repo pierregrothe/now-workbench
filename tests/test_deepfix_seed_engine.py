@@ -11,6 +11,7 @@ import httpx
 import pytest
 
 from now_workbench.db import DatabaseRepository, InstanceCreate, init_db
+from now_workbench.db.models import SeedOperationRecord, SeedRecordItem
 from now_workbench.seed.engine import SeedEngine, SeedPayloadError
 
 
@@ -107,3 +108,50 @@ async def test_load_and_seed_malformed_seed_file_raises_naming_file(tmp_path: Pa
     with pytest.raises(SeedPayloadError, match="02_bad.json"):
         await engine.load_and_seed("b", bundle)
     assert repo.list_seed_operations() == []
+
+
+async def test_verify_reports_present_and_missing_records() -> None:
+    """verify() looks each created record up by sys_id and says which are gone."""
+    repo = DatabaseRepository(init_db(":memory:"))
+    repo.add_instance(
+        InstanceCreate(id="i1", name="Dev", url="https://dev.service-now.com", password="p")
+    )
+    repo.record_seed_operation(
+        SeedOperationRecord(
+            id="seed-1",
+            bundle_id="b",
+            instance_id="i1",
+            created_records=[
+                SeedRecordItem(table="incident", sys_id="aaa"),
+                SeedRecordItem(table="incident", sys_id="bbb"),
+            ],
+        )
+    )
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        if req.url.path.endswith("/aaa"):
+            return httpx.Response(200, json={"result": {"sys_id": "aaa", "number": "INC1"}})
+        return httpx.Response(404, json={"error": {}})
+
+    engine = SeedEngine(repository=repo, transport=httpx.MockTransport(handler))
+    checks = await engine.verify("seed-1")
+    assert [(i.sys_id, ok, d) for i, ok, d in checks] == [
+        ("aaa", True, "INC1"),
+        ("bbb", False, "HTTP 404"),
+    ]
+
+
+async def test_load_and_seed_failure_keeps_the_reason() -> None:
+    """A failed seed run stores why it failed for later diagnosis."""
+    repo = DatabaseRepository(init_db(":memory:"))
+    repo.add_instance(
+        InstanceCreate(id="i1", name="Dev", url="https://dev.service-now.com", password="p")
+    )
+    bundle = Path(__file__).resolve().parents[1] / "bundles" / "sample-ai-assistant"
+    transport = httpx.MockTransport(lambda req: httpx.Response(403, text="ACL denied"))
+    engine = SeedEngine(repository=repo, transport=transport)
+    with pytest.raises(RuntimeError):
+        await engine.load_and_seed("sample-ai-assistant", bundle, instance_id="i1")
+    op = repo.list_seed_operations()[0]
+    assert op.status == "failed"
+    assert "HTTP 403" in op.error

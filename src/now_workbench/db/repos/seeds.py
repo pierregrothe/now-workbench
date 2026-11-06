@@ -22,8 +22,8 @@ class SeedRepositoryMixin:
             self.conn.execute(
                 """
                 INSERT INTO seed_operations (id, owner_email, bundle_id, instance_id, status,
-                                            created_records, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?);
+                                            created_records, created_at, error)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?);
                 """,
                 (
                     op.id,
@@ -33,6 +33,7 @@ class SeedRepositoryMixin:
                     op.status,
                     records_json,
                     op.created_at,
+                    op.error,
                 ),
             )
         return op
@@ -41,7 +42,7 @@ class SeedRepositoryMixin:
         """Retrieve a specific seed operation by ID."""
         cursor = self.conn.execute(
             """
-            SELECT id, bundle_id, instance_id, status, created_records, created_at
+            SELECT id, bundle_id, instance_id, status, created_records, created_at, error
             FROM seed_operations WHERE id = ? AND owner_email = ?;
             """,
             (op_id, current_owner()),
@@ -57,13 +58,14 @@ class SeedRepositoryMixin:
             status=row["status"],
             created_records=items,
             created_at=row["created_at"],
+            error=row["error"],
         )
 
     def list_seed_operations(self, limit: int = 50) -> list[SeedOperationRecord]:
         """List recent seed operations."""
         cursor = self.conn.execute(
             """
-            SELECT id, bundle_id, instance_id, status, created_records, created_at
+            SELECT id, bundle_id, instance_id, status, created_records, created_at, error
             FROM seed_operations WHERE owner_email = ? ORDER BY created_at DESC LIMIT ?;
             """,
             (current_owner(), limit),
@@ -79,6 +81,7 @@ class SeedRepositoryMixin:
                     status=row["status"],
                     created_records=items,
                     created_at=row["created_at"],
+                    error=row["error"],
                 )
             )
         return ops

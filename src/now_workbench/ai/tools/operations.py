@@ -77,16 +77,40 @@ def _rollback(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
 
 def _seed_history(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
     ops = ctx.repo.list_seed_operations(limit=int(args.get("limit") or 10))
-    rows = [[o.id, o.bundle_id, o.instance_id, o.status, len(o.created_records)] for o in ops]
+    rows = [
+        [o.id, o.bundle_id, o.instance_id, o.status, len(o.created_records), o.error or "-"]
+        for o in ops
+    ]
     tile = table_tile(
         "tile-seed-history",
         "Seed history",
-        ["Operation", "Bundle", "Instance", "Status", "Records"],
+        ["Operation", "Bundle", "Instance", "Status", "Records", "Error"],
         rows,
     )
     return ToolResult(
         summary=f"{len(ops)} seed operation(s) on record.",
-        data={"operations": [r[:4] for r in rows]},
+        data={"operations": [[*r[:4], r[5]] for r in rows]},
+        tiles=[tile],
+    )
+
+
+def _verify_seed(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
+    op_id = str(args["operation_id"])
+    op = ctx.repo.get_seed_operation(op_id)
+    fake = ctx.fake_mode
+    if op:
+        target = ctx.repo.get_instance(op.instance_id)
+        fake = fake or bool(target and target.url.startswith("fake://"))
+    checks = run_async(SeedEngine(repository=ctx.repo, fake_mode=fake).verify(op_id))
+    present = sum(1 for _item, ok, _d in checks if ok)
+    rows = [[i.table, i.sys_id, "present" if ok else "MISSING", d] for i, ok, d in checks]
+    tile = table_tile(
+        f"tile-verify-{op_id}", "Seeded records", ["Table", "sys_id", "State", "Detail"], rows
+    )
+    return ToolResult(
+        summary=f"{present}/{len(checks)} record(s) of {op_id} exist on the instance.",
+        ok=present == len(checks),
+        data={"records": rows},
         tiles=[tile],
     )
 
@@ -245,6 +269,20 @@ register(
         handler=_seed_history,
         category="seed",
         cli_equivalent="demo seed-history",
+    )
+)
+register(
+    ToolSpec(
+        name="verify_seed_operation",
+        description=(
+            "Check, read-only, that every record a seed operation created exists on the "
+            "instance (by table and sys_id)."
+        ),
+        properties={"operation_id": {"type": "string"}},
+        required=["operation_id"],
+        handler=_verify_seed,
+        category="seed",
+        cli_equivalent="(API) verify seed records",
     )
 )
 register(

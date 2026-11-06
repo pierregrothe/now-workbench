@@ -252,6 +252,7 @@ class SeedOperationRecord(BaseModel):
     status: str = "completed"
     created_records: list[SeedRecordItem] = Field(default_factory=list)
     created_at: str = Field(default_factory=lambda: datetime.now(UTC).isoformat())
+    error: str = ""
 
 
 class WorkbenchPreferences(BaseModel):

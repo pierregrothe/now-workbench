@@ -345,7 +345,12 @@ CREATE TABLE chat_attachments (
 CREATE INDEX ix_chat_attachments_thread ON chat_attachments (thread_id, created_at);
 """
 
-MIGRATIONS: tuple[str, ...] = (_V1, _V2, _V3, _V4, _V5, _V6, _V7, _V8, _V9, _V10)
+# v11: a failed seed run keeps its reason, so Otto (and people) can diagnose it.
+_V11 = """
+ALTER TABLE seed_operations ADD COLUMN error TEXT NOT NULL DEFAULT '';
+"""
+
+MIGRATIONS: tuple[str, ...] = (_V1, _V2, _V3, _V4, _V5, _V6, _V7, _V8, _V9, _V10, _V11)
 SCHEMA_VERSION = len(MIGRATIONS)
 
 
