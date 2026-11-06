@@ -9,11 +9,9 @@ Append-only record of architectural and design decisions for `now-workbench`.
 **Status:** accepted
 
 **Context:**
-The ServiceNow SDK (`@servicenow/sdk`) is written in TypeScript and runs on Node.js.
-However, for coding agents (Gemini Argon, Claude Opus) and rapid backend orchestration,
-Python 3.14 with Pydantic v2 offers higher agentic velocity, cleaner schema validation,
-and seamless integration with existing tools (like `nexus`). Furthermore, the UI must
-replicate ServiceNow's modern Lux design language.
+`@servicenow/sdk` runs on Node.js, but Python 3.14 + Pydantic v2 gives agents higher velocity
+and cleaner schema validation; the UI must replicate ServiceNow's Lux design language.
+Full rationale: `.primer/adr/ADR-001-hybrid-runtime-python-lit.md`.
 
 **Decision:**
 1. Use **Python 3.14** for the core backend, CLI (Typer + Rich), and REST/WebSocket API (FastAPI).
@@ -97,10 +95,8 @@ PEP 621 `[project]` / `[dependency-groups]` support, and seamless caching.
 **Status:** accepted
 
 **Context:**
-`now-workbench` is developed collaboratively by human developers and AI coding agents.
-To prevent regressions, maintain high agent velocity, and prevent architectural drift,
-a comprehensive governance system is needed. A single-tier "block or ignore" model is
-brittle; a graduated model provides clear boundaries.
+Humans and AI agents co-develop `now-workbench`; a graduated (not "block or ignore")
+governance model prevents regressions and drift. Full text: ADR-005 in `.primer/adr/`.
 
 **Decision:**
 1. Adopt Primer's 3-Tier Enforcement Model:
@@ -113,8 +109,7 @@ brittle; a graduated model provides clear boundaries.
 3. Exclude unrelated domain rules (e.g. financial market rules) to keep governance lean and focused.
 
 **Consequences:**
-- Local commits and automated PRs are continuously validated against strict architectural contracts.
-- Code quality and safety baselines can only improve over time.
+- Commits are validated against strict contracts; quality baselines can only improve.
 
 ---
 

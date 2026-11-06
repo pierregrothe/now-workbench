@@ -26,6 +26,11 @@ now-workbench/
 |   +-- runbooks/              # Guided presenter runbook parser & stage verifier
 |   +-- properties/            # System property snapshotting, apply, restore, & reset
 |   +-- fluent/                # Balanced-brace Fluent (*.now.ts) AST parser & diff engine
+|   +-- capture/               # Playwright screenshot/video capture engine & playbook driver
+|   +-- releases/              # Platform release hierarchy, min-version checks, workspace evolution
+|   +-- plugins/               # ServiceNow instance plugin & module management
+|   +-- synthesizer/           # Use-case-to-demo synthesizer engine & CLI
+|   +-- instances/             # Instance registry CLI (`workbench instance ...`)
 |   +-- api/                   # FastAPI routes (demos, instances, templates, threads) & WS
 |   +-- remediation.py         # Automated toolchain & environment doctor --fix engine
 |   +-- cli.py                 # Typer CLI entrypoint (`workbench`)

@@ -58,3 +58,6 @@ data/
 *.db
 *.db-shm
 *.db-wal
+
+# primer multi-session lease (never commit)
+.primer/.lease.d
