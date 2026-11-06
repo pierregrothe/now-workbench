@@ -13,7 +13,6 @@ from now_workbench.config.settings import settings
 from now_workbench.connectivity import check_and_record_instance
 from now_workbench.db import (
     DatabaseRepository,
-    InstanceCreate,
     InstanceRecord,
 )
 from now_workbench.db.models import WorkbenchPreferencesUpdate
@@ -196,79 +195,55 @@ def _try_add_instance_action(
     raw_query: str,
     repo: DatabaseRepository,
 ) -> GenerativeUIResponse | None:
-    """Register a new ServiceNow instance when the user provides a URL in chat."""
+    """Point the user to Settings when chat asks to add an instance; never registers one.
+
+    An instance needs credentials, and credentials are never typed into chat.
+    """
     if not any(p in lower for p in ("add instance", "register instance", "create instance")):
         return None
     url_match = re.search(r"(https?://[^\s,]+|fake://[^\s,]+)", raw_query)
     if not url_match:
         return None
 
-    target_url = url_match.group(1).rstrip("/")
-    host_slug = target_url.split("://")[-1].split(".")[0].split("/")[0]
-    created = repo.add_instance(
-        InstanceCreate(
-            name=f"ServiceNow ({host_slug})",
-            url=target_url,
-            username="admin",
-            is_default=len(repo.list_instances()) == 0,
-        )
+    base_resp = build_instance_response(
+        _records_to_dicts(repo.list_instances()), detail_level="summary"
     )
-    prefs = repo.get_workbench_preferences()
-    status, _, _ = check_and_record_instance(
-        repo, created, timeout=3.0, fake_mode=prefs.sdk_fake_mode
-    )
-
-    updated = repo.list_instances()
-    base_resp = build_instance_response(_records_to_dicts(updated), detail_level="summary")
     return GenerativeUIResponse(
-        summary=f"Registered instance '{created.name}' ({target_url}) with status '{status}'.",
+        summary=(
+            f"Nothing was registered. Adding {url_match.group(1).rstrip('/')} needs credentials, "
+            "which are never entered in chat; add it in Settings > ServiceNow Instances."
+        ),
         layout=base_resp.layout,
         tiles=base_resp.tiles,
     )
 
 
 def _try_delete_bundle_action(lower: str) -> GenerativeUIResponse | None:
-    """Delete a non-core demo bundle when requested in chat."""
+    """Preview a demo bundle deletion; never deletes from free-text chat."""
     has_del = any(v in lower for v in _DELETE_VERBS)
     has_bundle = any(b in lower for b in ("bundle", "demo", "artifact", "recipe"))
     if not (has_del and has_bundle):
         return None
 
     manager = BundleManager(settings.get_bundles_dir())
-    bundles = manager.list_bundles()
     target = next(
-        (b for b in bundles if b.manifest.id.lower() in lower or b.manifest.name.lower() in lower),
+        (
+            b
+            for b in manager.list_bundles()
+            if b.manifest.id.lower() in lower or b.manifest.name.lower() in lower
+        ),
         None,
     )
     if not target or target.manifest.id == "sample-ai-assistant":
         return None
 
-    manager.delete_bundle(target.manifest.id)
-    remaining = manager.list_bundles()
-    tile = UITileSpec(
-        id="tile-bundle-deleted",
-        type="instance-kpi",
-        title="Demo Recipe Deleted",
-        props={
-            "count": len(remaining),
-            "label": "Remaining Demo Recipes",
-            "subtitle": f"Deleted '{target.manifest.name}' ({target.manifest.id})",
-            "status": "Catalog Updated",
-            "badge": "Action Executed",
-            "accent": "green",
-            "actions": [
-                {"id": "show_bundles", "label": "Show Recipe Details", "variant": "primary"},
-                {"id": "inspect", "label": "Open Artifact Library", "variant": "secondary"},
-            ],
-        },
-    )
     return GenerativeUIResponse(
         summary=(
-            f"Deleted demo bundle '{target.manifest.name}'. "
-            f"{len(remaining)} recipe bundle(s) remain in the library."
+            f"Nothing was deleted. '{target.manifest.name}' ({target.manifest.id}) matches. "
+            "Deleting a bundle is destructive; confirm and delete it in the Artifact library."
         ),
         layout="1-col",
-        tiles=[tile],
+        tiles=[],
     )
 
 

@@ -3,6 +3,11 @@
 # Author: Pierre Grothe
 # Date: 2026-11-06
 
+import shutil
+from pathlib import Path
+
+import pytest
+
 from now_workbench.ai.actions import execute_autonomous_action
 from now_workbench.db import DatabaseRepository, InstanceCreate, db_session
 
@@ -47,3 +52,30 @@ def test_execute_autonomous_action_delete_substring_word_does_not_match() -> Non
         assert resp is not None
         assert "No matching" in resp.summary
         assert len(repo.list_instances()) == before
+
+
+def test_execute_autonomous_action_add_instance_registers_nothing() -> None:
+    """Chat never registers an instance (credentials are never typed in chat)."""
+    with db_session() as repo:
+        _seed(repo)
+        before = len(repo.list_instances())
+        resp = execute_autonomous_action("add instance https://new.service-now.com", repo)
+        assert resp is not None
+        assert "Nothing was registered" in resp.summary
+        assert "Settings" in resp.summary
+        assert len(repo.list_instances()) == before
+
+
+def test_execute_autonomous_action_delete_bundle_deletes_nothing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Chat previews a bundle deletion and leaves the bundle on disk."""
+    sample = Path(__file__).resolve().parent.parent / "bundles" / "hr-onboarding-ai"
+    victim = tmp_path / "hr-onboarding-ai"
+    shutil.copytree(sample, victim)
+    monkeypatch.setenv("WORKBENCH_BUNDLES_DIR", str(tmp_path))
+    with db_session() as repo:
+        resp = execute_autonomous_action("delete the hr-onboarding-ai bundle", repo)
+    assert resp is not None
+    assert "Nothing was deleted" in resp.summary
+    assert victim.is_dir()
