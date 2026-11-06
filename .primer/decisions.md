@@ -259,3 +259,25 @@ could see it because the defect lived only in the rendered UI.
 - UI regressions block push; pushes need Google Chrome. Offline-fallback branches in other
   components are queued for e2e audit.
 
+---
+
+### 2026-11-06 -- Instance release family is detected, never user-selected
+
+**Status:** accepted
+
+**Context:**
+The connect form asked for the release family and defaulted to Zurich; a live instance running
+Australia was stored as Zurich, and Australia was missing from `RELEASE_FAMILIES` (unknown names
+compared lexically, so it ranked as the *oldest* release).
+
+**Decision:**
+1. `check_and_record_instance()` is the single "test this instance" path (all 12 former
+   verify+update call sites): on authentication it reads `glide.war` from `sys_properties`
+   (`releases/detection.py`) and stores the family; simulated (`fake://`) instances are never probed.
+2. Undetectable (e.g. no read on `sys_properties`) leaves the stored value; new instances start as
+   `Unknown`, never a guessed family. Add/edit forms show no picker (edit shows it read-only).
+3. `RELEASE_FAMILIES` gains Australia; compact build tokens (`washingtondc`, `sandiego`) normalize.
+
+**Consequences:**
+- Release-gated features (ADR-009 workspaces, minimum-release checks) use the instance's real build.
+

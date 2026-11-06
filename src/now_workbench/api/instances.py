@@ -4,7 +4,7 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException
 
-from now_workbench.connectivity import verify_instance_authentication
+from now_workbench.connectivity import check_and_record_instance
 from now_workbench.db import (
     InstanceCreate,
     InstancePublic,
@@ -31,8 +31,7 @@ def register_instance(inst: InstanceCreate) -> InstancePublic:
         except ValueError as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
         prefs = repo.get_workbench_preferences()
-        status, _, _ = verify_instance_authentication(created, fake_mode=prefs.sdk_fake_mode)
-        repo.update_instance_status(created.id, status)
+        check_and_record_instance(repo, created, fake_mode=prefs.sdk_fake_mode)
         return (repo.get_instance(created.id) or created).to_public()
 
 
@@ -47,8 +46,7 @@ def update_instance_endpoint(instance_id: str, update: InstanceUpdate) -> Instan
         if not rec:
             raise HTTPException(status_code=404, detail="Instance not found.")
         prefs = repo.get_workbench_preferences()
-        status, _, _ = verify_instance_authentication(rec, fake_mode=prefs.sdk_fake_mode)
-        repo.update_instance_status(instance_id, status)
+        check_and_record_instance(repo, rec, fake_mode=prefs.sdk_fake_mode)
         return (repo.get_instance(instance_id) or rec).to_public()
 
 
@@ -72,10 +70,9 @@ def test_all_instances(fake_mode: bool = False) -> dict[str, Any]:
         results: list[dict[str, Any]] = []
         auth_count = 0
         for inst in instances:
-            status, msg, code = verify_instance_authentication(
-                inst, timeout=3.5, fake_mode=is_simulated
+            status, msg, code = check_and_record_instance(
+                repo, inst, timeout=3.5, fake_mode=is_simulated
             )
-            repo.update_instance_status(inst.id, status)
             if status == "authenticated":
                 auth_count += 1
             results.append(
@@ -140,8 +137,7 @@ def test_instance(instance_id: str, fake_mode: bool = False) -> dict[str, Any]:
 
         prefs = repo.get_workbench_preferences()
         is_simulated = fake_mode or prefs.sdk_fake_mode
-        status, msg, code = verify_instance_authentication(inst, fake_mode=is_simulated)
-        repo.update_instance_status(instance_id, status)
+        status, msg, code = check_and_record_instance(repo, inst, fake_mode=is_simulated)
         return {
             "success": status == "authenticated",
             "status": status,

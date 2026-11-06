@@ -10,7 +10,7 @@ from now_workbench.ai.tiles import (
 )
 from now_workbench.bundles.manager import BundleManager
 from now_workbench.config.settings import settings
-from now_workbench.connectivity import verify_instance_authentication
+from now_workbench.connectivity import check_and_record_instance
 from now_workbench.db import (
     DatabaseRepository,
     InstanceCreate,
@@ -148,10 +148,7 @@ def _try_verify_instances_action(
     instances = repo.list_instances()
     prefs = repo.get_workbench_preferences()
     for inst in instances:
-        status, _, _ = verify_instance_authentication(
-            inst, timeout=3.0, fake_mode=prefs.sdk_fake_mode
-        )
-        repo.update_instance_status(inst.id, status)
+        check_and_record_instance(repo, inst, timeout=3.0, fake_mode=prefs.sdk_fake_mode)
 
     updated = repo.list_instances()
     detail_mode: Literal["summary", "detailed"] = (
@@ -223,15 +220,13 @@ def _try_add_instance_action(
             name=f"ServiceNow ({host_slug})",
             url=target_url,
             username="admin",
-            release="Zurich",
             is_default=len(repo.list_instances()) == 0,
         )
     )
     prefs = repo.get_workbench_preferences()
-    status, _, _ = verify_instance_authentication(
-        created, timeout=3.0, fake_mode=prefs.sdk_fake_mode
+    status, _, _ = check_and_record_instance(
+        repo, created, timeout=3.0, fake_mode=prefs.sdk_fake_mode
     )
-    repo.update_instance_status(created.id, status)
 
     updated = repo.list_instances()
     base_resp = build_instance_response(_records_to_dicts(updated), detail_level="summary")

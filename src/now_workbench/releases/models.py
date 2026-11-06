@@ -14,6 +14,7 @@ RELEASE_FAMILIES: tuple[str, ...] = (
     "Xanadu",
     "Yokohama",
     "Zurich",
+    "Australia",
 )
 
 WorkspaceCategory = Literal["itsm", "csm", "hr", "ai_studio", "classic"]

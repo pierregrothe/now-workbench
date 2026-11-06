@@ -20,7 +20,7 @@ class InstanceRecord(BaseModel):
     username: str = "admin"
     password: str = ""
     auth_type: str = "basic"
-    release: str = "Zurich"
+    release: str = "Unknown"  # detected from glide.war on first successful check
     is_default: bool = False
     status: str = "unknown"
     last_checked: datetime | None = None
@@ -69,7 +69,7 @@ class InstanceCreate(BaseModel):
     username: str = "admin"
     password: str = ""
     auth_type: str = "basic"
-    release: str = "Zurich"
+    release: str = "Unknown"  # detected from glide.war on first successful check
     is_default: bool = False
 
 

@@ -146,12 +146,18 @@ class InstanceRepositoryMixin:
             self.conn.execute("UPDATE instances SET is_default = 1 WHERE id = ?;", (instance_id,))
             return True
 
-    def update_instance_status(self, instance_id: str, status: str) -> None:
-        """Update connectivity status and the last_checked timestamp."""
+    def update_instance_status(
+        self, instance_id: str, status: str, release: str | None = None
+    ) -> None:
+        """Update connectivity status and last_checked; also the release when detected."""
         with self.conn:
             self.conn.execute(
-                "UPDATE instances SET status = ?, last_checked = ? WHERE id = ?;",
-                (status, datetime.now(UTC).isoformat(), instance_id),
+                """
+                UPDATE instances
+                SET status = ?, last_checked = ?, release = COALESCE(?, release)
+                WHERE id = ?;
+                """,
+                (status, datetime.now(UTC).isoformat(), release, instance_id),
             )
 
     def update_instance(self, instance_id: str, update: InstanceUpdate) -> InstanceRecord | None:

@@ -708,7 +708,7 @@ export class NowAdminPanel extends LitElement {
   @state() private editUrl: string = '';
   @state() private editUsername: string = '';
   @state() private editPassword: string = '';
-  @state() private editRelease: string = 'Zurich';
+  @state() private editRelease = '';
   @state() private confirmingDeleteId: string | null = null;
   @state() private isSavingEdit = false;
 
@@ -717,7 +717,6 @@ export class NowAdminPanel extends LitElement {
   @state() private newUrl = '';
   @state() private newUsername = 'admin';
   @state() private newPassword = '';
-  @state() private newRelease = 'Zurich';
   @state() private newSetDefault = true;
 
   connectedCallback(): void {
@@ -819,7 +818,6 @@ export class NowAdminPanel extends LitElement {
         name: this.editName.trim(),
         url: this.editUrl.trim(),
         username: this.editUsername.trim(),
-        release: this.editRelease,
       };
       if (this.editPassword.trim()) {
         payload.password = this.editPassword.trim();
@@ -886,7 +884,6 @@ export class NowAdminPanel extends LitElement {
           url: cleanUrl,
           username: this.newUsername.trim() || 'admin',
           password: this.newPassword.trim(),
-          release: this.newRelease,
           is_default: this.newSetDefault,
         }),
       });
@@ -1147,17 +1144,15 @@ export class NowAdminPanel extends LitElement {
                                       />
                                     </div>
                                     <div class="form-group">
-                                      <label class="form-label">Release Family</label>
-                                      <select
+                                      <label class="form-label">Release Family (auto-detected)</label>
+                                      <input
+                                        type="text"
                                         class="form-input"
+                                        data-testid="edit-release"
                                         .value=${this.editRelease}
-                                        @change=${(e: Event) => (this.editRelease = (e.target as HTMLSelectElement).value)}
-                                      >
-                                        <option value="Zurich">Zurich</option>
-                                        <option value="Yokohama">Yokohama</option>
-                                        <option value="Xanadu">Xanadu</option>
-                                        <option value="Washington DC">Washington DC</option>
-                                      </select>
+                                        readonly
+                                        title="Read from the instance build (glide.war) on every connection test"
+                                      />
                                     </div>
                                     <div class="form-group">
                                       <label class="form-label">Service Account Username</label>
@@ -1276,20 +1271,6 @@ export class NowAdminPanel extends LitElement {
                   .value=${this.newPassword}
                   @input=${(e: Event) => (this.newPassword = (e.target as HTMLInputElement).value)}
                 />
-              </div>
-
-              <div class="form-group">
-                <label class="form-label">ServiceNow Release Family</label>
-                <select
-                  class="form-input"
-                  .value=${this.newRelease}
-                  @change=${(e: Event) => (this.newRelease = (e.target as HTMLSelectElement).value)}
-                >
-                  <option value="Zurich">Zurich (2025/2026 Recommended)</option>
-                  <option value="Yokohama">Yokohama (Q1 2025)</option>
-                  <option value="Xanadu">Xanadu</option>
-                  <option value="Washington DC">Washington DC</option>
-                </select>
               </div>
 
               <div class="form-group">

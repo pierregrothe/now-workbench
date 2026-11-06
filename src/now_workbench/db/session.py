@@ -139,7 +139,6 @@ def seed_default_instance_if_empty(conn: sqlite3.Connection) -> None:
                 username=settings.sn_username or "admin",
                 password=settings.sn_password,
                 auth_type="basic",
-                release="Zurich",
                 is_default=True,
             )
         )

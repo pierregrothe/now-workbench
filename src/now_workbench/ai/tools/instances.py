@@ -10,7 +10,7 @@ from now_workbench.ai.tools.base import (
     register,
     resolve_instance,
 )
-from now_workbench.connectivity import verify_instance_authentication
+from now_workbench.connectivity import check_and_record_instance
 from now_workbench.db import InstanceCreate, InstanceRecord, InstanceUpdate
 
 
@@ -56,12 +56,13 @@ def _add_instance(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
             url=url,
             username=str(args.get("username") or "admin"),
             password=str(args.get("password") or ""),
-            release=str(args.get("release") or "Zurich"),
+            release=str(args.get("release") or "Unknown"),
             is_default=bool(args.get("make_default")) or not existing,
         )
     )
-    status, msg, _ = verify_instance_authentication(created, timeout=3.0, fake_mode=ctx.fake_mode)
-    ctx.repo.update_instance_status(created.id, status)
+    status, msg, _ = check_and_record_instance(
+        ctx.repo, created, timeout=3.0, fake_mode=ctx.fake_mode
+    )
     return _view(ctx, f"Registered '{created.name}' ({url}); authentication: {status} - {msg}.")
 
 
@@ -81,8 +82,7 @@ def _update_instance(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
         return ToolResult(summary="No fields to update were provided.", ok=False)
     rec = ctx.repo.update_instance(inst.id, InstanceUpdate(**fields))
     if rec:
-        status, _, _ = verify_instance_authentication(rec, timeout=3.0, fake_mode=ctx.fake_mode)
-        ctx.repo.update_instance_status(rec.id, status)
+        check_and_record_instance(ctx.repo, rec, timeout=3.0, fake_mode=ctx.fake_mode)
     changed = ", ".join(k for k in fields if k != "password") or "credentials"
     return _view(ctx, f"Updated {changed} on '{inst.name}'.", detailed=True)
 
@@ -99,8 +99,9 @@ def _test_instances(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
     lines: list[str] = []
     ok = 0
     for inst in targets:
-        status, msg, _ = verify_instance_authentication(inst, timeout=3.5, fake_mode=ctx.fake_mode)
-        ctx.repo.update_instance_status(inst.id, status)
+        status, msg, _ = check_and_record_instance(
+            ctx.repo, inst, timeout=3.5, fake_mode=ctx.fake_mode
+        )
         ok += 1 if status == "authenticated" else 0
         lines.append(f"{inst.name}: {status} ({msg})")
     detailed = len(targets) <= 4

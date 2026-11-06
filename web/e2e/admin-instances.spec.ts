@@ -44,3 +44,21 @@ test('registered instance is listed and its password never reaches the browser',
   for (const body of apiBodies) expect(body).not.toContain(secret);
   expect(await page.content()).not.toContain(secret);
 });
+
+test('connect form has no release picker; release is detected, not chosen', async ({ page }) => {
+  await openInstancesPanel(page);
+
+  // The release family is read from the instance build (glide.war), never asked for.
+  await expect(page.getByText(/Release Family/)).toHaveCount(0);
+  await expect(page.locator('select')).toHaveCount(0);
+
+  await page.getByPlaceholder('e.g. Novartis BioHealth Sub-Prod').fill('Form Instance');
+  await page.getByPlaceholder('https://instancename.service-now.com').fill('fake://form.service-now.com');
+  await page.getByPlaceholder('Enter instance credentials').fill('form-pw');
+  await page.getByTitle('Connect Instance').click();
+
+  const row = page.getByRole('table').getByRole('row', { name: /Form Instance/ });
+  await expect(row).toBeVisible();
+  // Simulated (fake://) instances are never probed, so no release is invented.
+  await expect(row).toContainText('Unknown');
+});

@@ -65,7 +65,6 @@ def seed_database(repo: DatabaseRepository) -> None:
                 username=settings.sn_username or "admin",
                 password=settings.sn_password or "",
                 auth_type=settings.sn_auth_type or "basic",
-                release="Zurich",
                 is_default=True,
             )
         )

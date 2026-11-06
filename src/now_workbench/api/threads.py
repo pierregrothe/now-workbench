@@ -12,7 +12,7 @@ from now_workbench.ai.tools import ToolContext, execute_tool
 from now_workbench.ai.tools.base import text_tile
 from now_workbench.bundles.manager import BundleManager
 from now_workbench.config.settings import settings
-from now_workbench.connectivity import verify_instance_authentication
+from now_workbench.connectivity import check_and_record_instance
 from now_workbench.db import (
     MAX_THREAD_CONTEXT_MESSAGES,
     ChatMessageCreate,
@@ -105,10 +105,9 @@ def _load_verified_instances_dict(repo: DatabaseRepository) -> list[dict[str, An
     for inst in instances:
         status = inst.status
         if status in ("unknown", ""):
-            status, _, _ = verify_instance_authentication(
-                inst, timeout=1.5, fake_mode=prefs.sdk_fake_mode
+            status, _, _ = check_and_record_instance(
+                repo, inst, timeout=1.5, fake_mode=prefs.sdk_fake_mode
             )
-            repo.update_instance_status(inst.id, status)
         result.append(
             {
                 "id": inst.id,

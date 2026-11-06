@@ -4,7 +4,7 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from now_workbench.connectivity import verify_instance_authentication
+from now_workbench.connectivity import check_and_record_instance
 from now_workbench.db.models import (
     InstanceCreate,
     InstanceRecord,
@@ -58,8 +58,7 @@ def list_instances_cmd(
 
         for inst in instances:
             if check:
-                status, _, _ = verify_instance_authentication(inst)
-                repo.update_instance_status(inst.id, status)
+                check_and_record_instance(repo, inst)
                 refreshed = repo.get_instance(inst.id)
                 if refreshed:
                     inst = refreshed
@@ -87,7 +86,9 @@ def add_instance_cmd(
     instance_id: str | None = typer.Option(None, "--id", help="Explicit ID for the instance"),
     username: str = typer.Option("admin", "--username", "-u", help="ServiceNow username"),
     password: str = typer.Option("", "--password", "-p", help="ServiceNow password"),
-    release: str = typer.Option("Zurich", "--release", "-r", help="Release family"),
+    release: str = typer.Option(
+        "Unknown", "--release", "-r", help="Override only; detected automatically from the instance"
+    ),
     default: bool = typer.Option(False, "--default", "-d", help="Set as active default"),
 ) -> None:
     """Register a new ServiceNow instance."""
@@ -178,8 +179,7 @@ def test_instance_cmd(
 
         console.print("[bold cyan]Testing ServiceNow Instance Authentication...[/bold cyan]\n")
         for inst in targets:
-            status, msg, code = verify_instance_authentication(inst)
-            repo.update_instance_status(inst.id, status)
+            status, msg, code = check_and_record_instance(repo, inst)
             if status == "authenticated":
                 console.print(
                     f"  [green][OK][/green] [bold]{inst.name}[/bold] ({inst.url}): "

@@ -7,6 +7,7 @@ from now_workbench.releases.compatibility import (
     is_release_compatible,
     normalize_release,
 )
+from now_workbench.releases.detection import BUILD_PROPERTY, parse_release_family
 from now_workbench.releases.models import (
     RELEASE_FAMILIES,
     ReleaseCompatibilityResult,
@@ -18,6 +19,7 @@ from now_workbench.releases.workspaces import (
 )
 
 __all__ = [
+    "BUILD_PROPERTY",
     "FEATURE_MINIMUM_RELEASES",
     "RELEASE_FAMILIES",
     "ReleaseCompatibilityResult",
@@ -26,6 +28,7 @@ __all__ = [
     "evaluate_release_prerequisites",
     "is_release_compatible",
     "normalize_release",
+    "parse_release_family",
     "resolve_workspace",
     "translate_workspace_url",
 ]

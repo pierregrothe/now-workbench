@@ -38,9 +38,11 @@ def normalize_release(name: str) -> str:
     """Normalize ServiceNow family release name for uniform matching."""
     cleaned = name.strip()
     norm = cleaned.lower().replace("-", " ").replace("_", " ")
+    compact = norm.replace(" ", "")
     for family in RELEASE_FAMILIES:
-        if norm == family.lower() or (
-            family == "Washington DC" and norm in ("washington", "washington dc", "wdc")
+        # Compact match covers build-string tokens such as "washingtondc" and "sandiego".
+        if compact == family.lower().replace(" ", "") or (
+            family == "Washington DC" and norm in ("washington", "wdc")
         ):
             return family
     # Fallback to Title Case if unknown

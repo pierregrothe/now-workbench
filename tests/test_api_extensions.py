@@ -216,7 +216,7 @@ def test_verify_instance_authentication_responses() -> None:
     """Verify live authentication probing across HTTP 200, 401, 500, and network error."""
     import httpx
 
-    from now_workbench.api.instances import verify_instance_authentication
+    from now_workbench.connectivity import verify_instance_authentication
     from now_workbench.db.models import InstanceRecord
 
     inst = InstanceRecord(
