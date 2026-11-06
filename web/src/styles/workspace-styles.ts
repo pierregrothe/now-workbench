@@ -20,8 +20,7 @@ export const workspaceStyles = css`
     align-items: center;
     justify-content: space-between;
     padding: 14px 36px;
-    border-bottom: 1px solid var(--now-border-subtle, #f0f0ee);
-    background: var(--now-bg-surface-0, #ffffff);
+    background: var(--otto-canvas, #efece7);
     flex-shrink: 0;
   }
 
