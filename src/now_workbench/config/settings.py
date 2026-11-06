@@ -17,8 +17,12 @@ class Settings(BaseSettings):
     )
 
     app_name: str = "now-workbench"
-    host: str = "0.0.0.0"
+    # Loopback by default: the API is unauthenticated and holds instance credentials.
+    # Containers opt in explicitly (WORKBENCH_HOST=0.0.0.0 in the Dockerfile/compose).
+    host: str = "127.0.0.1"
     port: int = 8080
+    # Browser origins allowed by CORS and the WebSocket Origin check (full match).
+    cors_origin_regex: str = r"https?://(localhost|127\.0\.0\.1|\[::1\])(:\d+)?"
     debug: bool = False
 
     # Directories
