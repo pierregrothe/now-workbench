@@ -25,9 +25,10 @@ export default defineConfig({
     screenshot: 'only-on-failure',
   },
   webServer: {
-    // Fresh, isolated data dir and master key per run, then build the UI and serve it.
+    // Fresh, isolated data dir, master key AND UI bundle per run. The bundle goes to
+    // .e2e/dist so a test run never overwrites web/dist, which `workbench serve` uses.
     command:
-      'rm -rf .e2e && npm run build --prefix web && ' +
+      'rm -rf .e2e && npm run build --prefix web -- --outDir ../.e2e/dist --emptyOutDir && ' +
       `uv run workbench serve --host 127.0.0.1 --port ${PORT}`,
     cwd: '..',
     url: `${BASE_URL}/api/settings`,
@@ -36,6 +37,7 @@ export default defineConfig({
     env: {
       WORKBENCH_DATA_DIR: '.e2e/data',
       WORKBENCH_KEY_FILE: '.e2e/keys/master.key',
+      WORKBENCH_STATIC_DIR: '.e2e/dist',
       WORKBENCH_SN_INSTANCE_URL: '',
       WORKBENCH_ANTHROPIC_API_KEY: '',
     },

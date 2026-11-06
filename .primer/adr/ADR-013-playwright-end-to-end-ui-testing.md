@@ -27,7 +27,7 @@ forbids for the AI path.
 2. **Real backend, no API mocking.** Playwright's `webServer` runs these steps from the
    repo root:
    - delete `.e2e/` (fresh state every run);
-   - build the UI (`npm run build`);
+   - build the UI into `.e2e/dist` (never `web/dist`, which `workbench serve` uses);
    - start `uv run workbench serve` on port 8091, with an isolated `WORKBENCH_DATA_DIR`
      and `WORKBENCH_KEY_FILE` under `.e2e/`, and an empty instance URL and API key.
 
