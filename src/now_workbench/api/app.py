@@ -18,6 +18,7 @@ from now_workbench.ai.agent import AgentEventType, ClaudeAgentRunner, make_async
 from now_workbench.ai.client import OttoClient
 from now_workbench.ai.tiles import GenerativeUIResponse, resolve_query_to_tiles
 from now_workbench.api.demos import router as demos_router
+from now_workbench.api.impersonation import router as impersonation_router
 from now_workbench.api.instances import router as instances_router
 from now_workbench.api.profile import router as profile_router
 from now_workbench.api.settings_api import router as settings_router
@@ -29,7 +30,8 @@ from now_workbench.api.threads import _load_verified_instances_dict
 from now_workbench.api.threads import router as threads_router
 from now_workbench.auth.access import AccessValidator
 from now_workbench.auth.guard import AccessMiddleware, assert_safe_binding
-from now_workbench.auth.models import Role
+from now_workbench.auth.impersonation import effective_user
+from now_workbench.auth.models import AuthUser, Role
 from now_workbench.auth.owner import operator_owner, owner_scope
 from now_workbench.auth.setup import SetupCodes
 from now_workbench.config.origins import is_origin_allowed
@@ -134,6 +136,11 @@ def _stored_roles(email: str) -> frozenset[Role]:
         return repo.get_user_roles(email)
 
 
+def _act_as(user: AuthUser) -> AuthUser:
+    with db_session() as repo:
+        return effective_user(repo, user)
+
+
 def _setup_pending() -> bool:
     with db_session() as repo:
         return repo.count_admins() == 0
@@ -184,6 +191,7 @@ def create_app(
         validator=validator,
         lookup_roles=_stored_roles,
         setup_pending=_setup_pending,
+        act_as=_act_as,
     )
     app.add_middleware(
         CORSMiddleware,
@@ -209,6 +217,7 @@ def create_app(
     app.include_router(groups_router)
     app.include_router(artifacts_router)
     app.include_router(approvals_router)
+    app.include_router(impersonation_router)
 
     sdk_runner = NowSdkRunner(now_sdk_bin=settings.now_sdk_bin, node_bin=settings.node_bin)
     log_broadcaster = LogBroadcaster()

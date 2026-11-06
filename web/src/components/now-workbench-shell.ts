@@ -12,6 +12,7 @@ import './now-workbench-settings.js';
 import type { WorkbenchPreferences } from './now-workbench-settings.js';
 import './now-presenter-hud.js';
 import './now-welcome-modal.js';
+import '../views/now-impersonation.js';
 import './now-command-palette.js';
 import { smartTooltip } from '../utils/tooltip.js';
 import { workbenchStore } from '../context/workbench-context.js';
@@ -720,6 +721,7 @@ export class NowWorkbenchShell extends LitElement {
       ></now-nav-rail>
 
       <main class="content-area">
+        <now-impersonation-banner></now-impersonation-banner>
         ${this.threadError
           ? html`<div class="thread-error-banner" role="alert" data-testid="thread-error">
               ${this.threadError}

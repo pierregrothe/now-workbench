@@ -29,6 +29,16 @@ class AuthUser(BaseModel):
     email: str
     roles: frozenset[Role]
     mode: Literal["cloudflare", "local"]
+    # Set while an administrator acts as ``email`` (impersonation): who is really signed in.
+    real_email: str | None = None
+    real_roles: frozenset[Role] = frozenset()
+
+    @property
+    def signed_in(self) -> AuthUser:
+        """The person actually signed in (themselves when not impersonating)."""
+        if self.real_email is None:
+            return self
+        return AuthUser(email=self.real_email, roles=self.real_roles, mode=self.mode)
 
 
 class TeamMember(BaseModel):

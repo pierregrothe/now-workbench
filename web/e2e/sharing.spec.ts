@@ -44,3 +44,11 @@ test('an administrator creates a group and the approvals inbox explains when emp
   await nav.getByRole('button', { name: 'Approvals' }).click();
   await expect(page.getByRole('heading', { name: 'Approvals' })).toBeVisible();
 });
+
+test('View as someone lists nobody when there are no other members', async ({ page }) => {
+  await page.goto('/#admin');
+  await page.getByLabel('Settings sections').getByRole('button', { name: 'View as someone' }).click();
+  await expect(page.getByRole('heading', { name: 'View as someone' })).toBeVisible();
+  await expect(page.getByText('There is nobody you can view as.')).toBeVisible();
+  await expect(page.locator('now-impersonation-banner').getByRole('status')).toHaveCount(0);
+});

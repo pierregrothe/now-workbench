@@ -349,3 +349,11 @@ instance (768px two-layer prompt box, warm canvas, Learn more chip). Icons are o
 drawings in that style, never copied ServiceNow assets. Navigation follows EmployeeWorks
 (Recent header with compose, left-menu Settings).
 Details: `.primer/adr/ADR-019-otto-look-and-feel-alignment.md`.
+
+### 2026-11-06 -- ADR-020: Impersonation ("View as someone")
+
+Administrators may act as anyone; group administrators as members of their groups, never as a
+workbench administrator. The impersonation is held server-side per signed-in person and applied
+by the access middleware, so every workload runs as the target. Rights are re-checked on each
+request (revoked when lost); starts, stops and revocations are logged; a banner offers Stop.
+Details: `.primer/adr/ADR-020-impersonation.md`.

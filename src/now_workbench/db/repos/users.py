@@ -96,6 +96,42 @@ class UserRepositoryMixin:
             )
             self.conn.execute("DELETE FROM user_preferences WHERE email = '';")
 
+    def get_impersonation(self, real_email: str) -> str | None:
+        """Return who ``real_email`` is acting as, or None."""
+        row = self.conn.execute(
+            "SELECT target_email FROM impersonations WHERE real_email = ?;", (real_email,)
+        ).fetchone()
+        return str(row["target_email"]) if row else None
+
+    def start_impersonation(self, real_email: str, target_email: str) -> None:
+        """Make ``real_email`` act as ``target_email`` (replacing any earlier one), logged."""
+        with self.conn:
+            self.conn.execute(
+                "INSERT INTO impersonations (real_email, target_email) VALUES (?, ?) "
+                "ON CONFLICT(real_email) DO UPDATE SET target_email = excluded.target_email, "
+                "started_at = excluded.started_at;",
+                (real_email, target_email),
+            )
+            self.conn.execute(
+                "INSERT INTO impersonation_log (real_email, target_email, action) "
+                "VALUES (?, ?, 'start');",
+                (real_email, target_email),
+            )
+
+    def end_impersonation(self, real_email: str, action: str = "stop") -> bool:
+        """Stop acting as someone else; ``action`` is 'stop' or 'revoked' in the log."""
+        target = self.get_impersonation(real_email)
+        if target is None:
+            return False
+        with self.conn:
+            self.conn.execute("DELETE FROM impersonations WHERE real_email = ?;", (real_email,))
+            self.conn.execute(
+                "INSERT INTO impersonation_log (real_email, target_email, action) "
+                "VALUES (?, ?, ?);",
+                (real_email, target, action),
+            )
+        return True
+
     def delete_user(self, email: str) -> bool:
         """Remove a member; return False when there was none."""
         with self.conn:

@@ -2,6 +2,7 @@ import '../views/now-profile-settings.js';
 import '../views/now-team-settings.js';
 import '../views/now-groups-settings.js';
 import '../views/now-approvals-settings.js';
+import '../views/now-impersonation.js';
 import { LitElement, html, css } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import './now-admin-panel.js';
@@ -62,6 +63,7 @@ type SettingsSection =
   | 'team'
   | 'groups'
   | 'approvals'
+  | 'impersonate'
   | 'claude'
   | 'capture'
   | 'synthesis'
@@ -73,6 +75,7 @@ const SECTIONS: { id: SettingsSection; label: string; adminOnly?: boolean }[] = 
   { id: 'team', label: 'Team', adminOnly: true },
   { id: 'groups', label: 'Groups' },
   { id: 'approvals', label: 'Approvals' },
+  { id: 'impersonate', label: 'View as someone' },
   { id: 'claude', label: 'Claude and Otto', adminOnly: true },
   { id: 'capture', label: 'Media capture' },
   { id: 'synthesis', label: 'Synthesis defaults' },
@@ -740,6 +743,8 @@ export class NowWorkbenchSettings extends LitElement {
         ? html`<div class="scroll-body"><div class="settings-container"><now-groups-settings .admin=${isAdmin(this.profile)} .email=${this.profile?.email ?? ''}></now-groups-settings></div></div>`
         : this.activeSection === 'approvals'
         ? html`<div class="scroll-body"><div class="settings-container"><now-approvals-settings></now-approvals-settings></div></div>`
+        : this.activeSection === 'impersonate'
+        ? html`<div class="scroll-body"><div class="settings-container"><now-impersonation-settings></now-impersonation-settings></div></div>`
         : this.activeSection === 'instances'
         ? html`
             <now-admin-panel

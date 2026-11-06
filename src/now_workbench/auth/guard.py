@@ -112,11 +112,13 @@ class AccessMiddleware:
         validator: AccessValidator,
         lookup_roles: Callable[[str], frozenset[Role]],
         setup_pending: Callable[[], bool],
+        act_as: Callable[[AuthUser], AuthUser] | None = None,
     ) -> None:
         self.app = app
         self.validator = validator
         self._lookup = lookup_roles
         self._pending = setup_pending
+        self._act_as = act_as
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] not in {"http", "websocket"}:
@@ -136,6 +138,9 @@ class AccessMiddleware:
                 return
             await self._json(send, 403, {"detail": reason, "code": code})
             return
+        if self._act_as is not None and user.roles:
+            # Impersonation (ADR-020): from here on the request is the impersonated person.
+            user = self._act_as(user)
         scope.setdefault("state", {})["user"] = user
         with owner_scope(user.email):
             await self.app(scope, receive, send)

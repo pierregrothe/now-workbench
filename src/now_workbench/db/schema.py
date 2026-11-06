@@ -303,7 +303,25 @@ CREATE TABLE artifact_shares (
 CREATE INDEX ix_artifact_shares_status ON artifact_shares (status, target, group_id);
 """
 
-MIGRATIONS: tuple[str, ...] = (_V1, _V2, _V3, _V4, _V5, _V6, _V7, _V8)
+# v9 (ADR-020): administrators may act as someone else. One active impersonation per signed-in
+# person; every start and stop is kept in an append-only log.
+_V9 = f"""
+CREATE TABLE impersonations (
+    real_email    TEXT PRIMARY KEY,
+    target_email  TEXT NOT NULL,
+    started_at    TEXT NOT NULL DEFAULT {_NOW}
+) STRICT, WITHOUT ROWID;
+
+CREATE TABLE impersonation_log (
+    id            INTEGER PRIMARY KEY,
+    real_email    TEXT NOT NULL,
+    target_email  TEXT NOT NULL,
+    action        TEXT NOT NULL CHECK (action IN ('start', 'stop', 'revoked')),
+    at            TEXT NOT NULL DEFAULT {_NOW}
+) STRICT;
+"""
+
+MIGRATIONS: tuple[str, ...] = (_V1, _V2, _V3, _V4, _V5, _V6, _V7, _V8, _V9)
 SCHEMA_VERSION = len(MIGRATIONS)
 
 
