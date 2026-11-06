@@ -158,7 +158,37 @@ _V4 = """
 UPDATE workbench_preferences SET payload = json_remove(payload, '$.default_sn_release');
 """
 
-MIGRATIONS: tuple[str, ...] = (_V1, _V2, _V3, _V4)
+# v5: the local profile (name, servicenow.com email, avatar, pending one-time code) and the
+# SMTP settings used to deliver the code. Singleton rows; the SMTP password lives in `secrets`.
+_V5 = f"""
+CREATE TABLE profile (
+    id                 INTEGER PRIMARY KEY CHECK (id = 1),
+    display_name       TEXT NOT NULL DEFAULT '',
+    email              TEXT NOT NULL DEFAULT '',
+    avatar_kind        TEXT NOT NULL DEFAULT 'none'
+                       CHECK (avatar_kind IN ('none', 'preset', 'upload')),
+    avatar_preset      TEXT,
+    avatar_updated_at  TEXT,
+    email_verified_at  TEXT,
+    code_hash          TEXT,
+    code_salt          TEXT,
+    code_expires_at    TEXT,
+    code_attempts      INTEGER NOT NULL DEFAULT 0,
+    code_sent_at       TEXT,
+    updated_at         TEXT NOT NULL DEFAULT {_NOW}
+) STRICT;
+
+CREATE TABLE mail_settings (
+    id            INTEGER PRIMARY KEY CHECK (id = 1),
+    host          TEXT NOT NULL DEFAULT '',
+    port          INTEGER NOT NULL DEFAULT 587,
+    username      TEXT NOT NULL DEFAULT '',
+    from_address  TEXT NOT NULL DEFAULT '',
+    starttls      INTEGER NOT NULL DEFAULT 1 CHECK (starttls IN (0, 1))
+) STRICT;
+"""
+
+MIGRATIONS: tuple[str, ...] = (_V1, _V2, _V3, _V4, _V5)
 SCHEMA_VERSION = len(MIGRATIONS)
 
 

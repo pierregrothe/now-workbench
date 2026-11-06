@@ -6,6 +6,7 @@ import { expect, test } from './fixtures';
 
 test('failed settings save shows an error and not the success message', async ({ page }) => {
   await page.goto('/#admin');
+  await page.getByLabel('Settings sections').getByRole('button', { name: 'Claude and Otto' }).click();
   await page.route('**/api/settings', async (route) => {
     if (route.request().method() === 'PUT') {
       await route.fulfill({
@@ -27,6 +28,7 @@ test('failed settings save shows an error and not the success message', async ({
 
 test('network failure on settings save shows an error', async ({ page }) => {
   await page.goto('/#admin');
+  await page.getByLabel('Settings sections').getByRole('button', { name: 'Claude and Otto' }).click();
   await page.route('**/api/settings', async (route) => {
     if (route.request().method() === 'PUT') {
       await route.abort();
@@ -43,6 +45,7 @@ test('network failure on settings save shows an error', async ({ page }) => {
 
 test('settings shows one section at a time and keeps Save available', async ({ page }) => {
   await page.goto('/#admin');
+  await page.getByLabel('Settings sections').getByRole('button', { name: 'Claude and Otto' }).click();
   await expect(page.getByRole('heading', { name: 'Claude AI Copilot & Intent Router' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Instance Media Capture Defaults' })).toBeHidden();
   await page.getByLabel('Settings sections').getByRole('button', { name: 'Media capture' }).click();

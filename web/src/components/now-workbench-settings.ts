@@ -1,3 +1,4 @@
+import '../views/now-profile-settings.js';
 import { LitElement, html, css } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import './now-admin-panel.js';
@@ -50,9 +51,10 @@ const DEFAULT_PREFS: WorkbenchPreferences = {
   theme_mode: 'system',
 };
 
-type SettingsSection = 'claude' | 'capture' | 'synthesis' | 'workspace' | 'instances';
+type SettingsSection = 'profile' | 'claude' | 'capture' | 'synthesis' | 'workspace' | 'instances';
 
 const SECTIONS: { id: SettingsSection; label: string }[] = [
+  { id: 'profile', label: 'Profile' },
   { id: 'claude', label: 'Claude and Otto' },
   { id: 'capture', label: 'Media capture' },
   { id: 'synthesis', label: 'Synthesis defaults' },
@@ -480,7 +482,7 @@ export class NowWorkbenchSettings extends LitElement {
     }
   `;
 
-  @state() private activeSection: SettingsSection = 'claude';
+  @state() private activeSection: SettingsSection = 'profile';
   @state() private prefs: WorkbenchPreferences = { ...DEFAULT_PREFS };
   @state() private newApiKeyInput = '';
   @state() private isSaving = false;
@@ -725,7 +727,9 @@ export class NowWorkbenchSettings extends LitElement {
           )}
         </nav>
         <div class="pref-content">
-      ${this.activeSection === 'instances'
+      ${this.activeSection === 'profile'
+        ? html`<div class="scroll-body"><div class="settings-container"><now-profile-settings></now-profile-settings></div></div>`
+        : this.activeSection === 'instances'
         ? html`
             <now-admin-panel
               @instance-changed=${(e: CustomEvent) => {

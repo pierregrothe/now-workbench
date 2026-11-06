@@ -8,6 +8,7 @@ import { customElement, property, state } from 'lit/decorators.js';
 import { ThreadController } from '../controllers/thread-controller.js';
 import { workbenchStore } from '../context/workbench-context.js';
 import type { WorkbenchState } from '../context/workbench-context.js';
+import { renderAvatar } from '../profile/avatars.js';
 import { bundlePanel, instancePanel } from './panel-items.js';
 import type { PanelItem } from './panel-items.js';
 import './now-item-panel.js';
@@ -241,7 +242,7 @@ export class NowChatView extends LitElement {
         : '';
     if (msg.sender === 'user') {
       return html`<div class="message-bubble user">
-        <div class="agent-head"><span class="avatar">PG</span><span>Pierre Grothe</span><span class="when">${msg.timestamp}</span></div>
+        <div class="agent-head">${renderAvatar(this.currentStoreState.profile, 24)}<span>${this.currentStoreState.profile?.display_name || 'You'}</span><span class="when">${msg.timestamp}</span></div>
         <div style="white-space: pre-wrap;">${msg.text}</div>
       </div>`;
     }
@@ -347,7 +348,7 @@ export class NowChatView extends LitElement {
           ${this.activeMode === 'overview'
             ? html`
                 <div class="hero">
-                  <h1 class="hero-title">${greeting()}, Pierre!</h1>
+                  <h1 class="hero-title">${greeting()}${this.currentStoreState.profile?.display_name ? `, ${this.currentStoreState.profile.display_name.split(' ')[0]}` : ''}!</h1>
                   ${this.renderPrompt()}
                   <div class="chips-row">
                     <button class="chip-btn" @click=${() => void this.submitPrompt('How many instances do I have?')}>How many instances do I have?</button>

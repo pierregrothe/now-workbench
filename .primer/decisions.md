@@ -317,3 +317,9 @@ UI showed a red PROD badge for it, which was misleading.
 **Consequences:**
 - Warning styling and future production guards key off the owner's declaration, never the platform's.
 
+
+### 2026-11-06 -- ADR-016: Local profile with email-code approval
+
+Profile (name, servicenow.com email, avatar) stored in schema v5; the email is approved by
+a one-time code sent over the owner's SMTP account. Codes are hashed, expire after 10
+minutes, lock after 5 wrong attempts. Details: `.primer/adr/ADR-016-local-profile-and-email-code-approval.md`.

@@ -17,6 +17,7 @@ from now_workbench.ai.client import OttoClient
 from now_workbench.ai.tiles import GenerativeUIResponse, resolve_query_to_tiles
 from now_workbench.api.demos import router as demos_router
 from now_workbench.api.instances import router as instances_router
+from now_workbench.api.profile import router as profile_router
 from now_workbench.api.settings_api import router as settings_router
 from now_workbench.api.templates import router as templates_router
 from now_workbench.api.threads import _load_verified_instances_dict
@@ -144,6 +145,7 @@ def create_app() -> FastAPI:
     app.include_router(demos_router)
     app.include_router(threads_router)
     app.include_router(settings_router)
+    app.include_router(profile_router)
 
     sdk_runner = NowSdkRunner(now_sdk_bin=settings.now_sdk_bin, node_bin=settings.node_bin)
     log_broadcaster = LogBroadcaster()

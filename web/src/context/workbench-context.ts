@@ -3,6 +3,8 @@
 // Author: Pierre Grothe
 // Date: 2026-10-31
 
+import type { ProfileData } from '../profile/avatars.js';
+
 export interface InstanceData {
   id: string;
   name: string;
@@ -41,6 +43,8 @@ export interface WorkbenchState {
   claudeKeyConfigured: boolean;
   /** Why instances or bundles could not be loaded; null when the last load succeeded. */
   loadError: string | null;
+  /** The local profile; null until loaded. */
+  profile: ProfileData | null;
 }
 
 export type StateListener = (state: WorkbenchState) => void;
@@ -55,6 +59,7 @@ class WorkbenchStore {
     themeMode: 'polaris',
     claudeKeyConfigured: false,
     loadError: null,
+    profile: null,
   };
 
   private _listeners = new Set<StateListener>();
@@ -106,6 +111,17 @@ class WorkbenchStore {
       this.setState({ instances: list, selectedInstanceId: nextSelected, loadError: null });
     } catch (err) {
       this.setState({ loadError: `Could not reach the backend to load instances: ${String(err)}` });
+    }
+  }
+
+  async loadProfile(): Promise<void> {
+    try {
+      const res = await fetch('/api/profile');
+      if (res.ok) {
+        this.setState({ profile: (await res.json()) as ProfileData });
+      }
+    } catch {
+      // The profile is cosmetic; the app works without it and initials are shown.
     }
   }
 
