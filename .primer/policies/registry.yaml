@@ -133,6 +133,12 @@ policies:
       - kind: cc-hook
         id: scripts/dev-tools/per_edit_check.py
         stage: per-edit
+      - kind: cc-hook
+        id: pre-edit-validate
+        stage: pre-tool
+      - kind: cc-hook
+        id: post-edit-lint
+        stage: post-tool
     status: enforced
 
   - slug: runtime-toolchain

@@ -42,11 +42,13 @@ local git hooks and harness hooks are the primary gates.
 
 ## Claude Code & Antigravity Hooks
 
-<!-- govtable:cc-hooks:start (count=3) -->
+<!-- govtable:cc-hooks:start (count=5) -->
 | Hook | Description | Scope | ADR | Tool |
 |------|-------------|-------|-----|------|
 | .claude/scripts/primer-reconcile.py | Stop: governance registry drift check | project | [ADR-005] | primer-reconcile.py |
 | .ratchet/ratchet_check.py | Stop: metric ratchets check | project | [ADR-005] | ratchet_check.py |
+| post-edit-lint | PostToolUse: ruff + mypy on edited file (via _run.py) | project | [ADR-005] | .claude/hooks/post-edit-lint.py |
+| pre-edit-validate | PreToolUse: block prohibited patterns before write (via _run.py) | project | [ADR-005] | .claude/hooks/pre-edit-validate.py |
 | scripts/dev-tools/per_edit_check.py | PostToolUse per-edit rule check | project | [ADR-005] | per_edit_check.py |
 <!-- govtable:cc-hooks:end -->
 
