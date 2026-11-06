@@ -15,11 +15,16 @@ from now_workbench.db.repository import DatabaseRepository
 from now_workbench.plugins.manager import PluginManager
 from now_workbench.plugins.models import PluginRecord
 from now_workbench.properties.engine import PropertyEngine
+from now_workbench.properties.models import PropertyApplyResult
 from now_workbench.releases import evaluate_release_prerequisites
 from now_workbench.runbooks.engine import RunbookEngine
 from now_workbench.runbooks.models import RunbookTestResult
 from now_workbench.sdk.runner import NowSdkRunner
 from now_workbench.seed.engine import SeedEngine
+
+
+class PipelineStepError(RuntimeError):
+    """Raised when a pipeline step (such as the SDK deploy) fails."""
 
 
 class DemoEvaluationResult(BaseModel):
@@ -163,17 +168,15 @@ class DemoPipelineEngine:
         bundle_id: str,
         instance: InstanceRecord,
         fake_mode: bool = False,
-    ) -> dict[str, str]:
+    ) -> PropertyApplyResult:
         """Apply the demo bundle system properties with snapshot backup."""
         bundle_path = self._get_bundle_path(bundle_id)
-        props = self.prop_engine.read_bundle_properties(bundle_path)
-        await self.prop_engine.apply_bundle_properties(
+        return await self.prop_engine.apply_bundle_properties(
             bundle_id=bundle_id,
             bundle_path=bundle_path,
             instance=instance,
             fake_mode=fake_mode,
         )
-        return props
 
     async def deploy_and_seed(
         self,
@@ -186,12 +189,17 @@ class DemoPipelineEngine:
 
         # Deploy Fluent SDK metadata
         runner = NowSdkRunner(fake_mode=fake_mode)
-        await runner.deploy(
+        deploy_result = await runner.deploy(
             project_dir=bundle_path,
             instance_url=instance.url,
             username=instance.username,
             password=instance.password,
         )
+        if not deploy_result.success:
+            raise PipelineStepError(
+                f"SDK deploy failed (exit code {deploy_result.exit_code}): "
+                f"{deploy_result.output.strip()}"
+            )
 
         # Seed demonstration records
         seed_engine = SeedEngine(repository=self.repo, fake_mode=fake_mode)
@@ -269,10 +277,32 @@ class DemoPipelineEngine:
         installed_plugins = self.install_required_modules(bundle_id, instance, fake_mode=fake_mode)
 
         # 2. Configure properties
-        applied_props = await self.configure_properties(bundle_id, instance, fake_mode=fake_mode)
+        prop_result = await self.configure_properties(bundle_id, instance, fake_mode=fake_mode)
+        if not prop_result.success:
+            return DemoPipelineSummary(
+                bundle_id=bundle_id,
+                instance_name=instance.name,
+                installed_modules=[p.plugin_id for p in installed_plugins],
+                applied_properties_count=prop_result.applied_count,
+                status="failed",
+                message="Pipeline aborted: property configuration failed: "
+                + "; ".join(prop_result.details),
+                test_passed=False,
+            )
 
         # 3. Deploy & seed demo records
-        seed_result = await self.deploy_and_seed(bundle_id, instance, fake_mode=fake_mode)
+        try:
+            seed_result = await self.deploy_and_seed(bundle_id, instance, fake_mode=fake_mode)
+        except PipelineStepError as exc:
+            return DemoPipelineSummary(
+                bundle_id=bundle_id,
+                instance_name=instance.name,
+                installed_modules=[p.plugin_id for p in installed_plugins],
+                applied_properties_count=prop_result.applied_count,
+                status="failed",
+                message=f"Pipeline aborted: {exc}",
+                test_passed=False,
+            )
 
         # 4. Test demo script runbook stages
         test_result = await self.test_demo_script(bundle_id, instance, fake_mode=fake_mode)
@@ -291,7 +321,7 @@ class DemoPipelineEngine:
             video_filename = proof.filename
 
         n_inst = len(installed_plugins)
-        n_props = len(applied_props)
+        n_props = prop_result.applied_count
         n_rec = len(seed_result.created_records)
         stg_pass = test_result.passed_stages
         stg_tot = test_result.total_stages
@@ -306,7 +336,7 @@ class DemoPipelineEngine:
             bundle_id=bundle_id,
             instance_name=instance.name,
             installed_modules=[p.plugin_id for p in installed_plugins],
-            applied_properties_count=len(applied_props),
+            applied_properties_count=n_props,
             seeded_records_count=n_rec,
             tested_stages_count=test_result.total_stages,
             test_passed=test_result.all_passed,

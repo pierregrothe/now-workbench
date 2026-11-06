@@ -215,8 +215,9 @@ async def test_apply_properties_mock_transport(tmp_path: Path) -> None:
         client=client,
         fake_mode=False,
     )
-    assert res.success is True
-    assert res.applied_count == 3
+    # One of the three updates failed (HTTP 500), so the apply must not report success.
+    assert res.success is False
+    assert res.applied_count == 2
     assert any("Set 'glide.ui.polaris'" in d for d in res.details)
     assert any("Failed to update 'fail.flag'" in d for d in res.details)
 

@@ -5,6 +5,7 @@ import re
 import shutil
 from pathlib import Path
 
+from now_workbench.config.paths import UnsafePathError, safe_child
 from now_workbench.db.models import TemplateInstantiationRequest
 
 
@@ -20,12 +21,19 @@ class TemplateEngine:
         base_bundle_id: str,
         request: TemplateInstantiationRequest,
     ) -> Path:
-        """Create a new customized bundle directory with customer placeholder substitution."""
+        """Create a new customized bundle directory with customer placeholder substitution.
+
+        Raises:
+            FileNotFoundError: The base bundle does not exist.
+            UnsafePathError: The target id escapes the output dir or is the base bundle.
+        """
         source_dir = self.bundles_dir / base_bundle_id
         if not source_dir.exists():
             raise FileNotFoundError(f"Base bundle '{base_bundle_id}' not found.")
 
-        target_dir = self.output_dir / request.target_bundle_id
+        target_dir = safe_child(self.output_dir, request.target_bundle_id)
+        if target_dir.resolve() == source_dir.resolve():
+            raise UnsafePathError("Target bundle must differ from the template's base bundle.")
         if target_dir.exists():
             shutil.rmtree(target_dir)
 

@@ -2,6 +2,8 @@
 
 from typing import TYPE_CHECKING
 
+import httpx
+
 from now_workbench.db.models import InstanceRecord
 from now_workbench.plugins.models import PluginEvaluationResult, PluginRecord
 
@@ -22,8 +24,31 @@ KNOWN_PLUGIN_NAMES: dict[str, str] = {
 class PluginManager:
     """Evaluates and installs ServiceNow plugins/modules on target instances."""
 
-    def __init__(self, repo: DatabaseRepository) -> None:
+    def __init__(
+        self,
+        repo: DatabaseRepository,
+        transport: httpx.BaseTransport | None = None,
+    ) -> None:
         self.repo = repo
+        self._transport = transport
+
+    def _query_plugin_active(self, instance: InstanceRecord, plugin_id: str) -> tuple[bool, str]:
+        """Ask the instance whether a plugin is active (never claims on failure)."""
+        url = f"{instance.url.rstrip('/')}/api/now/table/v_plugin"
+        params = {"sysparm_query": f"id={plugin_id}", "sysparm_fields": "id,name,active"}
+        auth = (instance.username, instance.password) if instance.auth_type == "basic" else None
+        try:
+            with httpx.Client(transport=self._transport, timeout=10.0) as client:
+                res = client.get(
+                    url, params=params, auth=auth, headers={"Accept": "application/json"}
+                )
+            if res.status_code != 200:
+                return False, f"HTTP {res.status_code} from the instance"
+            rows = res.json().get("result", [])
+        except (httpx.HTTPError, ValueError, AttributeError) as exc:
+            return False, f"could not query the instance: {exc}"
+        active = any(str(r.get("active", "")).lower() == "true" for r in rows)
+        return active, "" if active else "plugin not found or not active"
 
     def evaluate_plugins(
         self,
@@ -64,17 +89,28 @@ class PluginManager:
         clean_id = plugin_id.strip()
         name = plugin_name or KNOWN_PLUGIN_NAMES.get(clean_id, f"Plugin {clean_id}")
 
+        simulated = fake_mode or instance.url.startswith("fake://")
+        if not simulated:
+            active, reason = self._query_plugin_active(instance, clean_id)
+            if not active:
+                return (
+                    False,
+                    f"Plugin '{clean_id}' ({name}) is not active on {instance.name} ({reason}); "
+                    "activate it on the instance, then retry.",
+                )
         self.repo.add_instance_plugin(
             instance_id=instance.id,
             plugin_id=clean_id,
             plugin_name=name,
             status="active",
         )
-        mode_str = " (simulated)" if fake_mode else ""
-        return (
-            True,
-            f"Plugin '{clean_id}' ({name}) activated successfully on {instance.name}{mode_str}.",
-        )
+        if simulated:
+            return (
+                True,
+                f"Plugin '{clean_id}' ({name}) activation simulated on {instance.name}; "
+                "nothing was changed on the instance.",
+            )
+        return True, f"Plugin '{clean_id}' ({name}) already active on {instance.name}."
 
     def install_required_plugins(
         self,

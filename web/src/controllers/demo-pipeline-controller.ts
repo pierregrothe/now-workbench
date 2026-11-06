@@ -26,6 +26,14 @@ export interface SynthesizeParams {
   personas?: string[];
 }
 
+// The backend takes named persona fields; only send the ones the caller provided.
+function personaFields(personas: string[] = []): Record<string, string> {
+  const fields: Record<string, string> = {};
+  if (personas[0]) fields.persona_primary = personas[0];
+  if (personas[1]) fields.persona_secondary = personas[1];
+  return fields;
+}
+
 export class DemoPipelineController implements ReactiveController {
   private host: ReactiveControllerHost;
   public isSynthesizing: boolean = false;
@@ -50,15 +58,15 @@ export class DemoPipelineController implements ReactiveController {
     this.host.requestUpdate();
 
     try {
-      const res = await fetch('/api/synthesizer/synthesize', {
+      const res = await fetch('/api/demos/synthesize', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          prompt: params.prompt,
+          use_case: params.prompt,
           customer_name: params.customerName,
           industry: params.industry,
-          release_target: params.releaseTarget,
-          personas: params.personas || [],
+          sn_release: params.releaseTarget,
+          ...personaFields(params.personas),
         }),
       });
 
@@ -93,12 +101,12 @@ export class DemoPipelineController implements ReactiveController {
     this.host.requestUpdate();
 
     try {
-      const payload: Record<string, any> = { bundle_id: targetBundle };
+      const payload: Record<string, string> = {};
       if (instanceId) {
         payload.instance_id = instanceId;
       }
 
-      const res = await fetch('/api/bundles/seed', {
+      const res = await fetch(`/api/demos/${encodeURIComponent(targetBundle)}/seed`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -110,7 +118,11 @@ export class DemoPipelineController implements ReactiveController {
       }
 
       const data = await res.json();
-      this.seedStatusMessage = `Successfully seeded ${data.records_created ?? 'records'} to ${data.table ?? 'target'}!`;
+      if (data.status !== 'completed') {
+        throw new Error(`Seed finished with status "${data.status}"`);
+      }
+      const count = Array.isArray(data.created_records) ? data.created_records.length : 0;
+      this.seedStatusMessage = `Successfully seeded ${count} records to instance ${data.instance_id}.`;
       return true;
     } catch (err: any) {
       this.seedStatusMessage = `Seed error: ${err.message || 'Failed to seed'}`;

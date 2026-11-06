@@ -205,7 +205,7 @@ async def _execute_video_playbook(
         viewport_height=height,
         fake_mode=fake_mode,
     )
-    ok = output_file.exists() and output_file.stat().st_size > 500
+    ok = exec_res.success and output_file.exists() and output_file.stat().st_size > 500
     steps = [s.model_dump() for s in exec_res.step_results]
     return ok, exec_res.live_authenticated, steps
 

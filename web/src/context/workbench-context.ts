@@ -78,7 +78,7 @@ class WorkbenchStore {
       const res = await fetch('/api/instances');
       if (res.ok) {
         const data = await res.json();
-        const list: InstanceData[] = data.instances || [];
+        const list: InstanceData[] = Array.isArray(data) ? data : [];
         const currentSelected = this._state.selectedInstanceId;
         const defaultInst = list.find((i) => i.is_default) || list[0];
         const nextSelected = currentSelected && list.some((i) => i.id === currentSelected)
@@ -93,13 +93,15 @@ class WorkbenchStore {
 
   async loadBundles(): Promise<void> {
     try {
-      const res = await fetch('/api/bundles');
+      const res = await fetch('/api/demos');
       if (res.ok) {
         const data = await res.json();
-        const list: DemoBundleItem[] = (data.bundles || []).map((b: any) => ({
-          id: b.id,
-          name: b.name || b.id,
-          release: b.release || 'Zurich',
+        const infos: Array<{ manifest: { id: string; name?: string; min_release?: string } }> =
+          Array.isArray(data) ? data : [];
+        const list: DemoBundleItem[] = infos.map((b) => ({
+          id: b.manifest.id,
+          name: b.manifest.name || b.manifest.id,
+          release: b.manifest.min_release || 'Zurich',
         }));
         this.setState({ bundles: list });
       }

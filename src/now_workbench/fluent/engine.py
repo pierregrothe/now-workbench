@@ -46,17 +46,48 @@ def _parse_column_block(col_name: str, body: str) -> FluentColumnDef:
     )
 
 
+def _find_balanced_close(content: str, open_idx: int) -> int:
+    """Return the index of the brace closing the one at open_idx, or -1 if unbalanced.
+
+    Braces inside single-, double- or backtick-quoted strings are ignored.
+    """
+    depth = 0
+    quote: str | None = None
+    i = open_idx
+    while i < len(content):
+        char = content[i]
+        if quote:
+            if char == "\\":
+                i += 1
+            elif char == quote:
+                quote = None
+        elif char in "'\"`":
+            quote = char
+        elif char == "{":
+            depth += 1
+        elif char == "}":
+            depth -= 1
+            if depth == 0:
+                return i
+        i += 1
+    return -1
+
+
 def _parse_columns(content: str) -> list[FluentColumnDef]:
-    """Parse column definitions out of a Table declaration."""
+    """Parse column definitions out of a Table declaration (nested objects allowed)."""
     columns: list[FluentColumnDef] = []
     col_pattern = re.compile(
-        r"""([a-zA-Z0-9_]+)\s*:\s*(?:Record|[A-Za-z]+Column)\s*\(\s*\{([^}]*)\}\s*\)""",
-        re.DOTALL,
+        r"""([a-zA-Z0-9_]+)\s*:\s*(?:Record|[A-Za-z]+Column)\s*\(\s*\{""",
     )
-    for match in col_pattern.finditer(content):
-        col_name = match.group(1)
-        col_body = match.group(2)
-        columns.append(_parse_column_block(col_name, col_body))
+    pos = 0
+    while (match := col_pattern.search(content, pos)) is not None:
+        open_idx = match.end() - 1
+        close_idx = _find_balanced_close(content, open_idx)
+        if close_idx == -1:
+            pos = match.end()
+            continue
+        columns.append(_parse_column_block(match.group(1), content[open_idx + 1 : close_idx]))
+        pos = close_idx + 1
     return columns
 
 

@@ -184,32 +184,39 @@ def _read_and_cleanup_log(
     return result
 
 
-def _build_fallback_result(
+def _build_failure_result(
     playbook: DemoPlaybook,
     output_video: Path,
     output_image: Path,
     started_at: str,
     start_time_ms: int,
+    error: str,
 ) -> PlaybookExecutionResult:
+    """Report a runner that crashed or wrote no usable log as a failed run.
+
+    No step is claimed as passed: the first step carries the error, the rest
+    are marked skipped because they never ran.
+    """
     completed_at = datetime.now(UTC).isoformat()
     duration_ms = int(datetime.now(UTC).timestamp() * 1000) - start_time_ms
-    fallback_results = [
+    failure_results = [
         PlaybookStepResult(
             step_id=s.id,
             action=s.action.value,
             description=s.description,
-            status="passed",
-            duration_ms=50,
+            status="failed" if i == 0 else "skipped",
+            duration_ms=0,
+            error_message=error if i == 0 else None,
         )
-        for s in playbook.steps
+        for i, s in enumerate(playbook.steps)
     ]
     return PlaybookExecutionResult(
         bundle_id=playbook.bundle_id,
         playbook_title=playbook.title,
-        success=output_video.exists() and output_video.stat().st_size > 500,
-        total_steps=len(fallback_results),
-        passed_steps=len(fallback_results),
-        step_results=fallback_results,
+        success=False,
+        total_steps=len(failure_results),
+        passed_steps=0,
+        step_results=failure_results,
         video_file=str(output_video) if output_video.exists() else None,
         thumbnail_file=str(output_image) if output_image.exists() else None,
         live_authenticated=False,
@@ -217,6 +224,26 @@ def _build_fallback_result(
         started_at=started_at,
         completed_at=completed_at,
     )
+
+
+async def _run_runner(cmd: list[str], instance: InstanceRecord) -> str | None:
+    """Run the Node runner asynchronously; return an error description or None."""
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdin=asyncio.subprocess.PIPE,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        _, stderr = await proc.communicate(
+            input=encode_stdin_credentials(instance.username, instance.password)
+        )
+    except Exception as exc:
+        return f"playbook runner could not be started: {exc}"
+    if proc.returncode == 0:
+        return None
+    tail = stderr.decode("utf-8", errors="replace").strip()[-500:]
+    return f"playbook runner exited with code {proc.returncode}: {tail}"
 
 
 class PlaywrightPlaybookDriver:
@@ -279,23 +306,17 @@ class PlaywrightPlaybookDriver:
             fake_mode,
         )
 
-        try:
-            proc = await asyncio.create_subprocess_exec(
-                *cmd,
-                stdin=asyncio.subprocess.PIPE,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-            )
-            await proc.communicate(
-                input=encode_stdin_credentials(instance.username, instance.password)
-            )
-        except Exception:
-            pass
+        run_error = await _run_runner(cmd, instance)
 
         result = _read_and_cleanup_log(temp_log, temp_playbook_path)
         if result is not None:
             return result
 
-        return _build_fallback_result(
-            playbook, output_video, output_image, started_at, start_time_ms
+        return _build_failure_result(
+            playbook,
+            output_video,
+            output_image,
+            started_at,
+            start_time_ms,
+            run_error or "playbook runner wrote no valid result log",
         )

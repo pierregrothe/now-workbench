@@ -16,6 +16,20 @@ export interface ChatMessage {
   cost_estimate?: number;
 }
 
+/** Map the backend's bare ChatMessageRecord[] into view messages. */
+function mapThreadRecords(data: unknown): ChatMessage[] {
+  if (!Array.isArray(data)) {
+    throw new Error('Unexpected thread response shape');
+  }
+  return data.map((m: any) => ({
+    id: m.id,
+    sender: m.role === 'assistant' ? 'agent' : m.role || 'user',
+    text: m.content || '',
+    timestamp: m.created_at || new Date().toISOString(),
+    tiles: m.widget_data?.tiles || [],
+  }));
+}
+
 export class ThreadController implements ReactiveController {
   private host: ReactiveControllerHost;
   public threadId: string = '';
@@ -46,21 +60,13 @@ export class ThreadController implements ReactiveController {
 
     try {
       const res = await fetch(`/api/threads/${encodeURIComponent(threadId)}/messages`);
-      if (res.ok) {
-        const data = await res.json();
-        this.messages = (data.messages || []).map((m: any) => ({
-          id: m.id,
-          sender: m.role === 'assistant' ? 'agent' : m.role || 'user',
-          text: m.content || '',
-          timestamp: m.created_at || new Date().toISOString(),
-          tiles: m.metadata?.tiles || [],
-          tokens_in: m.metadata?.tokens_in,
-          tokens_out: m.metadata?.tokens_out,
-          cost_estimate: m.metadata?.cost_estimate,
-        }));
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}: ${res.statusText}`);
       }
+      this.messages = mapThreadRecords(await res.json());
     } catch (err: any) {
-      this.error = err.message || 'Failed to load thread messages';
+      this.error = `Could not load thread messages: ${err.message || 'unknown error'}`;
+      this.messages = [{ sender: 'system', text: this.error }];
     } finally {
       this.host.requestUpdate();
     }
@@ -81,43 +87,29 @@ export class ThreadController implements ReactiveController {
     this.host.requestUpdate();
 
     try {
-      const endpoint = this.threadId
-        ? `/api/threads/${encodeURIComponent(this.threadId)}/messages`
-        : '/api/otto/chat';
-
-      const payload = this.threadId
-        ? { content: promptText, metadata }
-        : { prompt: promptText, ...metadata };
-
-      const res = await fetch(endpoint, {
+      if (!this.threadId) {
+        throw new Error('No active thread selected');
+      }
+      const res = await fetch(`/api/threads/${encodeURIComponent(this.threadId)}/messages`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({ content: promptText }),
       });
 
       if (!res.ok) {
         throw new Error(`HTTP ${res.status}: ${res.statusText}`);
       }
 
-      const data = await res.json();
-      const agentMsg: ChatMessage = {
-        id: data.id,
-        sender: 'agent',
-        text: data.content || data.response || data.summary || '',
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        tiles: data.tiles || data.metadata?.tiles || [],
-        tokens_in: data.tokens_in || data.metadata?.tokens_in,
-        tokens_out: data.tokens_out || data.metadata?.tokens_out,
-        cost_estimate: data.cost_estimate || data.metadata?.cost_estimate,
-      };
-
-      this.messages = [...this.messages, agentMsg];
+      // The backend returns the full chronological history, including the new reply.
+      const history = mapThreadRecords(await res.json());
+      const agentMsg = [...history].reverse().find((m) => m.sender === 'agent') ?? null;
+      this.messages = history;
       return agentMsg;
     } catch (err: any) {
-      this.error = err.message || 'Failed to send message';
+      this.error = `Could not send message: ${err.message || 'unknown error'}`;
       const errMsg: ChatMessage = {
         sender: 'system',
-        text: `Error: ${this.error}`,
+        text: this.error,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       };
       this.messages = [...this.messages, errMsg];

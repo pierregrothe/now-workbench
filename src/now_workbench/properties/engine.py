@@ -160,6 +160,7 @@ class PropertyEngine:
         auth = _build_auth(instance)
         original_vals: dict[str, str | None] = {}
         applied: list[str] = []
+        failed: list[str] = []
 
         try:
             async with client or httpx.AsyncClient(timeout=10.0) as session:
@@ -174,7 +175,7 @@ class PropertyEngine:
                     if ok:
                         applied.append(f"Set '{name}' = '{new_val}'")
                     else:
-                        applied.append(f"Failed to update '{name}'")
+                        failed.append(f"Failed to update '{name}'")
 
             snapshot = PropertySnapshot(
                 bundle_id=bundle_id,
@@ -184,9 +185,9 @@ class PropertyEngine:
             )
             self.save_snapshot(snapshot)
             return PropertyApplyResult(
-                success=True,
+                success=not failed,
                 applied_count=len(applied),
-                details=applied,
+                details=applied + failed,
             )
         except Exception as exc:
             return PropertyApplyResult(

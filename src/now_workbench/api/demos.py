@@ -368,9 +368,11 @@ async def reset_demo(
             if op.bundle_id == bundle_id and op.status == "completed" and op.instance_id == inst.id
         ]
         seed_rolled_back = 0
+        seed_errors: list[str] = []
         for op in active_ops:
-            count, _ = await seed_engine.rollback(op.id)
+            count, op_errors = await seed_engine.rollback(op.id)
             seed_rolled_back += count
+            seed_errors.extend(op_errors)
 
     # 2. Restore properties
     prop_engine = PropertyEngine()
@@ -381,12 +383,13 @@ async def reset_demo(
     )
 
     return {
-        "success": prop_res.success,
+        "success": prop_res.success and not seed_errors,
         "bundle_id": bundle_id,
         "instance_id": inst.id,
         "seed_records_rolled_back": seed_rolled_back,
         "properties_restored": prop_res.restored_count,
         "details": prop_res.details,
+        "errors": seed_errors,
     }
 
 
