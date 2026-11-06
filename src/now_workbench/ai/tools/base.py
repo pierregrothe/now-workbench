@@ -2,6 +2,7 @@
 
 import asyncio
 import concurrent.futures
+import contextvars
 import json
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
@@ -85,7 +86,8 @@ def run_async[T](coro: Awaitable[T]) -> T:
     except RuntimeError:
         return asyncio.run(_wrap())
     with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-        return pool.submit(asyncio.run, _wrap()).result()
+        # Copy the context so the owner scope (ADR-018) follows the work into the thread.
+        return pool.submit(contextvars.copy_context().run, asyncio.run, _wrap()).result()
 
 
 def resolve_instance(repo: DatabaseRepository, ref: str | None) -> InstanceRecord:

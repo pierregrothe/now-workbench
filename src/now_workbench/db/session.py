@@ -124,13 +124,17 @@ def db_session(db_path: str | Path | None = None) -> Iterator[DatabaseRepository
 
 def seed_default_instance_if_empty(conn: sqlite3.Connection) -> None:
     """Seed the initial instance from settings when the registry is empty."""
+    from now_workbench.auth.owner import owner_scope
     from now_workbench.config.settings import settings
     from now_workbench.db.models import InstanceCreate
 
     if not settings.sn_instance_url:
         return
     repo = DatabaseRepository(conn)
-    if not repo.list_instances():
+    # Owned by the first administrator, or orphaned until one exists (ADR-018).
+    with owner_scope(repo.first_admin_email()):
+        if repo.list_instances():
+            return
         repo.add_instance(
             InstanceCreate(
                 id="primary-instance",

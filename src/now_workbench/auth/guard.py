@@ -13,6 +13,7 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 
 from now_workbench.auth.access import ACCESS_HEADER, AccessValidator
 from now_workbench.auth.models import LOCAL_EMAIL, AuthUser, Role
+from now_workbench.auth.owner import owner_scope
 
 __all__ = [
     "HEALTH_PATH",
@@ -136,7 +137,8 @@ class AccessMiddleware:
             await self._json(send, 403, {"detail": reason, "code": code})
             return
         scope.setdefault("state", {})["user"] = user
-        await self.app(scope, receive, send)
+        with owner_scope(user.email):
+            await self.app(scope, receive, send)
 
     @staticmethod
     async def _json(send: Send, status: int, payload: dict[str, str]) -> None:

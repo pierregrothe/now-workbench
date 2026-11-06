@@ -75,6 +75,27 @@ class UserRepositoryMixin:
                 ),
             )
 
+    def first_admin_email(self) -> str:
+        """Return the earliest administrator's email, or "" when there is none."""
+        row = self.conn.execute(
+            "SELECT email FROM users WHERE is_admin = 1 ORDER BY created_at, email LIMIT 1;"
+        ).fetchone()
+        return str(row["email"]) if row else ""
+
+    def claim_orphans(self, email: str) -> None:
+        """Give rows created before any administrator existed (owner "") to ``email``."""
+        with self.conn:
+            for table in ("instances", "chat_threads", "seed_operations", "artifacts"):
+                self.conn.execute(
+                    f"UPDATE {table} SET owner_email = ? WHERE owner_email = '';", (email,)
+                )
+            self.conn.execute(
+                "UPDATE user_preferences SET email = ? WHERE email = '' "
+                "AND NOT EXISTS (SELECT 1 FROM user_preferences WHERE email = ?);",
+                (email, email),
+            )
+            self.conn.execute("DELETE FROM user_preferences WHERE email = '';")
+
     def delete_user(self, email: str) -> bool:
         """Remove a member; return False when there was none."""
         with self.conn:

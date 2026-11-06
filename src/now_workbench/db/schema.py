@@ -190,7 +190,120 @@ _V7 = """
 UPDATE workbench_preferences SET payload = json_remove(payload, '$.theme_mode');
 """
 
-MIGRATIONS: tuple[str, ...] = (_V1, _V2, _V3, _V4, _V5, _V6, _V7)
+# v8 (ADR-018): everything is owned by one person; groups; versioned artifacts and approved
+# shares. Existing rows go to the earliest administrator ('' when there is none yet; the
+# first administrator claims them at setup). ``instances`` is rebuilt so names are unique per
+# owner and each owner has one default (migrations run with foreign keys off, then checked).
+_FIRST_ADMIN = (
+    "COALESCE((SELECT email FROM users WHERE is_admin = 1 ORDER BY created_at, email LIMIT 1), '')"
+)
+_V8 = f"""
+CREATE TABLE instances_v8 (
+    id                  TEXT PRIMARY KEY,
+    owner_email         TEXT NOT NULL DEFAULT '',
+    name                TEXT NOT NULL COLLATE NOCASE,
+    url                 TEXT NOT NULL,
+    auth_type           TEXT NOT NULL DEFAULT 'basic'
+                        CHECK (auth_type IN ('basic', 'oauth', 'token')),
+    credentials_sealed  BLOB NOT NULL,
+    purpose             TEXT NOT NULL DEFAULT 'demo'
+                        CHECK (purpose IN ('demo', 'development', 'test', 'production')),
+    is_default          INTEGER NOT NULL DEFAULT 0 CHECK (is_default IN (0, 1)),
+    status              TEXT NOT NULL DEFAULT 'unknown',
+    last_checked        TEXT,
+    created_at          TEXT NOT NULL DEFAULT {_NOW},
+    updated_at          TEXT NOT NULL DEFAULT {_NOW},
+    UNIQUE (owner_email, name)
+) STRICT;
+
+INSERT INTO instances_v8 (id, owner_email, name, url, auth_type, credentials_sealed, purpose,
+                          is_default, status, last_checked, created_at, updated_at)
+SELECT id, {_FIRST_ADMIN}, name, url, auth_type, credentials_sealed, purpose,
+       is_default, status, last_checked, created_at, updated_at
+FROM instances;
+
+DROP TABLE instances;
+ALTER TABLE instances_v8 RENAME TO instances;
+CREATE UNIQUE INDEX ux_instances_single_default ON instances (owner_email) WHERE is_default = 1;
+
+ALTER TABLE chat_threads ADD COLUMN owner_email TEXT NOT NULL DEFAULT '';
+UPDATE chat_threads SET owner_email = {_FIRST_ADMIN};
+CREATE INDEX ix_chat_threads_owner ON chat_threads (owner_email, archived, updated_at DESC);
+
+ALTER TABLE seed_operations ADD COLUMN owner_email TEXT NOT NULL DEFAULT '';
+UPDATE seed_operations SET owner_email = {_FIRST_ADMIN};
+CREATE INDEX ix_seed_operations_owner ON seed_operations (owner_email, created_at DESC);
+
+CREATE TABLE user_preferences (
+    email       TEXT PRIMARY KEY,
+    payload     TEXT NOT NULL CHECK (json_valid(payload)),
+    updated_at  TEXT NOT NULL DEFAULT {_NOW}
+) STRICT, WITHOUT ROWID;
+
+INSERT INTO user_preferences (email, payload, updated_at)
+SELECT {_FIRST_ADMIN}, payload, updated_at FROM workbench_preferences;
+DROP TABLE workbench_preferences;
+
+CREATE TABLE groups (
+    id           TEXT PRIMARY KEY,
+    name         TEXT NOT NULL COLLATE NOCASE UNIQUE,
+    kind         TEXT NOT NULL CHECK (kind IN ('region', 'territory', 'business_unit')),
+    description  TEXT NOT NULL DEFAULT '',
+    created_by   TEXT NOT NULL,
+    created_at   TEXT NOT NULL DEFAULT {_NOW}
+) STRICT;
+
+CREATE TABLE group_members (
+    group_id      TEXT NOT NULL REFERENCES groups (id) ON DELETE CASCADE,
+    email         TEXT NOT NULL,
+    role          TEXT NOT NULL DEFAULT 'member' CHECK (role IN ('member', 'admin')),
+    status        TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'active')),
+    requested_at  TEXT NOT NULL DEFAULT {_NOW},
+    decided_by    TEXT,
+    decided_at    TEXT,
+    PRIMARY KEY (group_id, email)
+) STRICT, WITHOUT ROWID;
+
+CREATE INDEX ix_group_members_email ON group_members (email, status);
+
+CREATE TABLE artifacts (
+    id           TEXT PRIMARY KEY,
+    owner_email  TEXT NOT NULL,
+    created_at   TEXT NOT NULL DEFAULT {_NOW}
+) STRICT;
+
+CREATE TABLE artifact_versions (
+    artifact_id  TEXT NOT NULL REFERENCES artifacts (id) ON DELETE CASCADE,
+    version      INTEGER NOT NULL CHECK (version >= 1),
+    name         TEXT NOT NULL,
+    description  TEXT NOT NULL DEFAULT '',
+    note         TEXT NOT NULL DEFAULT '',
+    size_bytes   INTEGER NOT NULL DEFAULT 0,
+    created_by   TEXT NOT NULL,
+    created_at   TEXT NOT NULL DEFAULT {_NOW},
+    PRIMARY KEY (artifact_id, version)
+) STRICT, WITHOUT ROWID;
+
+CREATE TABLE artifact_shares (
+    id            TEXT PRIMARY KEY,
+    artifact_id   TEXT NOT NULL REFERENCES artifacts (id) ON DELETE CASCADE,
+    version       INTEGER NOT NULL,
+    target        TEXT NOT NULL CHECK (target IN ('group', 'global')),
+    group_id      TEXT REFERENCES groups (id) ON DELETE CASCADE,
+    status        TEXT NOT NULL DEFAULT 'pending'
+                  CHECK (status IN ('pending', 'approved', 'rejected', 'superseded')),
+    requested_by  TEXT NOT NULL,
+    requested_at  TEXT NOT NULL DEFAULT {_NOW},
+    decided_by    TEXT,
+    decided_at    TEXT,
+    CHECK ((target = 'group') = (group_id IS NOT NULL)),
+    FOREIGN KEY (artifact_id, version) REFERENCES artifact_versions (artifact_id, version)
+) STRICT;
+
+CREATE INDEX ix_artifact_shares_status ON artifact_shares (status, target, group_id);
+"""
+
+MIGRATIONS: tuple[str, ...] = (_V1, _V2, _V3, _V4, _V5, _V6, _V7, _V8)
 SCHEMA_VERSION = len(MIGRATIONS)
 
 
@@ -210,12 +323,25 @@ def apply_migrations(conn: sqlite3.Connection) -> int:
     if current > SCHEMA_VERSION:
         msg = f"Database schema v{current} is newer than this build (v{SCHEMA_VERSION})."
         raise RuntimeError(msg)
-    for version in range(current, SCHEMA_VERSION):
-        script = f"{MIGRATIONS[version]}\nPRAGMA user_version = {version + 1};"
-        try:
-            conn.executescript(f"BEGIN IMMEDIATE;\n{script}\nCOMMIT;")
-        except sqlite3.Error:
-            if conn.in_transaction:
-                conn.execute("ROLLBACK;")
-            raise
+    if current == SCHEMA_VERSION:
+        return SCHEMA_VERSION
+    # Table rebuilds (v8) need foreign keys off; the pragma is a no-op inside a transaction.
+    fk_on = bool(conn.execute("PRAGMA foreign_keys;").fetchone()[0])
+    conn.execute("PRAGMA foreign_keys = OFF;")
+    try:
+        for version in range(current, SCHEMA_VERSION):
+            script = f"{MIGRATIONS[version]}\nPRAGMA user_version = {version + 1};"
+            try:
+                conn.executescript(f"BEGIN IMMEDIATE;\n{script}\nCOMMIT;")
+            except sqlite3.Error:
+                if conn.in_transaction:
+                    conn.execute("ROLLBACK;")
+                raise
+        broken = conn.execute("PRAGMA foreign_key_check;").fetchall()
+        if broken:
+            msg = f"Migration left {len(broken)} broken foreign key reference(s)."
+            raise RuntimeError(msg)
+    finally:
+        if fk_on:
+            conn.execute("PRAGMA foreign_keys = ON;")
     return SCHEMA_VERSION

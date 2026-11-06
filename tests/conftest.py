@@ -1,14 +1,26 @@
 """Global pytest fixtures ensuring complete database isolation from live data/workbench.db."""
 
+from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
 
+from now_workbench.auth.models import LOCAL_EMAIL
+from now_workbench.auth.owner import owner_scope
 from now_workbench.db import InstanceCreate, TemplateRecord, db_session
 
 
 @pytest.fixture(autouse=True)
-def isolate_workbench_db(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+def act_as_local_owner() -> Iterator[str]:
+    """Run each test as the local operator, the owner local-mode requests get (ADR-018)."""
+    with owner_scope(LOCAL_EMAIL) as owner:
+        yield owner
+
+
+@pytest.fixture(autouse=True)
+def isolate_workbench_db(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, act_as_local_owner: str
+) -> Path:
     """Redirect WORKBENCH_DATA_DIR to an isolated temporary directory for every test."""
     data_dir = tmp_path / "workbench_data"
     data_dir.mkdir(parents=True, exist_ok=True)

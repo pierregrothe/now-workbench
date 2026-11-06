@@ -189,9 +189,9 @@ def test_delete_thread_cascades_messages() -> None:
 
 
 def test_add_message_unknown_thread_rejected() -> None:
-    """Foreign keys are enforced: a message cannot reference a missing thread."""
+    """A message cannot reference a missing (or someone else's) thread."""
     repo = _memory_repo()
-    with pytest.raises(sqlite3.IntegrityError):
+    with pytest.raises(LookupError):
         repo.add_message(ChatMessageRecord(id="m-x", thread_id="nope", role="user", content="x"))
     repo.close()
 
@@ -339,7 +339,7 @@ def test_apply_migrations_v3_to_v4_strips_default_release_preference() -> None:
     )
     conn.commit()
     assert apply_migrations(conn) == SCHEMA_VERSION
-    payload = conn.execute("SELECT payload FROM workbench_preferences;").fetchone()["payload"]
+    payload = conn.execute("SELECT payload FROM user_preferences;").fetchone()["payload"]
     assert "default_sn_release" not in payload
     assert "executive" in payload
     conn.close()
@@ -359,7 +359,7 @@ def test_apply_migrations_v6_to_v7_strips_theme_preference() -> None:
     )
     conn.commit()
     assert apply_migrations(conn) == SCHEMA_VERSION
-    payload = conn.execute("SELECT payload FROM workbench_preferences;").fetchone()["payload"]
+    payload = conn.execute("SELECT payload FROM user_preferences;").fetchone()["payload"]
     assert "theme_mode" not in payload
     assert "executive" in payload
     conn.close()

@@ -2,6 +2,7 @@
 
 from pathlib import Path
 
+from now_workbench.auth.owner import owner_scope
 from now_workbench.db import (
     ChatMessageRecord,
     ChatThreadCreate,
@@ -149,14 +150,16 @@ def test_seed_default_instance_if_empty() -> None:
         conn = init_db(":memory:")
         seed_default_instance_if_empty(conn)
         repo = DatabaseRepository(conn)
-        instances = repo.list_instances()
-        assert len(instances) == 1
-        assert instances[0].id == "primary-instance"
-        assert instances[0].url == "https://default-test.service-now.com"
+        # No administrator yet: the instance waits, orphaned, for the first one (ADR-018).
+        with owner_scope(""):
+            instances = repo.list_instances()
+            assert len(instances) == 1
+            assert instances[0].id == "primary-instance"
+            assert instances[0].url == "https://default-test.service-now.com"
 
-        # Calling again when non-empty does not re-add
-        seed_default_instance_if_empty(conn)
-        assert len(repo.list_instances()) == 1
+            # Calling again when non-empty does not re-add
+            seed_default_instance_if_empty(conn)
+            assert len(repo.list_instances()) == 1
         conn.close()
     finally:
         settings.sn_instance_url = old_url

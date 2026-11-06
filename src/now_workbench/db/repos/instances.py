@@ -5,6 +5,7 @@ import sqlite3
 import uuid
 from datetime import UTC, datetime
 
+from now_workbench.auth.owner import current_owner
 from now_workbench.config.crypto import seal_secret, unseal_secret
 from now_workbench.db.models import (
     UNKNOWN_RELEASE,
@@ -100,24 +101,32 @@ class InstanceRepositoryMixin:
     conn: sqlite3.Connection
 
     def list_instances(self) -> list[InstanceRecord]:
-        """Return all registered ServiceNow instances, default first."""
-        cursor = self.conn.execute(f"{_SELECT_INSTANCE} ORDER BY i.is_default DESC, i.name ASC;")
+        """Return the current owner's ServiceNow instances, default first."""
+        cursor = self.conn.execute(
+            f"{_SELECT_INSTANCE} WHERE i.owner_email = ? ORDER BY i.is_default DESC, i.name ASC;",
+            (current_owner(),),
+        )
         return [row_to_instance(row) for row in cursor.fetchall()]
 
     def get_instance(self, instance_id: str) -> InstanceRecord | None:
-        """Fetch an instance by identifier or case-insensitive unique name."""
+        """Fetch one of the owner's instances by identifier or case-insensitive name."""
         row = self.conn.execute(
-            f"{_SELECT_INSTANCE} WHERE i.id = ? OR i.name = ? LIMIT 1;",
-            (instance_id, instance_id),
+            f"{_SELECT_INSTANCE} WHERE i.owner_email = ? AND (i.id = ? OR i.name = ?) LIMIT 1;",
+            (current_owner(), instance_id, instance_id),
         ).fetchone()
         return row_to_instance(row) if row else None
 
     def get_default_instance(self) -> InstanceRecord | None:
-        """Fetch the default instance, promoting the first one by name if none is set."""
-        row = self.conn.execute(f"{_SELECT_INSTANCE} WHERE i.is_default = 1;").fetchone()
+        """Fetch the owner's default instance, promoting their first one by name if unset."""
+        owner = current_owner()
+        row = self.conn.execute(
+            f"{_SELECT_INSTANCE} WHERE i.owner_email = ? AND i.is_default = 1;", (owner,)
+        ).fetchone()
         if row:
             return row_to_instance(row)
-        first = self.conn.execute("SELECT id FROM instances ORDER BY name ASC LIMIT 1;").fetchone()
+        first = self.conn.execute(
+            "SELECT id FROM instances WHERE owner_email = ? ORDER BY name ASC LIMIT 1;", (owner,)
+        ).fetchone()
         if not first:
             return None
         with self.conn:
@@ -130,17 +139,28 @@ class InstanceRepositoryMixin:
         Raises:
             ValueError: Another instance already uses this name.
         """
+        owner = current_owner()
         inst_id = inst.id or f"inst-{uuid.uuid4().hex[:8]}"
+        taken = self.conn.execute(
+            "SELECT owner_email FROM instances WHERE id = ?;", (inst_id,)
+        ).fetchone()
+        if taken is not None and taken["owner_email"] != owner:
+            # Ids are one namespace; someone else's id is never overwritten or revealed.
+            inst_id = f"inst-{uuid.uuid4().hex[:8]}"
         sealed = _seal_credentials(inst_id, inst.username, inst.password)
         try:
             with self.conn:
                 if inst.is_default:
-                    self.conn.execute("UPDATE instances SET is_default = 0 WHERE is_default = 1;")
+                    self.conn.execute(
+                        "UPDATE instances SET is_default = 0 "
+                        "WHERE owner_email = ? AND is_default = 1;",
+                        (owner,),
+                    )
                 self.conn.execute(
                     """
-                    INSERT INTO instances (id, name, url, auth_type, credentials_sealed,
-                                           purpose, is_default)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    INSERT INTO instances (id, owner_email, name, url, auth_type,
+                                           credentials_sealed, purpose, is_default)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                     ON CONFLICT(id) DO UPDATE SET
                         name = excluded.name,
                         url = excluded.url,
@@ -152,6 +172,7 @@ class InstanceRepositoryMixin:
                     """,
                     (
                         inst_id,
+                        owner,
                         inst.name,
                         inst.url,
                         inst.auth_type,
@@ -167,13 +188,17 @@ class InstanceRepositoryMixin:
         return ret
 
     def set_default_instance(self, instance_id: str) -> bool:
-        """Mark a specific instance as the active default."""
+        """Mark one of the owner's instances as their active default."""
+        owner = current_owner()
         with self.conn:
             if not self.conn.execute(
-                "SELECT 1 FROM instances WHERE id = ?;", (instance_id,)
+                "SELECT 1 FROM instances WHERE id = ? AND owner_email = ?;", (instance_id, owner)
             ).fetchone():
                 return False
-            self.conn.execute("UPDATE instances SET is_default = 0 WHERE is_default = 1;")
+            self.conn.execute(
+                "UPDATE instances SET is_default = 0 WHERE owner_email = ? AND is_default = 1;",
+                (owner,),
+            )
             self.conn.execute("UPDATE instances SET is_default = 1 WHERE id = ?;", (instance_id,))
             return True
 
@@ -269,8 +294,9 @@ class InstanceRepositoryMixin:
             with self.conn:
                 if is_default:
                     self.conn.execute(
-                        "UPDATE instances SET is_default = 0 WHERE is_default = 1 AND id != ?;",
-                        (existing.id,),
+                        "UPDATE instances SET is_default = 0 "
+                        "WHERE owner_email = ? AND is_default = 1 AND id != ?;",
+                        (current_owner(), existing.id),
                     )
                 self.conn.execute(
                     """
@@ -307,14 +333,18 @@ class InstanceRepositoryMixin:
         existing = self.get_instance(instance_id)
         if not existing:
             return False
+        owner = current_owner()
         with self.conn:
             self.conn.execute("DELETE FROM instances WHERE id = ?;", (existing.id,))
             self.conn.execute(
                 """
                 UPDATE instances SET is_default = 1
-                WHERE NOT EXISTS (SELECT 1 FROM instances WHERE is_default = 1)
-                  AND id = (SELECT id FROM instances ORDER BY name ASC LIMIT 1);
-                """
+                WHERE NOT EXISTS (
+                        SELECT 1 FROM instances WHERE owner_email = ?1 AND is_default = 1)
+                  AND id = (SELECT id FROM instances WHERE owner_email = ?1
+                            ORDER BY name ASC LIMIT 1);
+                """,
+                (owner,),
             )
         return True
 

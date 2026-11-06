@@ -141,14 +141,16 @@ def test_owner_has_both_roles(signed_in: TestClient) -> None:
     assert body["auth_mode"] == "cloudflare"
 
 
-def test_consultant_cannot_register_or_delete_instances(signed_in: TestClient) -> None:
-    """Instance credentials are admin-only; reading and testing stay open to consultants."""
-    headers = _as(SC)
-    payload = {"name": "X", "url": "fake://x.service-now.com", "username": "u", "password": "p"}
-    assert signed_in.get("/api/instances", headers=headers).status_code == 200
-    assert signed_in.post("/api/instances", json=payload, headers=headers).status_code == 403
-    assert signed_in.delete("/api/instances/anything", headers=headers).status_code == 403
-    assert signed_in.post("/api/instances/cleanup", headers=headers).status_code == 403
+def test_register_instance_is_private_to_its_owner(signed_in: TestClient) -> None:
+    """A consultant registers their own instance; the admin neither sees nor deletes it."""
+    payload = {"name": "Mine", "url": "fake://x.service-now.com", "username": "u", "password": "p"}
+    created = signed_in.post("/api/instances", json=payload, headers=_as(SC))
+    assert created.status_code == 200
+    inst_id = created.json()["id"]
+    admin_view = signed_in.get("/api/instances", headers=_as(ADMIN)).json()
+    assert inst_id not in {i["id"] for i in admin_view}
+    assert signed_in.delete(f"/api/instances/{inst_id}", headers=_as(ADMIN)).status_code == 404
+    assert signed_in.delete(f"/api/instances/{inst_id}", headers=_as(SC)).status_code == 200
 
 
 def test_admin_can_register_an_instance(signed_in: TestClient) -> None:
@@ -165,7 +167,8 @@ def test_claude_key_changes_need_admin_but_other_settings_do_not(signed_in: Test
     key = signed_in.put("/api/settings", json={"anthropic_api_key": "sk-ant-x"}, headers=headers)
     assert key.status_code == 403
     assert signed_in.delete("/api/settings/api-key", headers=headers).status_code == 403
-    assert signed_in.post("/api/settings/reset", headers=headers).status_code == 403
+    # Settings are per user (ADR-018): resetting your own never touches the shared key.
+    assert signed_in.post("/api/settings/reset", headers=headers).status_code == 200
 
 
 def test_identity_cannot_be_forged_through_the_body(signed_in: TestClient) -> None:

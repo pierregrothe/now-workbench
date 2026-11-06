@@ -10,6 +10,7 @@ from rich.panel import Panel
 from rich.table import Table
 
 from now_workbench import __version__
+from now_workbench.auth.owner import operator_owner, owner_scope
 from now_workbench.bundles.manager import BundleManager
 from now_workbench.bundles.pipeline_cli import (
     delete_capture_cmd,
@@ -69,6 +70,14 @@ app.add_typer(template_app)
 app.add_typer(config_app)
 
 console = Console()
+
+
+@app.callback()
+def _act_as_operator(ctx: typer.Context) -> None:
+    """Run every command as the first administrator, or the local operator (ADR-018)."""
+    with db_session() as repo:
+        owner = operator_owner(repo, local_mode=not settings.get_access_audience())
+    ctx.with_resource(owner_scope(owner))
 
 
 def _render_doctor_table(probe: dict[str, str | bool]) -> None:

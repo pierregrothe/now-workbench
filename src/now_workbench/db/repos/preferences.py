@@ -5,6 +5,7 @@ import sqlite3
 from datetime import UTC, datetime
 from typing import Any
 
+from now_workbench.auth.owner import current_owner
 from now_workbench.config.crypto import mask_api_key, seal_secret, unseal_secret
 from now_workbench.db.models import (
     WorkbenchPreferences,
@@ -23,7 +24,7 @@ def _secret_context(name: str) -> str:
 
 
 class PreferencesRepositoryMixin:
-    """Mixin providing the preferences singleton and named sealed secrets."""
+    """Mixin providing per-user preferences and shared named sealed secrets."""
 
     conn: sqlite3.Connection
 
@@ -48,9 +49,9 @@ class PreferencesRepositoryMixin:
             )
 
     def _load_preferences_payload(self) -> dict[str, Any]:
-        """Load the non-secret preferences payload, initializing defaults on first use."""
+        """Load the owner's preferences payload, initializing defaults on first use."""
         row = self.conn.execute(
-            "SELECT payload FROM workbench_preferences WHERE id = 1;"
+            "SELECT payload FROM user_preferences WHERE email = ?;", (current_owner(),)
         ).fetchone()
         if row:
             return dict(json.loads(row["payload"]))
@@ -67,15 +68,15 @@ class PreferencesRepositoryMixin:
         return payload
 
     def _write_preferences_payload(self, payload: dict[str, Any]) -> None:
-        """Persist the preferences singleton row."""
+        """Persist the owner's preferences row."""
         with self.conn:
             self.conn.execute(
                 """
-                INSERT INTO workbench_preferences (id, payload, updated_at) VALUES (1, ?, ?)
-                ON CONFLICT(id) DO UPDATE SET
+                INSERT INTO user_preferences (email, payload, updated_at) VALUES (?, ?, ?)
+                ON CONFLICT(email) DO UPDATE SET
                     payload = excluded.payload, updated_at = excluded.updated_at;
                 """,
-                (json.dumps(payload), payload["updated_at"]),
+                (current_owner(), json.dumps(payload), payload["updated_at"]),
             )
 
     def get_decrypted_anthropic_api_key(self) -> str:
@@ -128,8 +129,7 @@ class PreferencesRepositoryMixin:
         return self.get_workbench_preferences()
 
     def reset_workbench_preferences(self) -> WorkbenchPreferences:
-        """Reset preferences and the stored API key to factory (environment) defaults."""
+        """Reset the owner's preferences to defaults; the shared Claude key is untouched."""
         with self.conn:
-            self.conn.execute("DELETE FROM workbench_preferences WHERE id = 1;")
-            self.conn.execute("DELETE FROM secrets WHERE name = ?;", (ANTHROPIC_KEY_SECRET,))
+            self.conn.execute("DELETE FROM user_preferences WHERE email = ?;", (current_owner(),))
         return self.get_workbench_preferences()

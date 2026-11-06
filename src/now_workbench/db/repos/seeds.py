@@ -3,6 +3,7 @@
 import json
 import sqlite3
 
+from now_workbench.auth.owner import current_owner
 from now_workbench.db.models import (
     SeedOperationRecord,
     SeedRecordItem,
@@ -20,11 +21,19 @@ class SeedRepositoryMixin:
         with self.conn:
             self.conn.execute(
                 """
-                INSERT INTO seed_operations (id, bundle_id, instance_id, status,
+                INSERT INTO seed_operations (id, owner_email, bundle_id, instance_id, status,
                                             created_records, created_at)
-                VALUES (?, ?, ?, ?, ?, ?);
+                VALUES (?, ?, ?, ?, ?, ?, ?);
                 """,
-                (op.id, op.bundle_id, op.instance_id, op.status, records_json, op.created_at),
+                (
+                    op.id,
+                    current_owner(),
+                    op.bundle_id,
+                    op.instance_id,
+                    op.status,
+                    records_json,
+                    op.created_at,
+                ),
             )
         return op
 
@@ -33,9 +42,9 @@ class SeedRepositoryMixin:
         cursor = self.conn.execute(
             """
             SELECT id, bundle_id, instance_id, status, created_records, created_at
-            FROM seed_operations WHERE id = ?;
+            FROM seed_operations WHERE id = ? AND owner_email = ?;
             """,
-            (op_id,),
+            (op_id, current_owner()),
         )
         row = cursor.fetchone()
         if not row:
@@ -55,9 +64,9 @@ class SeedRepositoryMixin:
         cursor = self.conn.execute(
             """
             SELECT id, bundle_id, instance_id, status, created_records, created_at
-            FROM seed_operations ORDER BY created_at DESC LIMIT ?;
+            FROM seed_operations WHERE owner_email = ? ORDER BY created_at DESC LIMIT ?;
             """,
-            (limit,),
+            (current_owner(), limit),
         )
         ops: list[SeedOperationRecord] = []
         for row in cursor.fetchall():
@@ -78,5 +87,6 @@ class SeedRepositoryMixin:
         """Update status of a seed operation (e.g. rolled_back)."""
         with self.conn:
             self.conn.execute(
-                "UPDATE seed_operations SET status = ? WHERE id = ?;", (status, op_id)
+                "UPDATE seed_operations SET status = ? WHERE id = ? AND owner_email = ?;",
+                (status, op_id, current_owner()),
             )

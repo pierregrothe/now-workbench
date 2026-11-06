@@ -475,7 +475,7 @@ def _run_workbench_settings_assertions() -> None:
     # Verify the raw SQLite payload is encrypted at rest and never contains the raw secret
     with db_session() as repo:
         payload = repo.conn.execute(
-            "SELECT payload FROM workbench_preferences WHERE id = 1;"
+            "SELECT payload FROM user_preferences WHERE email = 'local@localhost';"
         ).fetchone()["payload"]
         sealed = repo.conn.execute(
             "SELECT sealed FROM secrets WHERE name = 'anthropic_api_key';"
@@ -493,6 +493,9 @@ def _run_workbench_settings_assertions() -> None:
     reset_res = client.post("/api/settings/reset")
     assert reset_res.status_code == 200
     assert reset_res.json()["capture_viewport_width"] == 1440
+    # Settings are per user; the shared Claude key survives a reset (ADR-018).
+    assert reset_res.json()["has_anthropic_api_key"] is True
+    assert client.delete("/api/settings/api-key").status_code == 200
 
     # 4. CLI: `workbench config show`, `workbench config set`, `workbench config reset`
     runner = CliRunner()

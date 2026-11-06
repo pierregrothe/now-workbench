@@ -73,4 +73,5 @@ def complete_setup(
         except SetupError as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
         repo.put_user(user.email, frozenset(Role), added_by="first-run setup")
+        repo.claim_orphans(user.email)
     return SetupStatus(setup_required=False, email=user.email, has_role=True, auth_mode=user.mode)

@@ -28,6 +28,7 @@ from now_workbench.api.threads import router as threads_router
 from now_workbench.auth.access import AccessValidator
 from now_workbench.auth.guard import AccessMiddleware, assert_safe_binding
 from now_workbench.auth.models import Role
+from now_workbench.auth.owner import operator_owner, owner_scope
 from now_workbench.auth.setup import SetupCodes
 from now_workbench.capture.engine import PlaywrightCaptureEngine
 from now_workbench.config.origins import is_origin_allowed
@@ -140,9 +141,11 @@ def _setup_pending() -> bool:
 async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Check the binding, then seed the database (never at import)."""
     assert_safe_binding(settings.get_host(), app.state.access_validator)
+    configured = app.state.access_validator.configured
     with db_session() as repo:
-        seed_database(repo)
-        needs_setup = app.state.access_validator.configured and repo.count_admins() == 0
+        with owner_scope(operator_owner(repo, local_mode=not configured)):
+            seed_database(repo)
+        needs_setup = configured and repo.count_admins() == 0
     if needs_setup:
         app.state.setup_codes.issue()
     yield

@@ -86,8 +86,8 @@ async def validate_key_endpoint(req: ValidateKeyRequest) -> ValidateKeyResponse:
     return ValidateKeyResponse(valid=valid, message=message)
 
 
-@router.post("/reset", response_model=WorkbenchPreferences, dependencies=_ADMIN_ONLY)
+@router.post("/reset", response_model=WorkbenchPreferences)
 def reset_workbench_settings() -> WorkbenchPreferences:
-    """Reset Now Workbench settings back to defaults."""
+    """Reset the signed-in person's settings to defaults (the shared Claude key stays)."""
     with db_session() as repo:
         return repo.reset_workbench_preferences()
