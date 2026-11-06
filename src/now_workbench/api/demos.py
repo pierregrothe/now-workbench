@@ -15,6 +15,7 @@ from now_workbench.bundles.pipeline import (
 )
 from now_workbench.capture.engine import PlaywrightCaptureEngine
 from now_workbench.capture.models import CaptureArtifact, CaptureRequest
+from now_workbench.config.paths import UnsafePathError, safe_child
 from now_workbench.config.settings import settings
 from now_workbench.db.models import SeedOperationRecord
 from now_workbench.db.session import db_session
@@ -97,7 +98,10 @@ def get_demo_detail(bundle_id: str) -> DemoBundleInfo:
     """Inspect metadata for a demonstration package."""
     bundles_dir = settings.get_bundles_dir()
     mgr = BundleManager(storage_dir=bundles_dir)
-    target = bundles_dir / bundle_id
+    try:
+        target = safe_child(bundles_dir, bundle_id)
+    except UnsafePathError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     if not target.exists():
         raise HTTPException(status_code=404, detail="Demo bundle not found.")
     return mgr.inspect_bundle(target)
@@ -175,7 +179,7 @@ async def seed_demo_records(
     payload: dict[str, Any] | None = None,
 ) -> SeedOperationRecord:
     """Transactionally load and seed records into ServiceNow Table API."""
-    bundle_path = settings.get_bundles_dir() / bundle_id
+    bundle_path = safe_child(settings.get_bundles_dir(), bundle_id)
     if not bundle_path.exists():
         raise HTTPException(status_code=404, detail="Demo bundle not found.")
 
@@ -222,7 +226,7 @@ def list_seed_history(limit: int = 50) -> list[SeedOperationRecord]:
 def get_demo_runbook(bundle_id: str) -> RunbookGuide:
     """Retrieve structured walkthrough guide and persona stages for a demonstration."""
     engine = RunbookEngine()
-    target = settings.get_bundles_dir() / bundle_id
+    target = safe_child(settings.get_bundles_dir(), bundle_id)
     if not target.exists():
         raise HTTPException(status_code=404, detail="Demo bundle not found.")
     runbook = engine.load_runbook(target, bundle_id=bundle_id)
@@ -238,7 +242,7 @@ async def verify_demo_stage(
 ) -> dict[str, Any]:
     """Verify live ServiceNow instance state for a demonstration stage."""
     engine = RunbookEngine()
-    target = settings.get_bundles_dir() / bundle_id
+    target = safe_child(settings.get_bundles_dir(), bundle_id)
     if not target.exists():
         raise HTTPException(status_code=404, detail="Demo bundle not found.")
     runbook = engine.load_runbook(target, bundle_id=bundle_id)
@@ -271,7 +275,7 @@ async def verify_demo_stage(
 @router.get("/{bundle_id}/properties")
 def get_bundle_properties(bundle_id: str, instance_id: str | None = None) -> dict[str, Any]:
     """Retrieve configured properties and active snapshot status for a demo."""
-    target = settings.get_bundles_dir() / bundle_id
+    target = safe_child(settings.get_bundles_dir(), bundle_id)
     if not target.exists():
         raise HTTPException(status_code=404, detail="Demo bundle not found.")
     prop_engine = PropertyEngine()
@@ -296,7 +300,7 @@ async def apply_bundle_properties(
     req: PropertyActionRequest,
 ) -> dict[str, Any]:
     """Apply bundle properties to target instance and record snapshot."""
-    target = settings.get_bundles_dir() / bundle_id
+    target = safe_child(settings.get_bundles_dir(), bundle_id)
     if not target.exists():
         raise HTTPException(status_code=404, detail="Demo bundle not found.")
 
@@ -323,7 +327,7 @@ async def restore_bundle_properties(
     req: PropertyActionRequest,
 ) -> dict[str, Any]:
     """Restore previous property states from snapshot for target instance."""
-    target = settings.get_bundles_dir() / bundle_id
+    target = safe_child(settings.get_bundles_dir(), bundle_id)
     if not target.exists():
         raise HTTPException(status_code=404, detail="Demo bundle not found.")
 
@@ -349,7 +353,7 @@ async def reset_demo(
     req: PropertyActionRequest,
 ) -> dict[str, Any]:
     """Unified teardown: roll back seed data records and restore system properties."""
-    target = settings.get_bundles_dir() / bundle_id
+    target = safe_child(settings.get_bundles_dir(), bundle_id)
     if not target.exists():
         raise HTTPException(status_code=404, detail="Demo bundle not found.")
 
@@ -365,7 +369,9 @@ async def reset_demo(
         active_ops = [
             op
             for op in repo.list_seed_operations(limit=100)
-            if op.bundle_id == bundle_id and op.status == "completed" and op.instance_id == inst.id
+            if op.bundle_id == bundle_id
+            and op.status != "rolled_back"
+            and op.instance_id == inst.id
         ]
         seed_rolled_back = 0
         seed_errors: list[str] = []
@@ -396,7 +402,7 @@ async def reset_demo(
 @router.get("/{bundle_id}/fluent")
 def get_demo_fluent_schema(bundle_id: str) -> dict[str, Any]:
     """Retrieve parsed ServiceNow Fluent SDK table schemas for a demo bundle."""
-    target = settings.get_bundles_dir() / bundle_id
+    target = safe_child(settings.get_bundles_dir(), bundle_id)
     if not target.exists():
         raise HTTPException(status_code=404, detail="Demo bundle not found.")
 
@@ -415,11 +421,11 @@ def diff_demo_fluent_schema(
 ) -> dict[str, Any]:
     """Compute structural Fluent schema diff between source bundle and target bundle."""
     bundles_dir = settings.get_bundles_dir()
-    source_target = bundles_dir / bundle_id
+    source_target = safe_child(bundles_dir, bundle_id)
     if not source_target.exists():
         raise HTTPException(status_code=404, detail=f"Source bundle '{bundle_id}' not found.")
 
-    compare_target = bundles_dir / req.target_bundle_id
+    compare_target = safe_child(bundles_dir, req.target_bundle_id)
     if not compare_target.exists():
         raise HTTPException(
             status_code=404, detail=f"Compare bundle '{req.target_bundle_id}' not found."
@@ -461,9 +467,13 @@ async def create_demo_capture(bundle_id: str, req: CaptureRequest) -> CaptureArt
         inst = (
             repo.get_instance(req.instance_id) if req.instance_id else repo.get_default_instance()
         )
-    inst_url = inst.url if inst else "https://demoalectriallwfau164179.service-now.com"
-    username = inst.username if inst else ""
-    password = inst.password if inst else ""
+    if inst is None:
+        if req.instance_id:
+            raise HTTPException(status_code=404, detail="Instance not found.")
+        raise HTTPException(status_code=409, detail="No target instance registered.")
+    inst_url = inst.url
+    username = inst.username
+    password = inst.password
     engine = PlaywrightCaptureEngine(bundles_dir=settings.get_bundles_dir())
     merged_req = CaptureRequest(
         bundle_id=bundle_id,
@@ -488,7 +498,7 @@ async def create_demo_capture(bundle_id: str, req: CaptureRequest) -> CaptureArt
 @router.get("/{bundle_id}/captures/{filename}")
 def get_demo_capture_file(bundle_id: str, filename: str) -> FileResponse:
     """Serve a captured screenshot (.png) or video (.webm) file inline for browser viewing."""
-    file_path = settings.get_bundles_dir() / bundle_id / "media" / filename
+    file_path = safe_child(safe_child(settings.get_bundles_dir(), bundle_id) / "media", filename)
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="Capture file not found.")
     media_type = "video/webm" if filename.endswith(".webm") else "image/png"

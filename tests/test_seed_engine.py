@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 from now_workbench.db import DatabaseRepository, InstanceCreate, init_db
-from now_workbench.seed.engine import SeedEngine
+from now_workbench.seed.engine import SeedEngine, SeedPayloadError
 
 
 @pytest.mark.asyncio
@@ -141,9 +141,18 @@ async def test_seed_engine_edge_cases_and_http_transport(tmp_path: Path) -> None
         ok = await engine._delete_record(client, inst, "incident", "real_sys_12345")
         assert ok is True
 
-    # 5. Failed HTTP Table API delete (404)
-    def mock_del_fail(request: httpx.Request) -> httpx.Response:
+    # 5. HTTP 404 means the record is already gone: deleting it again is idempotent, so a
+    # retry of a partially failed rollback can complete.
+    def mock_del_gone(request: httpx.Request) -> httpx.Response:
         return httpx.Response(404)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(mock_del_gone)) as client:
+        ok = await engine._delete_record(client, inst, "incident", "real_sys_12345")
+        assert ok is True
+
+    # 5b. A real server error is a failed delete.
+    def mock_del_fail(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(500)
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(mock_del_fail)) as client:
         ok = await engine._delete_record(client, inst, "incident", "real_sys_12345")
@@ -152,11 +161,13 @@ async def test_seed_engine_edge_cases_and_http_transport(tmp_path: Path) -> None
     # 6. Read seed payloads from non-existent directory
     assert engine._read_seed_payloads(tmp_path / "does-not-exist") == []
 
-    # 7. Read corrupted JSON seed file
+    # 7. A corrupted seed file is an error naming the file, never silently skipped
+    # (a skipped file would leave the operation "completed" with missing data).
     corrupt_dir = tmp_path / "corrupt_seed"
     corrupt_dir.mkdir()
     (corrupt_dir / "bad.json").write_text("{not valid json", encoding="utf-8")
-    assert engine._read_seed_payloads(corrupt_dir) == []
+    with pytest.raises(SeedPayloadError, match="bad.json"):
+        engine._read_seed_payloads(corrupt_dir)
 
     # 8. Load and seed empty directory raises ValueError
     empty_bundle = tmp_path / "empty-bundle"
@@ -186,11 +197,11 @@ async def test_seed_engine_edge_cases_and_http_transport(tmp_path: Path) -> None
     )
     repo.record_seed_operation(fail_op)
 
-    # In-memory transport returning HTTP 404 for delete
+    # In-memory transport returning HTTP 500 for delete (a 404 would mean "already gone")
     import httpx
 
     def mock_delete_handler(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(404, json={"error": {"message": "Not found"}})
+        return httpx.Response(500, json={"error": {"message": "Server error"}})
 
     mock_transport = httpx.MockTransport(mock_delete_handler)
     engine_404 = SeedEngine(repository=repo, fake_mode=False, transport=mock_transport)

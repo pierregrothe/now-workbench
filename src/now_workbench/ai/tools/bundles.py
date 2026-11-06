@@ -18,6 +18,7 @@ from now_workbench.bundles.manager import BundleManager
 from now_workbench.bundles.pipeline import DemoPipelineEngine
 from now_workbench.capture.engine import PlaywrightCaptureEngine
 from now_workbench.capture.models import CaptureRequest
+from now_workbench.config.paths import safe_child
 from now_workbench.config.settings import settings
 from now_workbench.db import TemplateInstantiationRequest
 from now_workbench.fluent.engine import FluentEngine
@@ -31,7 +32,7 @@ _BUNDLE = {"type": "string", "description": "Demo bundle id (slug)"}
 
 def bundle_path(bundle_id: str) -> Path:
     """Resolve an installed bundle directory or raise ValueError."""
-    target = settings.get_bundles_dir() / str(bundle_id)
+    target = safe_child(settings.get_bundles_dir(), str(bundle_id))
     if not target.exists():
         raise ValueError(f"Demo bundle '{bundle_id}' was not found.")
     return target

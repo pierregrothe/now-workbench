@@ -27,6 +27,7 @@ export class NowFluentExplorer extends LitElement {
   @state() private error = ''
   @state() private showDiff = false
   @state() private diffResult: any = null
+  @state() private diffError = ''
   @state() private copySuccess = false
 
   static styles = css`
@@ -356,35 +357,12 @@ export class NowFluentExplorer extends LitElement {
         const data = await resp.json()
         this.tables = data.tables || []
       } else {
-        this.error = 'No Fluent schema found for this bundle.'
+        this.tables = []
+        this.error = `Could not load schemas: HTTP ${resp.status}`
       }
-    } catch {
-      this.tables = [
-        {
-          name: 'x_snc_ai_triage_case',
-          label: 'AI Triage Case',
-          columns: [
-            {
-              name: 'short_description',
-              label: 'Short Description',
-              column_type: 'StringColumn',
-              reference: null,
-              mandatory: true,
-              max_length: 160,
-            },
-            {
-              name: 'assigned_to',
-              label: 'Assigned To',
-              column_type: 'ReferenceColumn',
-              reference: 'sys_user',
-              mandatory: false,
-              max_length: null,
-            },
-          ],
-          raw_source:
-            "export const x_snc_ai_triage_case = Table({\n  name: 'x_snc_ai_triage_case',\n  label: 'AI Triage Case',\n  schema: {\n    short_description: StringColumn({ label: 'Short Description', mandatory: true, maxLength: 160 }),\n    assigned_to: ReferenceColumn({ label: 'Assigned To', referenceTable: 'sys_user' }),\n  },\n});",
-        },
-      ]
+    } catch (err) {
+      this.tables = []
+      this.error = `Could not load schemas: ${err instanceof Error ? err.message : String(err)}`
     } finally {
       this.loading = false
     }
@@ -399,6 +377,8 @@ export class NowFluentExplorer extends LitElement {
   private async runSchemaDiff() {
     this.showDiff = !this.showDiff
     if (!this.showDiff) return
+    this.diffResult = null
+    this.diffError = ''
     try {
       const resp = await fetch(`/api/demos/${this.bundleId}/fluent/diff`, {
         method: 'POST',
@@ -407,9 +387,11 @@ export class NowFluentExplorer extends LitElement {
       })
       if (resp.ok) {
         this.diffResult = await resp.json()
+      } else {
+        this.diffError = `Schema diff failed: HTTP ${resp.status}`
       }
-    } catch {
-      this.diffResult = { identical: true, added_tables: [], removed_tables: [], modified_tables: {} }
+    } catch (err) {
+      this.diffError = `Schema diff failed: ${err instanceof Error ? err.message : String(err)}`
     }
   }
 
@@ -480,6 +462,9 @@ export class NowFluentExplorer extends LitElement {
 
         <!-- Schema Details -->
         <div class="schema-detail">
+          ${this.showDiff && this.diffError
+            ? html`<div data-testid="diff-error" style="padding: 12px; color: #dc2626;">${this.diffError}</div>`
+            : ''}
           ${this.showDiff && this.diffResult
             ? html`
                 <div class="table-card" style="border-left: 4px solid #0284c7;">

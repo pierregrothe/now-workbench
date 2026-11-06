@@ -62,9 +62,12 @@ def capture_demo_cmd(
     """Capture a Playwright screenshot (.png) or video (.webm) of the target instance."""
     with db_session() as repo:
         inst = repo.get_instance(instance) if instance else repo.get_default_instance()
-    inst_url = inst.url if inst else "https://demoalectriallwfau164179.service-now.com"
-    username = inst.username if inst else ""
-    password = inst.password if inst else ""
+    if inst is None:
+        target = (
+            f"Instance '{instance}' not found" if instance else "No default instance registered"
+        )
+        console.print(f"[bold red]Error:[/bold red] {target}. Register an instance first.")
+        raise typer.Exit(code=1)
 
     engine = PlaywrightCaptureEngine(bundles_dir=settings.get_bundles_dir())
     artifact = asyncio.run(
@@ -77,10 +80,10 @@ def capture_demo_cmd(
                 label=label,
                 fake_mode=fake,
             ),
-            instance_url=inst_url,
-            username=username,
-            password=password,
-            release=inst.release if inst else "Xanadu",
+            instance_url=inst.url,
+            username=inst.username,
+            password=inst.password,
+            release=inst.release,
         )
     )
     msg = (

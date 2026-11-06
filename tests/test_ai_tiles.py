@@ -176,11 +176,11 @@ def test_autonomous_actions_delete_and_verify() -> None:
         assert verify_resp is not None
         assert "1 Authenticated, 2 Unauthenticated/Unreachable" in verify_resp.summary
 
-        # 2. Autonomous deletion of unauthenticated instances
+        # 2. Chat never deletes on first request: it previews the targets and defers to
+        # the Admin panel confirmation (deep-review sec-105 / logic-004).
+        before = {i.id for i in repo.list_instances()}
         del_resp = execute_autonomous_action("delete the unauthenticated instances", repo)
         assert del_resp is not None
-        assert "Deleted 2 instances" in del_resp.summary
-        assert "You now manage 1 ServiceNow instance" in del_resp.summary
-        remaining = repo.list_instances()
-        assert len(remaining) == 1
-        assert remaining[0].id == "inst-ok"
+        assert "Nothing was deleted" in del_resp.summary
+        assert "2 instance(s) match" in del_resp.summary
+        assert {i.id for i in repo.list_instances()} == before

@@ -106,7 +106,7 @@ def _reset(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
     ops = [
         o
         for o in ctx.repo.list_seed_operations(limit=100)
-        if o.bundle_id == bundle_id and o.status == "completed" and o.instance_id == inst.id
+        if o.bundle_id == bundle_id and o.status != "rolled_back" and o.instance_id == inst.id
     ]
     rolled = 0
     for o in ops:

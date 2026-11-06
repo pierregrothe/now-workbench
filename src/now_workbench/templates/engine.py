@@ -27,7 +27,7 @@ class TemplateEngine:
             FileNotFoundError: The base bundle does not exist.
             UnsafePathError: The target id escapes the output dir or is the base bundle.
         """
-        source_dir = self.bundles_dir / base_bundle_id
+        source_dir = safe_child(self.bundles_dir, base_bundle_id)
         if not source_dir.exists():
             raise FileNotFoundError(f"Base bundle '{base_bundle_id}' not found.")
 

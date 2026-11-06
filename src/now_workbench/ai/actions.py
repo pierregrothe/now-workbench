@@ -64,77 +64,67 @@ def _records_to_dicts(instances: list[InstanceRecord]) -> list[dict[str, Any]]:
     ]
 
 
+def _has_word(text: str, term: str) -> bool:
+    """Return True when ``term`` appears in ``text`` delimited by non-word characters."""
+    return re.search(rf"(?<!\w){re.escape(term)}(?!\w)", text) is not None
+
+
 def _select_instances_to_delete(
     lower: str,
     instances: list[InstanceRecord],
 ) -> list[InstanceRecord]:
-    """Identify which instances match the user's deletion criteria."""
-    if any(tok in lower for tok in _UNAUTH_FILTERS) or "clean" in lower:
-        return [i for i in instances if i.status != "authenticated"]
-    if "non-default" in lower or "secondary" in lower:
-        return [i for i in instances if not i.is_default]
-    matched = [
-        i
-        for i in instances
-        if i.id.lower() in lower or i.name.lower() in lower or i.url.lower() in lower
+    """Identify which instances match the user's deletion criteria.
+
+    A specifically named instance always wins and never falls through to the
+    broad status filters. Keyword matching is whole-word only.
+    """
+    named = [
+        i for i in instances if any(_has_word(lower, t.lower()) for t in (i.id, i.name, i.url) if t)
     ]
-    return matched
+    if named:
+        return named
+    if any(_has_word(lower, tok) for tok in _UNAUTH_FILTERS):
+        return [i for i in instances if i.status != "authenticated"]
+    if _has_word(lower, "non-default") or _has_word(lower, "secondary"):
+        return [i for i in instances if not i.is_default]
+    return []
 
 
 def _try_delete_instances_action(
     lower: str,
     repo: DatabaseRepository,
 ) -> GenerativeUIResponse | None:
-    """Execute instance deletion when the user requests removing/cleaning instances."""
-    has_delete_verb = any(v in lower for v in _DELETE_VERBS)
-    if not has_delete_verb:
+    """Preview instance deletion; never deletes from free-text chat.
+
+    Deleting is destructive, so the chat path only lists the instances that
+    would be removed and directs the user to confirm in the Admin panel.
+    """
+    if not any(_has_word(lower, v) for v in _DELETE_VERBS):
         return None
 
     instances = repo.list_instances()
     targets = _select_instances_to_delete(lower, instances)
 
     has_inst_noun = any(
-        n in lower
-        for n in ("instance", "instande", "instence", "target", "unauthenticated", "unreachable")
-    )
+        _has_word(lower, n)
+        for n in ("instance", "instances", "instande", "instence", "target", "targets")
+    ) or any(_has_word(lower, tok) for tok in _UNAUTH_FILTERS)
     if not (has_inst_noun or targets):
         return None
+
+    base = build_instance_response(_records_to_dicts(instances), detail_level="summary")
     if not targets:
-        current_dicts = _records_to_dicts(instances)
-        base = build_instance_response(current_dicts, detail_level="summary")
-        return GenerativeUIResponse(
-            summary=(
-                "No matching unauthenticated or removable instances were found. "
-                f"You currently manage {len(instances)} instance(s)."
-            ),
-            layout=base.layout,
-            tiles=base.tiles,
+        summary = (
+            "No matching unauthenticated or removable instances were found. "
+            f"You currently manage {len(instances)} instance(s)."
         )
-
-    deleted_names: list[str] = []
-    for inst in targets:
-        if repo.delete_instance(inst.id):
-            deleted_names.append(inst.name)
-
-    remaining = repo.list_instances()
-    if remaining and not any(r.is_default for r in remaining):
-        repo.set_default_instance(remaining[0].id)
-        remaining = repo.list_instances()
-
-    rem_dicts = _records_to_dicts(remaining)
-    base_resp = build_instance_response(rem_dicts, detail_level="summary")
-    del_count = len(deleted_names)
-    rem_count = len(remaining)
-    preview = ", ".join(deleted_names[:3]) + ("..." if del_count > 3 else "")
-    summary = (
-        f"Deleted {del_count} instance{'s' if del_count != 1 else ''} ({preview}). "
-        f"You now manage {rem_count} ServiceNow instance{'s' if rem_count != 1 else ''}."
-    )
-    return GenerativeUIResponse(
-        summary=summary,
-        layout=base_resp.layout,
-        tiles=base_resp.tiles,
-    )
+    else:
+        names = ", ".join(t.name for t in targets)
+        summary = (
+            f"Nothing was deleted. {len(targets)} instance(s) match: {names}. "
+            "Deleting instances is destructive; confirm and delete them in the Admin panel."
+        )
+    return GenerativeUIResponse(summary=summary, layout=base.layout, tiles=base.tiles)
 
 
 def _try_verify_instances_action(

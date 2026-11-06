@@ -540,10 +540,12 @@ export class NowWorkbenchSettings extends LitElement {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
-      if (res.ok) {
-        this.prefs = (await res.json()) as WorkbenchPreferences;
-        this.newApiKeyInput = '';
+      if (!res.ok) {
+        this.saveMessage = `Could not save settings: ${await this.errorDetail(res)}`;
+        return;
       }
+      this.prefs = (await res.json()) as WorkbenchPreferences;
+      this.newApiKeyInput = '';
       this.saveMessage = 'Saved & encrypted Now Workbench settings.';
       this.dispatchEvent(
         new CustomEvent('settings-updated', {
@@ -552,11 +554,21 @@ export class NowWorkbenchSettings extends LitElement {
           composed: true,
         })
       );
-    } catch {
-      this.saveMessage = 'Saved settings in local session.';
+    } catch (e) {
+      this.saveMessage = `Could not save settings: ${e instanceof Error ? e.message : String(e)}`;
     } finally {
       this.isSaving = false;
     }
+  }
+
+  private async errorDetail(res: Response): Promise<string> {
+    try {
+      const body = (await res.json()) as { detail?: unknown };
+      if (typeof body.detail === 'string' && body.detail) return body.detail;
+    } catch {
+      // Body was not JSON; fall through to the status line.
+    }
+    return `HTTP ${res.status}`;
   }
 
   private async deleteApiKey(): Promise<void> {
@@ -568,14 +580,12 @@ export class NowWorkbenchSettings extends LitElement {
       if (res.ok) {
         this.prefs = (await res.json()) as WorkbenchPreferences;
         this.saveMessage = 'API key deleted. You may now enter a new key.';
+        this.newApiKeyInput = '';
       } else {
-        const err = await res.json();
-        this.keyVerificationError = err.detail || 'Failed to delete key.';
+        this.keyVerificationError = `Could not delete key: ${await this.errorDetail(res)}`;
       }
-      this.newApiKeyInput = '';
-    } catch {
-      this.prefs = { ...this.prefs, anthropic_api_key_masked: '', has_anthropic_api_key: false };
-      this.saveMessage = 'API key cleared from session.';
+    } catch (e) {
+      this.keyVerificationError = `Could not delete key: ${e instanceof Error ? e.message : String(e)}`;
     }
   }
 
@@ -1066,7 +1076,7 @@ export class NowWorkbenchSettings extends LitElement {
                     </button>
                     <div style="display: flex; align-items: center; gap: 12px;">
                       ${this.saveMessage
-                        ? html`<span class="save-toast">${this.saveMessage}</span>`
+                        ? html`<span class="save-toast" data-testid="save-message">${this.saveMessage}</span>`
                         : ''}
                       <button
                         class="btn primary icon-btn"

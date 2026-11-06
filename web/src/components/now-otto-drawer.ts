@@ -348,6 +348,7 @@ export class NowOttoDrawer extends LitElement {
     this.inputValue = ''
     this.requestUpdate()
 
+    let failure = ''
     try {
       const res = await fetch('/api/threads/thread-default/messages', {
         method: 'POST',
@@ -364,8 +365,9 @@ export class NowOttoDrawer extends LitElement {
         }
         return
       }
-    } catch {
-      // Fallback below
+      failure = `HTTP ${res.status}`
+    } catch (err) {
+      failure = err instanceof Error ? err.message : String(err)
     }
 
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
@@ -373,6 +375,13 @@ export class NowOttoDrawer extends LitElement {
         messages: this.messages.slice(0, -1),
         context: { activeWorkspace: 'sample-ai-assistant', release: 'Zurich' }
       }))
+      return
+    }
+
+    const last = this.messages[this.messages.length - 1]
+    if (last) {
+      last.content = `Could not reach Otto: ${failure}`
+      this.requestUpdate()
     }
   }
 

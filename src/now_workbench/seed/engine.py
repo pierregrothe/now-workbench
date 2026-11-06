@@ -16,6 +16,10 @@ from now_workbench.db.repository import DatabaseRepository
 from now_workbench.seed.date_wizard import transform_dataset_dates
 
 
+class SeedPayloadError(ValueError):
+    """Raised when a bundle seed file cannot be read or parsed."""
+
+
 class SeedEngine:
     """Manages transactional loading and rolling back of demo seed records."""
 
@@ -57,8 +61,8 @@ class SeedEngine:
                         raw_fields = item.get("fields") or item.get("data", {})
                         fields = transform_dataset_dates(raw_fields)
                         payloads.append((table, fields))
-            except Exception:
-                continue
+            except Exception as exc:
+                raise SeedPayloadError(f"Invalid seed file '{file_path.name}': {exc}") from exc
         return payloads
 
     async def _post_record(
@@ -111,7 +115,8 @@ class SeedEngine:
         headers = {"Accept": "application/json"}
 
         resp = await client.delete(url, auth=auth, headers=headers, timeout=15.0)
-        return resp.status_code in (200, 204)
+        # 404 means the record is already gone (e.g. deleted by an earlier partial rollback).
+        return resp.status_code in (200, 204, 404)
 
     async def load_and_seed(
         self,
@@ -130,19 +135,29 @@ class SeedEngine:
         op_id = f"seed-{uuid.uuid4().hex[:8]}"
         created: list[SeedRecordItem] = []
 
-        async with httpx.AsyncClient(transport=self.transport) as client:
-            for table, fields in payloads:
-                sys_id = await self._post_record(client, inst, table, fields)
-                created.append(SeedRecordItem(table=table, sys_id=sys_id))
+        failure: Exception | None = None
+        try:
+            async with httpx.AsyncClient(transport=self.transport) as client:
+                for table, fields in payloads:
+                    sys_id = await self._post_record(client, inst, table, fields)
+                    created.append(SeedRecordItem(table=table, sys_id=sys_id))
+        except Exception as exc:
+            failure = exc
 
+        # Always persist, even on failure, so records already created keep a rollback handle.
         op = SeedOperationRecord(
             id=op_id,
             bundle_id=bundle_id,
             instance_id=inst.id,
-            status="completed",
+            status="failed" if failure else "completed",
             created_records=created,
         )
         self.repo.record_seed_operation(op)
+        if failure:
+            raise RuntimeError(
+                f"Seed operation '{op_id}' failed after {len(created)} record(s) were created "
+                f"(roll back with operation id '{op_id}'): {failure}"
+            ) from failure
         return op
 
     async def rollback(self, operation_id: str) -> tuple[int, list[str]]:
@@ -168,5 +183,7 @@ class SeedEngine:
                 except Exception as exc:
                     errors.append(f"Error deleting {item.table}/{item.sys_id}: {exc}")
 
-        self.repo.update_seed_operation_status(operation_id, "rolled_back")
+        # Only a fully successful rollback is final; otherwise stay retry-able.
+        status = "rolled_back" if not errors else "rollback_failed"
+        self.repo.update_seed_operation_status(operation_id, status)
         return deleted_count, errors

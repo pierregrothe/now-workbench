@@ -513,31 +513,25 @@ export class NowDemoCatalog extends LitElement {
   }
 
   private async loadInstancesForDeploy(): Promise<void> {
+    this.deployInstances = []
+    this.selectedDeployInstanceId = ''
     try {
       const res = await fetch('/api/instances')
-      if (res.ok) {
-        const list = (await res.json()) as CatalogInstance[]
-        if (list && list.length > 0) {
-          this.deployInstances = list
-          if (!this.selectedDeployInstanceId) {
-            const def = list.find((i) => i.is_default) ?? list[0]
-            this.selectedDeployInstanceId = def.id
-          }
-          return
-        }
+      if (!res.ok) {
+        this.deployError = `Could not load instances: HTTP ${res.status}`
+        return
       }
-    } catch {
-      // Offline fallback
+      const list = (await res.json()) as CatalogInstance[]
+      if (!list || list.length === 0) {
+        this.deployError = 'No ServiceNow instances registered'
+        return
+      }
+      this.deployInstances = list
+      const def = list.find((i) => i.is_default) ?? list[0]
+      this.selectedDeployInstanceId = def.id
+    } catch (e) {
+      this.deployError = `Could not load instances: ${e instanceof Error ? e.message : String(e)}`
     }
-    this.deployInstances = [
-      {
-        id: 'demo-trial-main',
-        name: 'Alec Demo Trial (Primary)',
-        release: 'Zurich',
-        is_default: true,
-      },
-    ]
-    this.selectedDeployInstanceId = 'demo-trial-main'
   }
 
   private async startDeploy(demo: DemoBundle) {
@@ -600,8 +594,14 @@ export class NowDemoCatalog extends LitElement {
       })
       if (res.ok) {
         const data = await res.json()
-        this.deploySuccess = `Rolled back successfully (${data.deleted_count} records removed).`
-        this.lastOperationId = ''
+        if (data.success === false) {
+          // Partial rollback: keep the operation id so the user can retry (deletes are idempotent).
+          const failures = Array.isArray(data.errors) ? data.errors.join('; ') : 'unknown error'
+          this.deployError = `Rollback incomplete (${data.deleted_count} removed): ${failures}`
+        } else {
+          this.deploySuccess = `Rolled back successfully (${data.deleted_count} records removed).`
+          this.lastOperationId = ''
+        }
       } else {
         const err = await res.json()
         this.deployError = err.detail || 'Rollback failed.'
@@ -926,7 +926,7 @@ export class NowDemoCatalog extends LitElement {
                         </div>
                       `
                     : ''}
-                  ${this.deployError ? html`<div class="modal-error">${this.deployError}</div>` : ''}
+                  ${this.deployError ? html`<div class="modal-error" data-testid="deploy-error">${this.deployError}</div>` : ''}
                 </div>
 
                 <div class="modal-footer">
@@ -942,7 +942,7 @@ export class NowDemoCatalog extends LitElement {
                   </button>
                   ${!this.deploySuccess
                     ? html`
-                        <button class="btn-primary icon-btn" ?disabled=${this.isDeploying} title="Deploy Demo Now" data-tooltip="Deploy Now" @click=${this.submitDeploy}>
+                        <button class="btn-primary icon-btn" data-testid="deploy-submit" ?disabled=${this.isDeploying || !this.selectedDeployInstanceId} title="Deploy Demo Now" data-tooltip="Deploy Now" @click=${this.submitDeploy}>
                           <svg viewBox="0 0 24 24"><path d="M12 2.5s-4.5 4.5-4.5 10c0 2.21 1.79 4 4 4s4-1.79 4-4c0-5.5-4.5-10-4.5-10zm0 11.5c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm-5.5-1.5c0-1.87.67-3.6 1.8-5-1.4.9-2.5 2.3-2.9 4 .4.4.8.7 1.1 1zm11 0c.3-.3.7-.6 1.1-1-.4-1.7-1.5-3.1-2.9-4 1.13 1.4 1.8 3.13 1.8 5zM7.5 19l-1.5 2.5h12L16.5 19z"/></svg>
                         </button>
                       `

@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from now_workbench.bundles.models import DemoBundleInfo, DemoManifest
+from now_workbench.config.paths import safe_child
 
 
 class BundleManager:
@@ -85,7 +86,7 @@ class BundleManager:
 
     def export_bundle(self, bundle_id: str, output_archive: Path) -> Path:
         """Package a bundle directory into a portable .sn-demo.zip archive."""
-        bundle_dir = self.storage_dir / bundle_id
+        bundle_dir = safe_child(self.storage_dir, bundle_id)
         if not bundle_dir.exists():
             raise FileNotFoundError(f"Bundle {bundle_id} does not exist")
 
@@ -110,7 +111,7 @@ class BundleManager:
             manifest_content = zf.read("manifest.json").decode("utf-8")
             manifest = DemoManifest.model_validate(json.loads(manifest_content))
 
-            target_dir = self.storage_dir / manifest.id
+            target_dir = safe_child(self.storage_dir, manifest.id)
             if target_dir.exists():
                 shutil.rmtree(target_dir)
             target_dir.mkdir(parents=True, exist_ok=True)
@@ -130,11 +131,11 @@ class BundleManager:
         if not clean_target_id:
             raise ValueError("Target bundle ID cannot be empty.")
 
-        src_dir = self.storage_dir / source_id
+        src_dir = safe_child(self.storage_dir, source_id)
         if not src_dir.exists() or not (src_dir / "manifest.json").exists():
             raise FileNotFoundError(f"Source bundle '{source_id}' does not exist.")
 
-        target_dir = self.storage_dir / clean_target_id
+        target_dir = safe_child(self.storage_dir, clean_target_id)
         if target_dir.exists():
             raise FileExistsError(f"Target bundle '{clean_target_id}' already exists.")
 
@@ -157,7 +158,7 @@ class BundleManager:
         if not clean_id:
             raise ValueError("Bundle ID cannot be empty.")
 
-        target_dir = self.storage_dir / clean_id
+        target_dir = safe_child(self.storage_dir, clean_id)
         if not target_dir.exists() or not target_dir.is_dir():
             raise FileNotFoundError(f"Demo bundle '{clean_id}' does not exist.")
 
@@ -173,7 +174,7 @@ class BundleManager:
     ) -> DemoBundleInfo:
         """Update metadata fields in a bundle's manifest.json."""
         clean_id = bundle_id.strip()
-        target_dir = self.storage_dir / clean_id
+        target_dir = safe_child(self.storage_dir, clean_id)
         if not target_dir.is_dir():
             raise FileNotFoundError(f"Demo bundle '{clean_id}' does not exist.")
         manifest_path = target_dir / "manifest.json"

@@ -5,6 +5,7 @@ import re
 from pathlib import Path
 from typing import Any
 
+from now_workbench.config.paths import safe_child
 from now_workbench.synthesizer.models import (
     SynthesizedDemoResult,
     UseCaseSynthesisRequest,
@@ -159,7 +160,7 @@ class UseCaseSynthesizer:
     ) -> SynthesizedDemoResult:
         """Generate Fluent code, seed datasets, system properties, and SC narrative."""
         bundle_id = req.bundle_id or _slugify(f"{req.customer_name}-{req.use_case[:28]}")
-        bundle_path = self.bundles_dir / bundle_id
+        bundle_path = safe_child(self.bundles_dir, bundle_id)
         table_name = _table_slug(bundle_id, prefix=scoped_prefix)
         title = f"{req.customer_name}: {req.use_case[:60].strip()}"
 

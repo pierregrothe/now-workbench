@@ -225,12 +225,12 @@ def test_api_synthesize_and_captures_routes(tmp_path: Path) -> None:
         assert file_res.status_code == 200
         assert file_res.headers["content-type"] == "image/png"
 
-        # Capture a video (.webm) with explicit instance_id and download it
+        # Capture a video (.webm) with an explicit, registered instance_id and download it
         vid_res = client.post(
             f"/api/demos/{bundle_id}/captures",
             json={
                 "bundle_id": bundle_id,
-                "instance_id": "nonexistent-inst",
+                "instance_id": "default-instance",
                 "target_path": "/now/nav/ui/classic",
                 "media_type": "video",
                 "label": "Walkthrough Recording",

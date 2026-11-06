@@ -1,0 +1,109 @@
+# tests/test_deepfix_seed_engine.py
+# Regression tests for seed engine failure truthfulness and rollback status
+# Author: Pierre Grothe
+# Date: 2026-11-06
+"""Tests for SeedEngine partial-failure persistence, rollback status and payload errors."""
+
+import json
+from pathlib import Path
+
+import httpx
+import pytest
+
+from now_workbench.db import DatabaseRepository, InstanceCreate, init_db
+from now_workbench.seed.engine import SeedEngine, SeedPayloadError
+
+
+def _repo() -> DatabaseRepository:
+    repo = DatabaseRepository(init_db(":memory:"))
+    repo.add_instance(
+        InstanceCreate(
+            id="inst",
+            name="Inst",
+            url="https://inst.service-now.com",
+            username="admin",
+            password="pw",
+            is_default=True,
+        )
+    )
+    return repo
+
+
+def _bundle(tmp_path: Path, count: int = 3) -> Path:
+    seed_dir = tmp_path / "b" / "seed"
+    seed_dir.mkdir(parents=True)
+    items = [{"table": "incident", "fields": {"short_description": f"n{i}"}} for i in range(count)]
+    (seed_dir / "01.json").write_text(json.dumps(items), encoding="utf-8")
+    return tmp_path / "b"
+
+
+def _transport(fail_post_at: int | None = None, fail_delete: bool = False) -> httpx.MockTransport:
+    state = {"posts": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "POST":
+            state["posts"] += 1
+            if state["posts"] == fail_post_at:
+                return httpx.Response(500, text="boom")
+            return httpx.Response(201, json={"result": {"sys_id": f"id{state['posts']}"}})
+        if fail_delete:
+            return httpx.Response(500, text="nope")
+        return httpx.Response(204)
+
+    return httpx.MockTransport(handler)
+
+
+@pytest.mark.asyncio
+async def test_load_and_seed_mid_batch_failure_persists_created_records(tmp_path: Path) -> None:
+    repo = _repo()
+    engine = SeedEngine(repo, transport=_transport(fail_post_at=3))
+    with pytest.raises(RuntimeError, match="failed after 2 record"):
+        await engine.load_and_seed("b", _bundle(tmp_path))
+    ops = repo.list_seed_operations()
+    assert len(ops) == 1
+    assert ops[0].status == "failed"
+    assert [r.sys_id for r in ops[0].created_records] == ["id1", "id2"]
+
+
+@pytest.mark.asyncio
+async def test_rollback_partial_failure_keeps_operation_retryable(tmp_path: Path) -> None:
+    repo = _repo()
+    op = await SeedEngine(repo, transport=_transport()).load_and_seed("b", _bundle(tmp_path))
+    failing = SeedEngine(repo, transport=_transport(fail_delete=True))
+    count, errors = await failing.rollback(op.id)
+    assert count == 0
+    assert len(errors) == 3
+    saved = repo.get_seed_operation(op.id)
+    assert saved is not None
+    assert saved.status == "rollback_failed"
+
+    count, errors = await SeedEngine(repo, transport=_transport()).rollback(op.id)
+    assert (count, errors) == (3, [])
+    saved = repo.get_seed_operation(op.id)
+    assert saved is not None
+    assert saved.status == "rolled_back"
+
+
+@pytest.mark.asyncio
+async def test_rollback_failed_seed_operation_marks_rolled_back(tmp_path: Path) -> None:
+    repo = _repo()
+    engine = SeedEngine(repo, transport=_transport(fail_post_at=2))
+    with pytest.raises(RuntimeError):
+        await engine.load_and_seed("b", _bundle(tmp_path))
+    op_id = repo.list_seed_operations()[0].id
+    count, errors = await engine.rollback(op_id)
+    assert (count, errors) == (1, [])
+    saved = repo.get_seed_operation(op_id)
+    assert saved is not None
+    assert saved.status == "rolled_back"
+
+
+@pytest.mark.asyncio
+async def test_load_and_seed_malformed_seed_file_raises_naming_file(tmp_path: Path) -> None:
+    repo = _repo()
+    bundle = _bundle(tmp_path)
+    (bundle / "seed" / "02_bad.json").write_text("{not json", encoding="utf-8")
+    engine = SeedEngine(repo, fake_mode=True)
+    with pytest.raises(SeedPayloadError, match="02_bad.json"):
+        await engine.load_and_seed("b", bundle)
+    assert repo.list_seed_operations() == []

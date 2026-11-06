@@ -322,9 +322,13 @@ def run_agent(
 
     try:
         asyncio.get_running_loop()
-        return _run_agent_sync(user_text, history, repo, client, model, fake_mode)
+        in_running_loop = True
     except RuntimeError:
-        return asyncio.run(runner.run(user_text, history))
+        in_running_loop = False
+
+    if in_running_loop:
+        return _run_agent_sync(user_text, history, repo, client, model, fake_mode)
+    return asyncio.run(runner.run(user_text, history))
 
 
 def _run_agent_sync(

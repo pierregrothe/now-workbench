@@ -160,7 +160,9 @@ def reset_demo_cmd(
         active_ops = [
             op
             for op in repo.list_seed_operations(limit=100)
-            if op.bundle_id == bundle_id and op.status == "completed" and op.instance_id == inst.id
+            if op.bundle_id == bundle_id
+            and op.status != "rolled_back"
+            and op.instance_id == inst.id
         ]
         seed_rolled_back = 0
         for op in active_ops:

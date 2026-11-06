@@ -10,6 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from now_workbench.bundles.manager import BundleManager
 from now_workbench.capture.engine import PlaywrightCaptureEngine
 from now_workbench.capture.models import CaptureArtifact, CaptureRequest
+from now_workbench.config.paths import safe_child
 from now_workbench.db.models import InstanceRecord, SeedOperationRecord
 from now_workbench.db.repository import DatabaseRepository
 from now_workbench.plugins.manager import PluginManager
@@ -82,7 +83,7 @@ class DemoPipelineEngine:
         self.capture_engine = PlaywrightCaptureEngine(bundles_dir=bundles_dir)
 
     def _get_bundle_path(self, bundle_id: str) -> Path:
-        path = self.bundles_dir / bundle_id
+        path = safe_child(self.bundles_dir, bundle_id)
         if not path.is_dir():
             raise FileNotFoundError(f"Demo bundle '{bundle_id}' not found in {self.bundles_dir}")
         return path

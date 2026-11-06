@@ -17,6 +17,7 @@ from now_workbench.capture.driver import (
     load_playbook,
 )
 from now_workbench.capture.models import CaptureArtifact, CaptureRequest
+from now_workbench.config.paths import safe_child
 from now_workbench.db.models import InstanceRecord
 from now_workbench.releases import translate_workspace_url
 
@@ -242,7 +243,7 @@ class PlaywrightCaptureEngine:
         self.bundles_dir = bundles_dir
 
     def _media_dir(self, bundle_id: str) -> Path:
-        media_dir = self.bundles_dir / bundle_id / "media"
+        media_dir = safe_child(self.bundles_dir, bundle_id) / "media"
         media_dir.mkdir(parents=True, exist_ok=True)
         return media_dir
 
@@ -342,7 +343,7 @@ class PlaywrightCaptureEngine:
         if not req.fake_mode:
             if req.media_type == "video":
                 ok, live_auth, step_results = await _execute_video_playbook(
-                    self.bundles_dir / req.bundle_id,
+                    safe_child(self.bundles_dir, req.bundle_id),
                     req.bundle_id,
                     req.instance_id,
                     base_url,

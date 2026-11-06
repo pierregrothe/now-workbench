@@ -5,8 +5,9 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Any
 
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict
 
@@ -21,6 +22,7 @@ from now_workbench.api.templates import router as templates_router
 from now_workbench.api.threads import _load_verified_instances_dict
 from now_workbench.api.threads import router as threads_router
 from now_workbench.capture.engine import PlaywrightCaptureEngine
+from now_workbench.config.paths import UnsafePathError, safe_child
 from now_workbench.config.settings import settings
 from now_workbench.db import (
     ChatMessageRecord,
@@ -118,6 +120,11 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
+    @app.exception_handler(UnsafePathError)
+    async def _reject_unsafe_path(_request: Request, exc: UnsafePathError) -> JSONResponse:
+        """Turn a rejected user-supplied id into HTTP 400 on every route (never 500)."""
+        return JSONResponse(status_code=400, content={"detail": str(exc)})
+
     app.include_router(instances_router)
     app.include_router(templates_router)
     app.include_router(demos_router)
@@ -202,7 +209,7 @@ def _register_build_deploy(
 
     @app.post("/api/demos/{bundle_id}/build")
     async def build_demo(bundle_id: str, req: BuildRequest) -> dict[str, Any]:
-        target = settings.get_bundles_dir() / bundle_id
+        target = safe_child(settings.get_bundles_dir(), bundle_id)
         if not target.exists():
             raise HTTPException(status_code=404, detail="Demo bundle not found.")
         await log_broadcaster.broadcast(f"[build:start] Building bundle '{bundle_id}'...")
@@ -221,7 +228,7 @@ def _register_build_deploy(
 
     @app.post("/api/demos/{bundle_id}/deploy")
     async def deploy_demo(bundle_id: str, req: BuildRequest) -> dict[str, Any]:
-        target = settings.get_bundles_dir() / bundle_id
+        target = safe_child(settings.get_bundles_dir(), bundle_id)
         if not target.exists():
             raise HTTPException(status_code=404, detail="Demo bundle not found.")
 
