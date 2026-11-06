@@ -116,3 +116,23 @@ def test_runner_binary_resolution(tmp_path: Path) -> None:
     missing_probe = missing_runner.probe_environment()
     assert missing_probe["node_available"] is False
     assert missing_probe["now_sdk_available"] is False
+
+
+@pytest.mark.asyncio
+async def test_deploy_passes_credentials_in_the_sdk_ci_environment(tmp_path: Path) -> None:
+    """now-sdk gets the instance and account through its CI variables, never as arguments."""
+    script = tmp_path / "now-sdk"
+    script.write_text(
+        '#!/bin/sh\necho "args=$*"\necho "mode=$SN_SDK_NODE_ENV type=$SN_SDK_AUTH_TYPE"\n'
+        'echo "url=$SN_SDK_INSTANCE_URL user=$SN_SDK_USER pwd_set=${SN_SDK_USER_PWD:+yes}"\n',
+        encoding="utf-8",
+    )
+    script.chmod(0o755)
+    res = await NowSdkRunner(now_sdk_bin=str(script)).deploy(
+        tmp_path, instance_url="https://dev.service-now.com", username="admin", password="s3cret"
+    )
+    assert res.success is True
+    assert "args=deploy" in res.output
+    assert "mode=SN_SDK_CI_INSTALL type=basic" in res.output
+    assert "url=https://dev.service-now.com user=admin pwd_set=yes" in res.output
+    assert "s3cret" not in res.output

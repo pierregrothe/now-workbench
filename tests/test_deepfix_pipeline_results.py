@@ -42,6 +42,8 @@ def _setup(tmp_path: Path):
             primary_color="#0066cc",
         )
     )
+    # Make it a Fluent SDK project so the pipeline attempts the deploy step.
+    (bundles_dir / result.bundle_id / "package.json").write_text("{}", encoding="utf-8")
     return bundles_dir, result.bundle_id
 
 
@@ -95,3 +97,21 @@ async def test_run_full_pipeline_property_failure_reports_failed(tmp_path: Path)
         )
         assert summary.status == "failed"
         assert "Failed to update 'x'" in summary.message
+
+
+@pytest.mark.asyncio
+async def test_deploy_and_seed_without_sdk_project_skips_deploy_and_seeds(
+    tmp_path: Path, monkeypatch
+):
+    """A bundle without package.json is seeded; the deploy step says why it was skipped."""
+    bundles_dir, bundle_id = _setup(tmp_path)
+    (bundles_dir / bundle_id / "package.json").unlink()
+    monkeypatch.setattr(pipeline_mod, "NowSdkRunner", _FailingRunner)
+    with db_session(tmp_path / "t.db") as repo:
+        inst = repo.add_instance(
+            InstanceCreate(id="i1", name="I1", url="https://a.service-now.com", is_default=True)
+        )
+        engine = DemoPipelineEngine(bundles_dir=bundles_dir, repo=repo)
+        seed, note = await engine.deploy_and_seed(bundle_id, inst, fake_mode=True)
+        assert seed.status == "completed"
+        assert "Deploy skipped" in note

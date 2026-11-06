@@ -184,31 +184,42 @@ class DemoPipelineEngine:
         bundle_id: str,
         instance: InstanceRecord,
         fake_mode: bool = False,
-    ) -> SeedOperationRecord:
-        """Deploy Fluent SDK application metadata and seed demo records."""
+    ) -> tuple[SeedOperationRecord, str]:
+        """Deploy the bundle's Fluent SDK project (when it has one) and seed demo records.
+
+        Returns:
+            The seed operation, and what happened to the deploy step.
+
+        Raises:
+            PipelineStepError: The SDK project failed to deploy.
+        """
         bundle_path = self._get_bundle_path(bundle_id)
 
-        # Deploy Fluent SDK metadata
-        runner = NowSdkRunner(fake_mode=fake_mode)
-        deploy_result = await runner.deploy(
-            project_dir=bundle_path,
-            instance_url=instance.url,
-            username=instance.username,
-            password=instance.password,
-        )
-        if not deploy_result.success:
-            raise PipelineStepError(
-                f"SDK deploy failed (exit code {deploy_result.exit_code}): "
-                f"{deploy_result.output.strip()}"
+        if (bundle_path / "package.json").exists():
+            runner = NowSdkRunner(fake_mode=fake_mode)
+            deploy_result = await runner.deploy(
+                project_dir=bundle_path,
+                instance_url=instance.url,
+                username=instance.username,
+                password=instance.password,
             )
+            if not deploy_result.success:
+                raise PipelineStepError(
+                    f"SDK deploy failed (exit code {deploy_result.exit_code}): "
+                    f"{deploy_result.output.strip()}"
+                )
+            deploy_note = "Fluent app deployed."
+        else:
+            # Most demo bundles carry Fluent sources for reference, not a buildable SDK project.
+            deploy_note = "Deploy skipped: the bundle has no Fluent SDK project (package.json)."
 
-        # Seed demonstration records
         seed_engine = SeedEngine(repository=self.repo, fake_mode=fake_mode)
-        return await seed_engine.load_and_seed(
+        seed = await seed_engine.load_and_seed(
             bundle_id=bundle_id,
             bundle_path=bundle_path,
             instance_id=instance.id,
         )
+        return seed, deploy_note
 
     async def test_demo_script(
         self,
@@ -293,7 +304,9 @@ class DemoPipelineEngine:
 
         # 3. Deploy & seed demo records
         try:
-            seed_result = await self.deploy_and_seed(bundle_id, instance, fake_mode=fake_mode)
+            seed_result, deploy_note = await self.deploy_and_seed(
+                bundle_id, instance, fake_mode=fake_mode
+            )
         except PipelineStepError as exc:
             return DemoPipelineSummary(
                 bundle_id=bundle_id,
@@ -339,7 +352,7 @@ class DemoPipelineEngine:
             f"{len(still_missing.required_plugins) - len(missing)}/"
             f"{len(still_missing.required_plugins)} required modules active"
             + (f", still missing: {', '.join(missing)}" if missing else "")
-            + f"; {n_props} properties configured; {n_rec} records seeded; "
+            + f"; {n_props} properties configured; {deploy_note} {n_rec} records seeded; "
             f"{stg_pass}/{stg_tot} stages verified. {video_note}"
         )
 

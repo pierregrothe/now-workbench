@@ -96,8 +96,8 @@ class NowSdkRunner:
 
         if self.fake_mode:
             target_info = (
-                f" (target: {extra_env.get('NOW_INSTANCE_URL')})"
-                if extra_env and "NOW_INSTANCE_URL" in extra_env
+                f" (target: {extra_env.get('SN_SDK_INSTANCE_URL')})"
+                if extra_env and "SN_SDK_INSTANCE_URL" in extra_env
                 else ""
             )
             fake_log = f"[fake-sdk] Executed: {cmd_str} in {cwd}{target_info}\n"
@@ -166,14 +166,22 @@ class NowSdkRunner:
         username: str | None = None,
         password: str | None = None,
     ) -> SdkExecutionResult:
-        """Deploy compiled application metadata to the target ServiceNow instance."""
+        """Deploy compiled application metadata to the target ServiceNow instance.
+
+        Credentials use the SDK's non-interactive CI mode (``SN_SDK_NODE_ENV=SN_SDK_CI_INSTALL``
+        with ``SN_SDK_INSTANCE_URL``/``SN_SDK_USER``/``SN_SDK_USER_PWD``, read from the
+        @servicenow/sdk 4.14 sources), so no ``now-sdk auth`` alias has to exist on the host.
+        They travel in the child's environment only, never in its arguments.
+        """
         extra_env: dict[str, str] = {}
-        if instance_url:
-            extra_env["NOW_INSTANCE_URL"] = instance_url
-        if username:
-            extra_env["NOW_AUTH_USER"] = username
-        if password:
-            extra_env["NOW_AUTH_PASSWORD"] = password
+        if instance_url and username and password:
+            extra_env = {
+                "SN_SDK_NODE_ENV": "SN_SDK_CI_INSTALL",
+                "SN_SDK_AUTH_TYPE": "basic",
+                "SN_SDK_INSTANCE_URL": instance_url,
+                "SN_SDK_USER": username,
+                "SN_SDK_USER_PWD": password,
+            }
 
         return await self.run_command(
             ["deploy"],
