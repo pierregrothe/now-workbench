@@ -176,3 +176,9 @@ def test_update_bundle_manifest(tmp_path: Path) -> None:
     assert re_inspected.manifest.name == "Updated Name"
     assert re_inspected.manifest.description == "Updated Description"
     assert re_inspected.manifest.tags == ["updated", "demo"]
+
+
+def test_demo_manifest_min_release_fills_sn_release() -> None:
+    """A manifest giving only min_release also reports it as sn_release."""
+    manifest = DemoManifest.model_validate({"id": "m", "name": "M", "min_release": "Zurich"})
+    assert manifest.sn_release == "Zurich"

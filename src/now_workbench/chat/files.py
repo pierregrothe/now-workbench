@@ -80,7 +80,7 @@ def check_can_ask(
     Raises:
         LimitReachedError: Turn or age limit reached.
     """
-    asked = sum(1 for m in history if m.role == "user")
+    asked = sum(1 for m in history if m.role == "user" and m.widget_type != "tool_confirm")
     if asked >= limits.max_turns:
         raise LimitReachedError(
             f"This conversation reached its limit of {limits.max_turns} questions. "

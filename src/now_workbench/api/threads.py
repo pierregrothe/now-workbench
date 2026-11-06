@@ -398,7 +398,8 @@ def post_thread_message(thread_id: str, req: ChatMessageCreate) -> StreamingResp
         if not thread:
             raise HTTPException(status_code=404, detail="Thread not found.")
         existing_msgs = repo.list_messages(thread_id)
-        if req.role == "user":
+        # Confirming an action Otto already proposed is not a new question.
+        if req.role == "user" and req.widget_type != "tool_confirm":
             try:
                 check_can_ask(thread, existing_msgs, repo.get_conversation_limits())
             except LimitReachedError as exc:

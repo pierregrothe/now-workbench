@@ -138,10 +138,8 @@ def _delete_instances(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
     targets = _select_for_delete(ctx, args)
     if not targets:
         return _view(ctx, "No matching instances were found; nothing deleted.")
+    # delete_instance re-elects a default itself.
     deleted = [t.name for t in targets if ctx.repo.delete_instance(t.id)]
-    remaining = ctx.repo.list_instances()
-    if remaining and not any(r.is_default for r in remaining):
-        ctx.repo.set_default_instance(remaining[0].id)
     preview = ", ".join(deleted[:5]) + ("..." if len(deleted) > 5 else "")
     return _view(ctx, f"Deleted {len(deleted)} instance(s) ({preview}).")
 

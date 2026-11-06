@@ -232,3 +232,24 @@ def test_post_thread_message_slow_reply_keeps_the_connection_alive(
     assert res.status_code == 200
     assert res.text.startswith(" ")
     assert res.json()[-1]["content"] == "Done after a while."
+
+
+def test_post_thread_message_confirmation_is_not_blocked_by_the_question_limit(
+    client: TestClient,
+) -> None:
+    """At the question cap, confirming a pending action still goes through and is not counted."""
+    client.put("/api/limits", json={"max_turns": 1})
+    thread = _thread(client)
+    assert client.post(f"/api/threads/{thread}/messages", json={"content": "q1"}).status_code == 200
+    blocked = client.post(f"/api/threads/{thread}/messages", json={"content": "q2"})
+    assert blocked.status_code == 409
+    confirm = client.post(
+        f"/api/threads/{thread}/messages",
+        json={
+            "content": "Confirmed: nothing",
+            "widget_type": "tool_confirm",
+            "widget_data": {"tool": "no_such_tool", "input": {}},
+        },
+    )
+    assert confirm.status_code == 200
+    client.put("/api/limits", json={"max_turns": 20})

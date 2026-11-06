@@ -183,3 +183,8 @@ def test_start_impersonation_uses_real_rights_while_acting(client: TestClient) -
     _act_as(client, ADMIN, ANA)
     assert _act_as(client, ADMIN, CAL) == 200
     assert client.get("/api/impersonation", headers=as_user(ADMIN)).json()["acting_as"] == CAL
+
+
+def test_start_impersonation_refuses_someone_not_on_the_team(client: TestClient) -> None:
+    """Only members with a role can be impersonated."""
+    assert _act_as(client, ADMIN, "stranger@example.com") == 403

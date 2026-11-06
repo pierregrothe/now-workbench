@@ -109,10 +109,8 @@ def cleanup_unauthenticated_instances() -> dict[str, Any]:
                 if repo.delete_instance(inst.id):
                     deleted_ids.append(inst.id)
                     deleted_names.append(inst.name)
+        # delete_instance re-elects a default itself, so nothing to repair here.
         remaining = repo.list_instances()
-        if remaining and not any(r.is_default for r in remaining):
-            repo.set_default_instance(remaining[0].id)
-            remaining = repo.list_instances()
         return {
             "deleted_count": len(deleted_ids),
             "deleted_ids": deleted_ids,
