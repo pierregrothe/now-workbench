@@ -29,10 +29,15 @@
 - **Key and data are separated.** The master key is generated on first start into its own
   volume (`workbench-keys`); the database lives in `workbench-data`. `workbench backup` streams
   a consistent SQLite snapshot out of the container; the key is backed up separately, once.
-- **Hardened container.** Non-root user, `no-new-privileges`, all capabilities dropped, port
-  published on 127.0.0.1 only (cloudflared on the host is the way in), a `/healthz` probe that
-  answers without sign-in and reveals only `ok`, and compose refuses to start without the
-  Access values.
+- **Hardened container.** Non-root user, `no-new-privileges`, all capabilities dropped, a
+  `/healthz` probe that answers without sign-in and reveals only `ok`, and compose refuses to
+  start without the Access values or the tunnel token.
+- **Isolated from the homelab.** Outside testers will use the workbench, so it shares nothing
+  with the household apps: its own Access application and reusable policy ("Now Workbench
+  users", Google or email code only), its own tunnel ("workbench") whose connector runs as a
+  sidecar on a private Docker network (`br-workbench`), no port published on the host, and host
+  firewall rules (`deploy/workbench-firewall.sh`) that drop traffic from that network to private
+  ranges while the internet stays reachable.
 
 ## Consequences
 
@@ -41,3 +46,4 @@
 - Non-secret data (conversations, team, preferences) is plain SQLite; whole-disk encryption on
   the host is the place to protect it further, not a database cipher.
 - A person needs both an Access policy entry (outer gate) and a Team entry (inner gate).
+- Testers spend the owner's Claude key; usage shows on the owner's Anthropic bill.

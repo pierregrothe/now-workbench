@@ -1,0 +1,17 @@
+# deploy/workbench-firewall.service
+# Re-apply the now-workbench egress rules whenever Docker (re)starts.
+# Install: sudo cp deploy/workbench-firewall.sh /usr/local/sbin/ && \
+#          sudo cp deploy/workbench-firewall.service /etc/systemd/system/ && \
+#          sudo systemctl daemon-reload && sudo systemctl enable --now workbench-firewall
+[Unit]
+Description=Block now-workbench containers from private networks
+After=docker.service
+PartOf=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/workbench-firewall.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=docker.service

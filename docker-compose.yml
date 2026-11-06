@@ -1,12 +1,14 @@
 # docker-compose.yml
-# now-workbench on srv01chambly, reached only through Cloudflare (ADR-016, ADR-017).
+# now-workbench on srv01chambly, isolated from the homelab (ADR-016, ADR-017).
 #
-#   cp .env.example .env    # then fill in the two Access values
+#   cp .env.example .env    # then paste the tunnel token (the only secret)
 #   docker compose up -d --build
 #   docker logs now-workbench   # FIRST-RUN SETUP CODE
 #
-# No secret lives in this file or in .env: the Claude API key and instance passwords are
-# entered in the UI and stored encrypted; the master key is generated into its own volume.
+# Reach: Cloudflare Access (app "Now Workbench", policy "Now Workbench users") -> tunnel
+# "workbench" -> the cloudflared container below -> now-workbench, over a private network.
+# No port is published on the host. The Claude key and instance passwords are entered in the
+# UI and stored encrypted; the master key is generated into its own volume.
 services:
   now-workbench:
     build:
@@ -15,9 +17,8 @@ services:
     image: now-workbench:latest
     container_name: now-workbench
     restart: unless-stopped
-    ports:
-      # Loopback only: the host's cloudflared is the way in, never the LAN or the internet.
-      - "127.0.0.1:${WORKBENCH_PUBLISH_PORT:-8080}:8080"
+    networks:
+      - workbench-net
     environment:
       # Refuse to start without them (the app also refuses to listen without Access).
       - WORKBENCH_ACCESS_TEAM_DOMAIN=${WORKBENCH_ACCESS_TEAM_DOMAIN:?set WORKBENCH_ACCESS_TEAM_DOMAIN in .env}
@@ -39,6 +40,39 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+
+  # Dedicated tunnel: this stack never shares the homelab tunnel or its connector.
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: now-workbench-tunnel
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    networks:
+      - workbench-net
+    environment:
+      - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN:?set CLOUDFLARE_TUNNEL_TOKEN in .env}
+    depends_on:
+      - now-workbench
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"
+
+networks:
+  # A named bridge so host firewall rules can block it from the LAN (docs/deploy.md).
+  workbench-net:
+    driver: bridge
+    driver_opts:
+      com.docker.network.bridge.name: br-workbench
+    ipam:
+      config:
+        - subnet: 10.89.0.0/24
 
 volumes:
   workbench-data:
