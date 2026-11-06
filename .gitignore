@@ -61,3 +61,8 @@ data/
 
 # primer multi-session lease (never commit)
 .primer/.lease.d
+
+# Playwright e2e artifacts and isolated server data (ADR-013)
+.e2e/
+web/test-results/
+web/playwright-report/

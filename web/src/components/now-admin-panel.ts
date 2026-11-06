@@ -27,19 +27,6 @@ interface DiagnosticsData {
   otto_status: string;
 }
 
-const DEFAULT_SAMPLE_INSTANCES: InstanceData[] = [
-  {
-    id: 'default-instance',
-    name: 'Primary ServiceNow Instance',
-    url: 'https://demoalectriallwfau164179.service-now.com',
-    username: 'admin',
-    release: 'Zurich',
-    is_default: true,
-    status: 'authenticated',
-    last_checked: new Date().toISOString(),
-  },
-];
-
 @customElement('now-admin-panel')
 export class NowAdminPanel extends LitElement {
   static styles = css`
@@ -315,6 +302,13 @@ export class NowAdminPanel extends LitElement {
       letter-spacing: 0.5px;
       color: var(--now-text-secondary, #4b5563);
       border-bottom: 1px solid var(--now-border-subtle, #e5e7eb);
+    }
+
+    .instances-table td.empty-state {
+      padding: 28px 16px;
+      text-align: center;
+      color: var(--now-text-secondary, #6b7280);
+      font-style: italic;
     }
 
     .instances-table td {
@@ -704,7 +698,8 @@ export class NowAdminPanel extends LitElement {
 
   @property({ type: Boolean }) open = true;
   @state() private diagnostics: DiagnosticsData | null = null;
-  @state() private instances: InstanceData[] = [...DEFAULT_SAMPLE_INSTANCES];
+  @state() private instances: InstanceData[] = [];
+  @state() private instancesError = '';
   @state() private testingInstanceId: string | null = null;
   @state() private actionFeedback: string = '';
   @state() private isAdding = false;
@@ -741,12 +736,14 @@ export class NowAdminPanel extends LitElement {
       }
       if (instRes.ok) {
         const data = await instRes.json();
-        if (Array.isArray(data) && data.length > 0) {
-          this.instances = data;
-        }
+        // Render exactly what the registry holds -- an empty registry stays empty (ADR-011).
+        this.instances = Array.isArray(data) ? data : [];
+        this.instancesError = '';
+      } else {
+        this.instancesError = `Instance registry unavailable (HTTP ${instRes.status}).`;
       }
-    } catch {
-      // Offline fallback preserves sample state
+    } catch (e) {
+      this.instancesError = `Instance registry unreachable: ${e}`;
     }
   }
 
@@ -1039,6 +1036,14 @@ export class NowAdminPanel extends LitElement {
                   </tr>
                 </thead>
                 <tbody>
+                  ${this.instances.length === 0
+                    ? html`<tr>
+                        <td colspan="6" class="empty-state" data-testid="instances-empty">
+                          ${this.instancesError ||
+                          'No ServiceNow instances registered yet. Add one below to get started.'}
+                        </td>
+                      </tr>`
+                    : ''}
                   ${this.instances.map(
                     (inst) => html`
                       <tr>

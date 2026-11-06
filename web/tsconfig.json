@@ -10,5 +10,5 @@
     "useDefineForClassFields": false,
     "noEmit": true
   },
-  "include": ["src"]
+  "include": ["src", "e2e", "playwright.config.ts"]
 }
