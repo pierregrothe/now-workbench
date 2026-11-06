@@ -1,6 +1,6 @@
 # ADR-006: Local SQLite WAL Persistence and Scoped Repository Pattern
 
-**Status:** accepted
+**Status:** accepted (amended by ADR-012: versioned migrations, connection pragmas, credential sealing)
 **Date:** 2026-10-29
 
 ## Context

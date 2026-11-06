@@ -219,3 +219,24 @@ and unhandled errors silently fell back to fake static templates in live mode.
 
 **Consequences:**
 - Sub-second streaming perceived latency, unified message history, and transparent error reporting.
+
+---
+
+### 2026-11-06 -- ADR-012: Versioned SQLite Schema and AES-256-GCM Credential Sealing
+
+**Status:** accepted (amends ADR-006)
+
+**Context:**
+Prototype persistence leaked decrypted instance passwords through `/api/instances`, rewrote
+passwords as plaintext on update, kept its master key beside the DB, and re-ran DDL on every session.
+
+**Decision:**
+1. Seal instance credentials (username + password) and the Claude API key with AES-256-GCM
+   (`cryptography`), context-bound via associated data; master key outside `data/`
+   (`WORKBENCH_MASTER_KEY` > `WORKBENCH_KEY_FILE` > `~/.config/now-workbench/master.key`).
+2. API returns `InstancePublic` (no password). 3. `PRAGMA user_version` migrations; STRICT
+   tables with UNIQUE/CHECK/FK-cascade constraints; WAL + busy_timeout + synchronous=NORMAL.
+
+**Consequences:**
+- A copied `workbench.db` yields no secrets; losing the master key loses stored credentials.
+

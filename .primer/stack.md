@@ -6,7 +6,7 @@
 - **Package Manager**: `uv` with `hatchling` backend (PEP 621 `[project]` specification)
 - **ServiceNow SDK Runtime**: Node.js 20+ LTS with `@servicenow/sdk`
 - **Frontend**: Lit 3.x (Web Components / TypeScript + Vite)
-- **Database**: Embedded SQLite with WAL mode (`foreign_keys=ON`) and scoped `db_session`
+- **Database**: Embedded SQLite (STRICT tables, WAL, `foreign_keys=ON`), `PRAGMA user_version` migrations in `db/schema.py`, scoped `db_session` (ADR-006, ADR-012)
 - **Containerization**: Multi-stage Docker image (Node.js build stage -> Python + Node runtime + uv)
 
 ## Layout
@@ -59,6 +59,7 @@ now-workbench/
 - `pydantic-settings >= 2.6` -- Configuration from environment & `.env`
 - `httpx >= 0.28` -- Async/sync HTTP client for ServiceNow Table API & Claude API
 - `anthropic >= 0.40` -- Anthropic Claude Python SDK (Otto copilot)
+- `cryptography >= 46` -- AES-256-GCM sealing of instance credentials and API key (ADR-012)
 
 ### Frontend (web/)
 - `lit >= 3.2` -- Open-standard Web Components library

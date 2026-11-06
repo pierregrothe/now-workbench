@@ -22,12 +22,12 @@ EPIC-014/015/016 are done. Capability inventory lives in progress.md.
 
 ## Open Blockers
 
-1. Pre-push gate fails while online: `test_workbench_settings_api_and_cli` sends a non-test
-   API key that triggers a live Anthropic probe (401 -> HTTP 400). Passes only offline.
-   See progress.md Known Issues for the fix options.
+1. Pre-push gate fails: coverage 90% vs required 100% (see progress.md Known Issues).
 
 ## Next Steps
 
-1. Fix the network-dependent settings test (use an `sk-ant-test` key or inject a fake client).
-2. Decide next product direction: no roadmap.md or epics/ exist yet -- consider
+1. Raise coverage to 100% (or agree a ratcheted floor) so pushes are unblocked.
+2. Register instances and the Claude API key (sealed per ADR-012); back up
+   `~/.config/now-workbench/master.key` separately from `data/`.
+3. Decide next product direction: no roadmap.md or epics/ exist yet -- consider
    `/primer roadmap` or `/primer brainstorm`.

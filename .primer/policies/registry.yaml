@@ -172,6 +172,6 @@ policies:
     name: Scoped SQLite WAL persistence and repository pattern
     category: architecture
     constitutional: true
-    justifying_adrs: [ADR-006]
+    justifying_adrs: [ADR-006, ADR-012]
     checks: []
     status: unguarded

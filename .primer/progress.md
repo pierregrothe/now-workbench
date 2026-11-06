@@ -73,9 +73,9 @@ Last updated: 2026-11-06
 
 ## Known Issues
 
-- `tests/test_synthesizer_and_capture.py::test_workbench_settings_api_and_cli` is network-dependent:
-  its key `sk-ant-api03-...` triggers a live Anthropic probe in `validate_api_key`; online it gets
-  401 -> PUT /api/settings returns 400 and the test fails (passes only offline). Blocks pre-push
-  while online. Fix: use an `sk-ant-test` prefixed key or inject a fake client.
+- Coverage is 90% against the pre-push gate's `--cov-fail-under=100`: pushes are blocked until
+  untested legacy paths (e.g. `api/instances.py` test-all/cleanup, `api/app.py` WS routes) are covered.
+- `capture/driver.py` passes the instance password to the Node capture script via argv (visible in
+  the process list); move it to stdin/env (ADR-012 follow-up).
 - Architecture policies `otto-copilot`, `demo-bundles`, `sqlite-persistence` are `unguarded`
   (no mechanical checks; agent-enforced via CLAUDE.md only).
