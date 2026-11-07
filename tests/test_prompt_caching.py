@@ -13,8 +13,8 @@ from fastapi.testclient import TestClient
 
 from now_workbench.domains.conversations.models import ChatMessageRecord
 from now_workbench.domains.conversations.repository import ThreadRepository
-from now_workbench.interfaces.ai.agent import replay_conversation
-from now_workbench.interfaces.api import threads as threads_api
+from now_workbench.interfaces.ai.conversation import replay_conversation
+from now_workbench.interfaces.api import replies as replies_api
 from now_workbench.interfaces.api.app import create_app
 from now_workbench.platform.config.settings import settings
 from now_workbench.platform.db.session import db_session
@@ -64,7 +64,7 @@ class _ScriptedClaude:
 def _install(monkeypatch: pytest.MonkeyPatch, script: list[_Resp]) -> _ScriptedClaude:
     fake = _ScriptedClaude(script)
     monkeypatch.setattr(settings, "anthropic_api_key", "sk-ant-test-0000")
-    monkeypatch.setattr(threads_api, "make_client", lambda _key: fake)
+    monkeypatch.setattr(replies_api, "make_client", lambda _key: fake)
     return fake
 
 

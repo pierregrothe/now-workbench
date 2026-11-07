@@ -10,7 +10,8 @@ from now_workbench.domains.instances import (
     InstanceUpdate,
     check_and_record_instance,
 )
-from now_workbench.interfaces.ai.tiles import GenerativeUIResponse, build_instance_response
+from now_workbench.interfaces.ai.tile_builders import build_instance_response
+from now_workbench.interfaces.ai.tiles import GenerativeUIResponse
 from now_workbench.interfaces.ai.tools.base import (
     ToolContext,
     ToolResult,

@@ -17,6 +17,7 @@ from access_kit import _AUD, _KEY, _TEAM, as_user, multi_user_client
 from fastapi.testclient import TestClient
 
 from now_workbench.domains.conversations.repository import ThreadRepository
+from now_workbench.interfaces.api import replies as replies_api
 from now_workbench.interfaces.api import threads as threads_api
 from now_workbench.interfaces.api.access import ACCESS_HEADER, AccessValidator
 from now_workbench.interfaces.api.app import _log_setup_code, create_app
@@ -103,7 +104,7 @@ def test_post_thread_message_agent_failure_returns_diagnostic_tiles(
 ) -> None:
     """When Claude fails outside fake mode, Otto answers with diagnostic tiles."""
     monkeypatch.setattr(settings, "anthropic_api_key", "sk-ant-test-0000")
-    monkeypatch.setattr(threads_api, "make_client", _no_client)
+    monkeypatch.setattr(replies_api, "make_client", _no_client)
     thread = _thread(client)
     res = client.post(f"/api/threads/{thread}/messages", json={"content": "hello"})
     assert res.status_code == 200
@@ -117,7 +118,7 @@ def test_post_thread_message_agent_failure_in_fake_mode_falls_back(
 ) -> None:
     """In simulated mode a failing agent falls back to the built-in tile answers."""
     monkeypatch.setattr(settings, "anthropic_api_key", "sk-ant-test-0000")
-    monkeypatch.setattr(threads_api, "make_client", lambda _k: _FakeClient(_BrokenMessages()))
+    monkeypatch.setattr(replies_api, "make_client", lambda _k: _FakeClient(_BrokenMessages()))
     client.put("/api/settings", json={"sdk_fake_mode": True})
     thread = _thread(client)
     res = client.post(f"/api/threads/{thread}/messages", json={"content": "hello"})

@@ -35,20 +35,23 @@ from now_workbench.domains.sharing import resolve_bundle, sync_registry
 from now_workbench.domains.templates import TemplateRecord, TemplateRepository
 from now_workbench.interfaces.ai.agent import AgentEventType, ClaudeAgentRunner, make_async_client
 from now_workbench.interfaces.ai.client import OttoClient
-from now_workbench.interfaces.ai.tiles import GenerativeUIResponse, resolve_query_to_tiles
+from now_workbench.interfaces.ai.tile_routing import resolve_query_to_tiles
+from now_workbench.interfaces.ai.tiles import GenerativeUIResponse
 from now_workbench.interfaces.api.access import AccessValidator
 from now_workbench.interfaces.api.attachments import attachments_router, limits_router
+from now_workbench.interfaces.api.captures import router as captures_router
 from now_workbench.interfaces.api.demos import router as demos_router
 from now_workbench.interfaces.api.guard import AccessMiddleware, assert_safe_binding
 from now_workbench.interfaces.api.impersonation import router as impersonation_router
 from now_workbench.interfaces.api.instances import router as instances_router
 from now_workbench.interfaces.api.profile import router as profile_router
+from now_workbench.interfaces.api.properties import router as properties_router
+from now_workbench.interfaces.api.replies import load_verified_instances_dict
 from now_workbench.interfaces.api.settings_api import router as settings_router
 from now_workbench.interfaces.api.setup import router as setup_router
 from now_workbench.interfaces.api.sharing import approvals_router, artifacts_router, groups_router
 from now_workbench.interfaces.api.team import router as team_router
 from now_workbench.interfaces.api.templates import router as templates_router
-from now_workbench.interfaces.api.threads import _load_verified_instances_dict
 from now_workbench.interfaces.api.threads import router as threads_router
 from now_workbench.platform.config.origins import is_origin_allowed
 from now_workbench.platform.config.paths import UnsafePathError
@@ -214,13 +217,15 @@ def create_app(
     )
 
     @app.exception_handler(UnsafePathError)
-    async def _reject_unsafe_path(_request: Request, exc: UnsafePathError) -> JSONResponse:
+    async def _reject_unsafe_path(build_request: Request, exc: UnsafePathError) -> JSONResponse:
         """Turn a rejected user-supplied id into HTTP 400 on every route (never 500)."""
         return JSONResponse(status_code=400, content={"detail": str(exc)})
 
     app.include_router(instances_router)
     app.include_router(templates_router)
     app.include_router(demos_router)
+    app.include_router(captures_router)
+    app.include_router(properties_router)
     app.include_router(threads_router)
     app.include_router(settings_router)
     app.include_router(profile_router)
@@ -292,7 +297,7 @@ def _register_ai_tiles(app: FastAPI) -> None:
     @app.post("/api/ai/tiles", response_model=GenerativeUIResponse)
     def query_generative_ui(req: GenerativeUIQueryRequest) -> GenerativeUIResponse:
         with db_session() as conn:
-            instances = _load_verified_instances_dict(conn)
+            instances = load_verified_instances_dict(conn)
         return resolve_query_to_tiles(req.query, instances=instances)
 
 

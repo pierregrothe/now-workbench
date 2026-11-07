@@ -18,26 +18,28 @@ from now_workbench.domains.instances.models import InstanceCreate
 from now_workbench.domains.instances.repository import InstanceRepository
 from now_workbench.interfaces.ai import agent as agent_mod
 from now_workbench.interfaces.ai import client as client_mod
+from now_workbench.interfaces.ai import conversation as conversation_mod
 from now_workbench.interfaces.ai.agent import (
     AgentEventType,
     AgentUnavailableError,
     ClaudeAgentRunner,
-    ConversationFiles,
     _assemble,
-    _block_to_dict,
     _call_client_create,
-    _history_to_messages,
-    _result_content,
     run_agent,
 )
 from now_workbench.interfaces.ai.client import OttoClient, validate_api_key
-from now_workbench.interfaces.ai.tiles import (
-    GenerativeUIResponse,
-    UITileSpec,
+from now_workbench.interfaces.ai.conversation import (
+    ConversationFiles,
+    _history_to_messages,
+    block_to_dict,
+    result_content,
+)
+from now_workbench.interfaces.ai.tile_builders import (
     build_instance_response,
     format_instance_status,
-    resolve_query_to_tiles,
 )
+from now_workbench.interfaces.ai.tile_routing import resolve_query_to_tiles
+from now_workbench.interfaces.ai.tiles import GenerativeUIResponse, UITileSpec
 from now_workbench.interfaces.ai.tools import execute_tool, tool_definitions
 from now_workbench.interfaces.ai.tools.base import (
     REGISTRY,
@@ -381,14 +383,14 @@ def test_block_to_dict_covers_every_block_kind() -> None:
         signature: str = "s"
         data: str = "d"
 
-    assert _block_to_dict(B("thinking")) == {"type": "thinking", "thinking": "t", "signature": "s"}
-    assert _block_to_dict(B("redacted_thinking")) == {"type": "redacted_thinking", "data": "d"}
-    assert _block_to_dict(B("server_tool_use")) is None
+    assert block_to_dict(B("thinking")) == {"type": "thinking", "thinking": "t", "signature": "s"}
+    assert block_to_dict(B("redacted_thinking")) == {"type": "redacted_thinking", "data": "d"}
+    assert block_to_dict(B("server_tool_use")) is None
 
 
 def test_result_content_attaches_png_and_jpeg_images() -> None:
     res = ToolResult(summary="shot", images=["/9j/abc", "iVBOR"])
-    content = _result_content(res)
+    content = result_content(res)
     assert isinstance(content, list)
     assert content[1]["source"]["media_type"] == "image/jpeg"
     assert content[2]["source"]["media_type"] == "image/png"
@@ -505,7 +507,7 @@ async def test_run_agent_inside_running_loop_uses_sync_runner() -> None:
 
 
 def test_run_agent_sync_without_tools_skips_cache_marker(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(agent_mod, "tool_definitions", lambda: [])
+    monkeypatch.setattr(conversation_mod, "tool_definitions", lambda: [])
     with db_session() as conn:
         client = _FakeClient([_text("none")])
         agent_mod._run_agent_sync("q", [], conn, client, "m")
@@ -513,7 +515,7 @@ def test_run_agent_sync_without_tools_skips_cache_marker(monkeypatch: pytest.Mon
 
 
 async def test_runner_without_tools_skips_cache_marker(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(agent_mod, "tool_definitions", lambda: [])
+    monkeypatch.setattr(conversation_mod, "tool_definitions", lambda: [])
     with db_session() as conn:
         resp = await ClaudeAgentRunner(_AsyncClient([_text("none")]), "m", conn).run("q", [])
         assert resp.summary == "none"

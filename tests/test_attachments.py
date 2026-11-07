@@ -21,6 +21,7 @@ from now_workbench.domains.conversations.files import (
 )
 from now_workbench.domains.conversations.models import ChatThreadRecord, ConversationLimits
 from now_workbench.domains.conversations.repository import ThreadRepository
+from now_workbench.interfaces.api import replies as replies_api
 from now_workbench.interfaces.api import threads as threads_api
 from now_workbench.interfaces.api.app import create_app
 from now_workbench.platform.config.settings import settings
@@ -64,7 +65,7 @@ def claude(monkeypatch: pytest.MonkeyPatch) -> _FakeClaude:
     """A configured key and an in-memory Claude that records what it was sent."""
     fake = _FakeClaude()
     monkeypatch.setattr(settings, "anthropic_api_key", "sk-ant-test-0000")
-    monkeypatch.setattr(threads_api, "make_client", lambda _key: fake)
+    monkeypatch.setattr(replies_api, "make_client", lambda _key: fake)
     return fake
 
 
@@ -232,10 +233,10 @@ def test_post_thread_message_slow_reply_keeps_the_connection_alive(
 
     def slow_reply(*_args: object, **_kwargs: object) -> object:
         time.sleep(0.35)
-        return threads_api._Reply("Done after a while.", None, {})
+        return replies_api._Reply("Done after a while.", None, {})
 
     monkeypatch.setattr(threads_api, "_KEEPALIVE_S", 0.1)
-    monkeypatch.setattr(threads_api, "_build_contextual_reply", slow_reply)
+    monkeypatch.setattr(threads_api, "build_contextual_reply", slow_reply)
     thread = _thread(client)
     res = client.post(f"/api/threads/{thread}/messages", json={"content": "long job"})
     assert res.status_code == 200

@@ -1,12 +1,8 @@
 """Tests for Generative UI Tile Catalog schemas and tool-calling models."""
 
-from now_workbench.interfaces.ai.tiles import (
-    RENDER_UI_TILES_TOOL,
-    GenerativeUIResponse,
-    UITileSpec,
-    build_instance_response,
-    resolve_query_to_tiles,
-)
+from now_workbench.interfaces.ai.tile_builders import build_instance_response
+from now_workbench.interfaces.ai.tile_routing import resolve_query_to_tiles
+from now_workbench.interfaces.ai.tiles import RENDER_UI_TILES_TOOL, GenerativeUIResponse, UITileSpec
 
 
 def test_ui_tile_spec_model() -> None:

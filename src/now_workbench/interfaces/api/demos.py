@@ -1,7 +1,6 @@
 """API routes for demonstration bundles and transactional seed operations."""
 
 import os
-import sqlite3
 import tempfile
 from pathlib import Path
 from typing import Any
@@ -12,31 +11,21 @@ from pydantic import BaseModel, ConfigDict, Field
 from starlette.background import BackgroundTask
 
 from now_workbench.domains.bundles import BundleManager, DemoBundleInfo
-from now_workbench.domains.capture import (
-    CaptureArtifact,
-    CaptureFailedError,
-    CaptureRequest,
-    PlaywrightCaptureEngine,
-)
 from now_workbench.domains.demos import (
     DemoEvaluationResult,
     DemoPipelineEngine,
     DemoPipelineSummary,
 )
 from now_workbench.domains.fluent import FluentEngine
-from now_workbench.domains.instances import InstanceRecord, InstanceRepository
 from now_workbench.domains.properties import PropertyEngine
 from now_workbench.domains.runbooks import RunbookEngine, RunbookGuide
 from now_workbench.domains.seed import SeedEngine, SeedOperationRecord, SeedRepository
 from now_workbench.domains.settings import PreferencesRepository
 from now_workbench.domains.sharing import (
     ArtifactRepository,
-    BundleAccess,
-    ReadOnlyBundleError,
     delete_artifact_files,
     list_accessible,
     register_new_bundle,
-    resolve_bundle,
 )
 from now_workbench.domains.synthesizer import (
     NoReleaseError,
@@ -45,7 +34,12 @@ from now_workbench.domains.synthesizer import (
     UseCaseSynthesizer,
     resolve_synthesis_release,
 )
-from now_workbench.platform.config.paths import safe_child
+from now_workbench.interfaces.api.demo_support import (
+    PropertyActionRequest,
+    bundle_info,
+    require_bundle,
+    target_instance,
+)
 from now_workbench.platform.config.settings import settings
 from now_workbench.platform.db.session import db_session
 from now_workbench.platform.owner import current_owner
@@ -73,23 +67,6 @@ class DemoBundleUpdateRequest(BaseModel):
     tags: list[str] | None = None
 
 
-class CaptureUpdateRequest(BaseModel):
-    """Payload to update capture artifact metadata."""
-
-    model_config = ConfigDict(extra="forbid", frozen=True)
-
-    label: str
-
-
-class PropertyActionRequest(BaseModel):
-    """Payload for property apply/restore and demo reset operations."""
-
-    model_config = ConfigDict(extra="forbid", frozen=True)
-
-    instance_id: str | None = Field(default=None, description="Optional target instance ID")
-    fake_mode: bool = Field(default=False, description="Simulate operation without live HTTP")
-
-
 class FluentDiffRequest(BaseModel):
     """Payload for comparing two demo bundle Fluent schemas."""
 
@@ -109,53 +86,25 @@ class CloneBundleRequest(BaseModel):
     )
 
 
-def _access(bundle_id: str, write: bool = False) -> BundleAccess:
-    """Resolve a bundle for the signed-in person (ADR-018): 404 unless theirs or shared."""
-    with db_session() as conn:
-        try:
-            return resolve_bundle(conn, bundle_id, write=write)
-        except LookupError as exc:
-            raise HTTPException(status_code=404, detail="Demo bundle not found.") from exc
-        except ReadOnlyBundleError as exc:
-            raise HTTPException(status_code=403, detail=str(exc)) from exc
-
-
-def _info(access: BundleAccess) -> DemoBundleInfo:
-    info = BundleManager(storage_dir=access.root).inspect_bundle(access.path)
-    return info.model_copy(
-        update={"owner_email": access.owner, "access": access.kind.value, "version": access.version}
-    )
-
-
-def _target_instance(
-    conn: sqlite3.Connection, instance_id: str | None, missing: str = "Target instance not found."
-) -> InstanceRecord:
-    """Return the requested (or default) instance; HTTP 400 with ``missing`` when there is none."""
-    inst = InstanceRepository(conn).resolve(instance_id)
-    if inst is None:
-        raise HTTPException(status_code=400, detail=missing)
-    return inst
-
-
 @router.get("", response_model=list[DemoBundleInfo])
 def list_demos() -> list[DemoBundleInfo]:
     """List the signed-in person's demo bundles and those shared with them."""
     with db_session() as conn:
         accesses = list_accessible(conn)
-    infos = [_info(a) for a in accesses]
+    infos = [bundle_info(a) for a in accesses]
     return sorted(infos, key=lambda b: b.manifest.name)
 
 
 @router.get("/{bundle_id}", response_model=DemoBundleInfo)
 def get_demo_detail(bundle_id: str) -> DemoBundleInfo:
     """Inspect metadata for a demonstration package."""
-    return _info(_access(bundle_id))
+    return bundle_info(require_bundle(bundle_id))
 
 
 @router.post("/{bundle_id}/clone", response_model=DemoBundleInfo)
 def clone_demo_bundle(bundle_id: str, req: CloneBundleRequest) -> DemoBundleInfo:
     """Clone a bundle (own or shared) into a new bundle the signed-in person owns."""
-    source = _access(bundle_id)
+    source = require_bundle(bundle_id)
     mgr = BundleManager(storage_dir=settings.get_bundles_dir())
     try:
         info = mgr.clone_bundle(
@@ -170,13 +119,13 @@ def clone_demo_bundle(bundle_id: str, req: CloneBundleRequest) -> DemoBundleInfo
         raise HTTPException(status_code=400, detail=str(e))
     with db_session() as conn:
         register_new_bundle(conn, info.manifest.id, current_owner())
-    return _info(_access(info.manifest.id))
+    return bundle_info(require_bundle(info.manifest.id))
 
 
 @router.delete("/{bundle_id}")
 def delete_demo(bundle_id: str) -> dict[str, Any]:
     """Delete a demonstration bundle, its versions and its shares (owner only)."""
-    _access(bundle_id, write=True)
+    require_bundle(bundle_id, write=True)
     mgr = BundleManager(storage_dir=settings.get_bundles_dir())
     try:
         mgr.delete_bundle(bundle_id)
@@ -197,7 +146,7 @@ def delete_demo(bundle_id: str) -> dict[str, Any]:
 @router.patch("/{bundle_id}", response_model=DemoBundleInfo)
 def update_demo_bundle(bundle_id: str, req: DemoBundleUpdateRequest) -> DemoBundleInfo:
     """Update a demonstration bundle's manifest metadata (owner only)."""
-    _access(bundle_id, write=True)
+    require_bundle(bundle_id, write=True)
     mgr = BundleManager(storage_dir=settings.get_bundles_dir())
     try:
         mgr.update_bundle_manifest(
@@ -210,7 +159,7 @@ def update_demo_bundle(bundle_id: str, req: DemoBundleUpdateRequest) -> DemoBund
         raise HTTPException(status_code=404, detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
-    return _info(_access(bundle_id))
+    return bundle_info(require_bundle(bundle_id))
 
 
 @router.get("/{bundle_id}/export")
@@ -220,7 +169,7 @@ def export_demo(bundle_id: str) -> FileResponse:
     The archive is built in a private temporary file and deleted once it has been sent, so
     exports never pile up on the server.
     """
-    access = _access(bundle_id)
+    access = require_bundle(bundle_id)
     mgr = BundleManager(storage_dir=access.root)
     fd, tmp_name = tempfile.mkstemp(suffix=".sn-demo.zip")
     os.close(fd)
@@ -244,7 +193,7 @@ async def seed_demo_records(
     payload: dict[str, Any] | None = None,
 ) -> SeedOperationRecord:
     """Transactionally load and seed records into ServiceNow Table API."""
-    bundle_path = _access(bundle_id).path
+    bundle_path = require_bundle(bundle_id).path
 
     body = payload or {}
     instance_id = body.get("instance_id")
@@ -289,7 +238,7 @@ def list_seed_history(limit: int = 50) -> list[SeedOperationRecord]:
 def get_demo_runbook(bundle_id: str) -> RunbookGuide:
     """Retrieve structured walkthrough guide and persona stages for a demonstration."""
     engine = RunbookEngine()
-    target = _access(bundle_id).path
+    target = require_bundle(bundle_id).path
     runbook = engine.load_runbook(target, bundle_id=bundle_id)
     if not runbook:
         raise HTTPException(status_code=404, detail="Demonstration walkthrough guide not found.")
@@ -303,7 +252,7 @@ async def verify_demo_stage(
 ) -> dict[str, Any]:
     """Verify live ServiceNow instance state for a demonstration stage."""
     engine = RunbookEngine()
-    target = _access(bundle_id).path
+    target = require_bundle(bundle_id).path
     runbook = engine.load_runbook(target, bundle_id=bundle_id)
     if not runbook:
         raise HTTPException(status_code=404, detail="Demonstration walkthrough guide not found.")
@@ -315,7 +264,7 @@ async def verify_demo_stage(
         )
 
     with db_session() as conn:
-        inst = _target_instance(conn, req.instance_id)
+        inst = target_instance(conn, req.instance_id)
 
     ok, msg = await engine.verify_stage(matching_stage, inst, fake_mode=req.fake_mode)
     return {
@@ -327,77 +276,16 @@ async def verify_demo_stage(
     }
 
 
-@router.get("/{bundle_id}/properties")
-def get_bundle_properties(bundle_id: str, instance_id: str | None = None) -> dict[str, Any]:
-    """Retrieve configured properties and active snapshot status for a demo."""
-    target = _access(bundle_id).path
-    prop_engine = PropertyEngine()
-    props = prop_engine.read_bundle_properties(target)
-
-    with db_session() as conn:
-        inst = InstanceRepository(conn).resolve(instance_id)
-    snapshot = prop_engine.load_snapshot(bundle_id, inst.id) if inst else None
-
-    return {
-        "bundle_id": bundle_id,
-        "instance_id": inst.id if inst else None,
-        "properties": props,
-        "has_snapshot": snapshot is not None,
-        "snapshot": snapshot.model_dump() if snapshot else None,
-    }
-
-
-@router.post("/{bundle_id}/properties/apply")
-async def apply_bundle_properties(
-    bundle_id: str,
-    req: PropertyActionRequest,
-) -> dict[str, Any]:
-    """Apply bundle properties to target instance and record snapshot."""
-    target = _access(bundle_id).path
-
-    with db_session() as conn:
-        inst = _target_instance(conn, req.instance_id)
-
-    prop_engine = PropertyEngine()
-    res = await prop_engine.apply_bundle_properties(
-        bundle_id=bundle_id,
-        bundle_path=target,
-        instance=inst,
-        fake_mode=req.fake_mode,
-    )
-    return res.model_dump()
-
-
-@router.post("/{bundle_id}/properties/restore")
-async def restore_bundle_properties(
-    bundle_id: str,
-    req: PropertyActionRequest,
-) -> dict[str, Any]:
-    """Restore previous property states from snapshot for target instance."""
-    _access(bundle_id)
-
-    with db_session() as conn:
-        inst = _target_instance(conn, req.instance_id)
-
-    prop_engine = PropertyEngine()
-    res = await prop_engine.restore_properties(
-        bundle_id=bundle_id,
-        instance=inst,
-        fake_mode=req.fake_mode,
-    )
-    return res.model_dump()
-
-
 @router.post("/{bundle_id}/reset")
 async def reset_demo(
     bundle_id: str,
     req: PropertyActionRequest,
 ) -> dict[str, Any]:
     """Unified teardown: roll back seed data records and restore system properties."""
-    _access(bundle_id)
+    require_bundle(bundle_id)
 
     with db_session() as conn:
-        inst = _target_instance(conn, req.instance_id)
+        inst = target_instance(conn, req.instance_id)
 
         # 1. Roll back active seed records for this bundle and instance
         seed_engine = SeedEngine(conn=conn, fake_mode=req.fake_mode)
@@ -437,7 +325,7 @@ async def reset_demo(
 @router.get("/{bundle_id}/fluent")
 def get_demo_fluent_schema(bundle_id: str) -> dict[str, Any]:
     """Retrieve parsed ServiceNow Fluent SDK table schemas for a demo bundle."""
-    target = _access(bundle_id).path
+    target = require_bundle(bundle_id).path
 
     engine = FluentEngine()
     tables = engine.load_bundle_schemas(target)
@@ -453,8 +341,8 @@ def diff_demo_fluent_schema(
     req: FluentDiffRequest,
 ) -> dict[str, Any]:
     """Compute structural Fluent schema diff between source bundle and target bundle."""
-    source_target = _access(bundle_id).path
-    compare_target = _access(req.target_bundle_id).path
+    source_target = require_bundle(bundle_id).path
+    compare_target = require_bundle(req.target_bundle_id).path
 
     engine = FluentEngine()
     schemas_a = engine.load_bundle_schemas(source_target)
@@ -486,128 +374,15 @@ def synthesize_demo_bundle(req: UseCaseSynthesisRequest) -> SynthesizedDemoResul
     return result
 
 
-@router.get("/{bundle_id}/captures", response_model=list[CaptureArtifact])
-def list_demo_captures(bundle_id: str) -> list[CaptureArtifact]:
-    """List all Playwright screenshots and videos captured for a demo bundle."""
-    engine = PlaywrightCaptureEngine(bundles_dir=_access(bundle_id).root)
-    return engine.list_captures(bundle_id)
-
-
-@router.post("/{bundle_id}/captures", response_model=CaptureArtifact)
-async def create_demo_capture(bundle_id: str, req: CaptureRequest) -> CaptureArtifact:
-    """Capture a screenshot or video of the target instance for this bundle (owner only)."""
-    _access(bundle_id, write=True)
-    with db_session() as conn:
-        prefs = PreferencesRepository(conn).get_workbench_preferences()
-        inst = InstanceRepository(conn).resolve(req.instance_id)
-    if inst is None:
-        if req.instance_id:
-            raise HTTPException(status_code=404, detail="Instance not found.")
-        raise HTTPException(status_code=409, detail="No target instance registered.")
-    inst_url = inst.url
-    username = inst.username
-    password = inst.password
-    engine = PlaywrightCaptureEngine(bundles_dir=settings.get_bundles_dir())
-    merged_req = CaptureRequest(
-        bundle_id=bundle_id,
-        instance_id=req.instance_id,
-        target_path=req.target_path,
-        media_type=req.media_type,
-        label=req.label,
-        viewport_width=req.viewport_width,
-        viewport_height=req.viewport_height,
-        fake_mode=req.fake_mode or prefs.capture_fake_mode,
-    )
-    try:
-        return await engine.capture(
-            merged_req,
-            instance_url=inst_url,
-            wait_timeout_ms=prefs.capture_wait_timeout_ms,
-            username=username,
-            password=password,
-            release=inst.release if inst else "Xanadu",
-        )
-    except CaptureFailedError as exc:
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
-
-
-@router.get("/{bundle_id}/captures/{filename}")
-def get_demo_capture_file(bundle_id: str, filename: str) -> FileResponse:
-    """Serve a captured screenshot (.png) or video (.webm) file inline for browser viewing."""
-    file_path = safe_child(_access(bundle_id).path / "media", filename)
-    if not file_path.exists():
-        raise HTTPException(status_code=404, detail="Capture file not found.")
-    media_type = "video/webm" if filename.endswith(".webm") else "image/png"
-    return FileResponse(
-        path=file_path,
-        filename=filename,
-        media_type=media_type,
-        content_disposition_type="inline",
-    )
-
-
-@router.delete("/{bundle_id}/captures")
-def clear_demo_captures(bundle_id: str) -> dict[str, Any]:
-    """Delete all captured screenshots and videos associated with a demonstration bundle."""
-    _access(bundle_id, write=True)
-    engine = PlaywrightCaptureEngine(bundles_dir=settings.get_bundles_dir())
-    try:
-        count = engine.clear_all_captures(bundle_id)
-        return {
-            "success": True,
-            "bundle_id": bundle_id,
-            "deleted_count": count,
-            "message": f"Cleared {count} capture artifact(s) from bundle '{bundle_id}'.",
-        }
-    except FileNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e))
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
-
-@router.delete("/{bundle_id}/captures/{filename}")
-def delete_demo_capture_file(bundle_id: str, filename: str) -> dict[str, Any]:
-    """Delete a captured screenshot (.png) or video (.webm) artifact."""
-    _access(bundle_id, write=True)
-    engine = PlaywrightCaptureEngine(bundles_dir=settings.get_bundles_dir())
-    try:
-        engine.delete_capture(bundle_id, filename)
-        return {
-            "success": True,
-            "bundle_id": bundle_id,
-            "filename": filename,
-            "message": f"Capture artifact '{filename}' deleted.",
-        }
-    except FileNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e))
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
-
-@router.patch("/{bundle_id}/captures/{filename}", response_model=CaptureArtifact)
-def update_demo_capture_file(
-    bundle_id: str, filename: str, req: CaptureUpdateRequest
-) -> CaptureArtifact:
-    """Update label/caption of a screenshot (.png) or video (.webm) artifact."""
-    _access(bundle_id, write=True)
-    engine = PlaywrightCaptureEngine(bundles_dir=settings.get_bundles_dir())
-    try:
-        return engine.update_capture(bundle_id, filename, label=req.label)
-    except FileNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e))
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
-
 @router.get("/{bundle_id}/evaluate", response_model=DemoEvaluationResult)
 def evaluate_demo_prerequisites(
     bundle_id: str,
     instance_id: str | None = None,
 ) -> DemoEvaluationResult:
     """Evaluate demo bundle prerequisites against the target or default instance."""
-    bundles_dir = _access(bundle_id).root
+    bundles_dir = require_bundle(bundle_id).root
     with db_session() as conn:
-        inst = _target_instance(conn, instance_id, "No active instance configured.")
+        inst = target_instance(conn, instance_id, "No active instance configured.")
         prefs = PreferencesRepository(conn).get_workbench_preferences()
         engine = DemoPipelineEngine(bundles_dir=bundles_dir, conn=conn)
         try:
@@ -625,10 +400,10 @@ async def run_demo_pipeline_endpoint(
     """Execute complete end-to-end demo lifecycle: evaluate, install modules,
     configure, seed, test, and record video proof. Owner only: it records media into the bundle.
     """
-    _access(bundle_id, write=True)
+    require_bundle(bundle_id, write=True)
     bundles_dir = settings.get_bundles_dir()
     with db_session() as conn:
-        inst = _target_instance(conn, instance_id, "No active instance configured.")
+        inst = target_instance(conn, instance_id, "No active instance configured.")
         prefs = PreferencesRepository(conn).get_workbench_preferences()
         engine = DemoPipelineEngine(bundles_dir=bundles_dir, conn=conn)
         try:
