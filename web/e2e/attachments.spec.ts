@@ -38,11 +38,11 @@ test('an unsupported file is refused with the reason', async ({ page }) => {
 test('administrators can change the conversation limits', async ({ page, request }) => {
   await page.goto('/#admin');
   await page.getByLabel('Settings sections').getByRole('button', { name: 'Conversation limits' }).click();
-  const turns = page.getByLabel('Questions per conversation');
-  await expect(turns).toHaveValue(/\d+/);
-  await turns.fill('25');
+  const budget = page.getByLabel('Tokens per conversation');
+  await expect(budget).toHaveValue(/\d+/);
+  await budget.fill('3000000');
   await page.getByRole('button', { name: 'Save limits' }).click();
   await expect(page.getByRole('status')).toHaveText('Limits saved. They apply to everyone right away.');
-  expect((await (await request.get('/api/limits')).json()).max_turns).toBe(25);
-  await request.put('/api/limits', { data: { max_turns: 20 } });
+  expect((await (await request.get('/api/limits')).json()).max_conversation_tokens).toBe(3000000);
+  await request.put('/api/limits', { data: { max_conversation_tokens: 2000000 } });
 });

@@ -57,6 +57,12 @@ class GenerativeUIResponse(BaseModel):
     steps: list[AgentStep] = Field(
         default_factory=list, description="Tool runs performed to produce this response"
     )
+    usage: dict[str, int] = Field(
+        default_factory=dict, description="Claude tokens this reply used (ADR-023)"
+    )
+    # The exact messages exchanged with Claude for this reply, replayed unchanged on later
+    # questions so the conversation is served from the prompt cache. Never sent to the UI.
+    transcript: list[dict[str, Any]] = Field(default_factory=list, exclude=True)
 
 
 RENDER_UI_TILES_TOOL = {

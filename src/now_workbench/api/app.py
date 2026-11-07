@@ -429,7 +429,7 @@ async def _stream_agent_to_ws(
         return
     if thread is not None:
         try:
-            check_can_ask(thread, history, repo.get_conversation_limits())
+            check_can_ask(thread, repo.get_conversation_limits())
         except LimitReachedError as exc:
             await websocket.send_json({"type": "error", "message": str(exc)})
             return

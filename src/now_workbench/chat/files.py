@@ -16,7 +16,7 @@ from pathlib import Path
 
 from now_workbench.chat.models import Attachment, ConversationLimits
 from now_workbench.config.settings import settings
-from now_workbench.db.models import ChatMessageRecord, ChatThreadRecord
+from now_workbench.db.models import ChatThreadRecord
 from now_workbench.profile.avatars import sniff_image
 
 __all__ = [
@@ -72,18 +72,15 @@ def detect_media_type(data: bytes, filename: str) -> str:
     raise UnsupportedFileError("Attach a PDF, an image (PNG, JPEG, GIF, WebP) or a text file.")
 
 
-def check_can_ask(
-    thread: ChatThreadRecord, history: list[ChatMessageRecord], limits: ConversationLimits
-) -> None:
-    """Refuse a new question once the conversation is too long or too old.
+def check_can_ask(thread: ChatThreadRecord, limits: ConversationLimits) -> None:
+    """Refuse a new question once the conversation used its token budget or is too old.
 
     Raises:
-        LimitReachedError: Turn or age limit reached.
+        LimitReachedError: Token or age limit reached.
     """
-    asked = sum(1 for m in history if m.role == "user" and m.widget_type != "tool_confirm")
-    if asked >= limits.max_turns:
+    if thread.tokens_used >= limits.max_conversation_tokens:
         raise LimitReachedError(
-            f"This conversation reached its limit of {limits.max_turns} questions. "
+            f"This conversation used its budget of {limits.max_conversation_tokens:,} tokens. "
             "Start a new conversation to continue."
         )
     age = datetime.now(UTC) - _aware(thread.created_at)

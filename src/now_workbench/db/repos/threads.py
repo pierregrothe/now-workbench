@@ -4,6 +4,7 @@ import json
 import sqlite3
 import uuid
 from datetime import UTC, datetime
+from typing import Any
 
 from now_workbench.auth.owner import current_owner
 from now_workbench.db.models import (
@@ -27,15 +28,12 @@ class ThreadRepositoryMixin:
         cursor = self.conn.execute(
             f"""
             SELECT t.id, t.title, t.archived, t.target_tab, t.created_at, t.updated_at,
-                   SUM(CASE WHEN m.role = 'user'
-                            AND COALESCE(m.widget_type, '') != 'tool_confirm'
-                       THEN 1 ELSE 0 END) AS asked,
-                   COALESCE((SELECT json_extract(payload, '$.max_turns') FROM app_settings
-                             WHERE key = 'conversation_limits'), 20) AS max_q
+                   t.tokens_used,
+                   COALESCE((SELECT json_extract(payload, '$.max_conversation_tokens')
+                             FROM app_settings WHERE key = 'conversation_limits'),
+                            2000000) AS max_tokens
             FROM chat_threads t
-            LEFT JOIN chat_messages m ON m.thread_id = t.id
             {where_clause}
-            GROUP BY t.id
             ORDER BY t.updated_at DESC;
             """,
             (current_owner(),),
@@ -46,8 +44,8 @@ class ThreadRepositoryMixin:
                 title=row["title"],
                 archived=bool(row["archived"]),
                 target_tab=row["target_tab"] or "home",
-                questions_asked=int(row["asked"] or 0),
-                max_questions=int(row["max_q"]),
+                tokens_used=int(row["tokens_used"]),
+                max_tokens=int(row["max_tokens"]),
                 created_at=row["created_at"],
                 updated_at=row["updated_at"],
             )
@@ -59,15 +57,12 @@ class ThreadRepositoryMixin:
         cursor = self.conn.execute(
             """
             SELECT t.id, t.title, t.archived, t.target_tab, t.created_at, t.updated_at,
-                   SUM(CASE WHEN m.role = 'user'
-                            AND COALESCE(m.widget_type, '') != 'tool_confirm'
-                       THEN 1 ELSE 0 END) AS asked,
-                   COALESCE((SELECT json_extract(payload, '$.max_turns') FROM app_settings
-                             WHERE key = 'conversation_limits'), 20) AS max_q
+                   t.tokens_used,
+                   COALESCE((SELECT json_extract(payload, '$.max_conversation_tokens')
+                             FROM app_settings WHERE key = 'conversation_limits'),
+                            2000000) AS max_tokens
             FROM chat_threads t
-            LEFT JOIN chat_messages m ON m.thread_id = t.id
-            WHERE t.id = ? AND t.owner_email = ?
-            GROUP BY t.id;
+            WHERE t.id = ? AND t.owner_email = ?;
             """,
             (thread_id, current_owner()),
         )
@@ -79,8 +74,8 @@ class ThreadRepositoryMixin:
             title=row["title"],
             archived=bool(row["archived"]),
             target_tab=row["target_tab"] or "home",
-            questions_asked=int(row["asked"] or 0),
-            max_questions=int(row["max_q"]),
+            tokens_used=int(row["tokens_used"]),
+            max_tokens=int(row["max_tokens"]),
             created_at=row["created_at"],
             updated_at=row["updated_at"],
         )
@@ -170,7 +165,9 @@ class ThreadRepositoryMixin:
             )
         return messages
 
-    def add_message(self, msg: ChatMessageRecord) -> ChatMessageRecord:
+    def add_message(
+        self, msg: ChatMessageRecord, transcript: list[dict[str, Any]] | None = None
+    ) -> ChatMessageRecord:
         """Persist a chat message in one of the owner's threads and touch its timestamp.
 
         Raises:
@@ -184,8 +181,8 @@ class ThreadRepositoryMixin:
             self.conn.execute(
                 """
                 INSERT INTO chat_messages (id, thread_id, role, content, widget_type,
-                                           widget_data, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?);
+                                           widget_data, created_at, agent_transcript)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?);
                 """,
                 (
                     msg.id,
@@ -195,6 +192,7 @@ class ThreadRepositoryMixin:
                     msg.widget_type,
                     w_data_json,
                     created_iso,
+                    json.dumps(transcript) if transcript is not None else None,
                 ),
             )
             self.conn.execute(
@@ -202,3 +200,28 @@ class ThreadRepositoryMixin:
                 (created_iso, msg.thread_id),
             )
         return msg
+
+    def list_transcripts(self, thread_id: str) -> dict[str, list[dict[str, Any]]]:
+        """Return the exact Claude transcript of each assistant reply in one of the owner's threads.
+
+        Replaying these unchanged keeps the conversation prefix byte-identical between
+        requests, so Claude serves it from the prompt cache (ADR-023).
+        """
+        rows = self.conn.execute(
+            """
+            SELECT m.id, m.agent_transcript FROM chat_messages m
+            JOIN chat_threads t ON t.id = m.thread_id
+            WHERE m.thread_id = ? AND t.owner_email = ? AND m.agent_transcript IS NOT NULL;
+            """,
+            (thread_id, current_owner()),
+        ).fetchall()
+        return {r["id"]: json.loads(r["agent_transcript"]) for r in rows}
+
+    def add_thread_tokens(self, thread_id: str, tokens: int) -> None:
+        """Add the tokens a reply used to one of the owner's threads."""
+        with self.conn:
+            self.conn.execute(
+                "UPDATE chat_threads SET tokens_used = tokens_used + ? "
+                "WHERE id = ? AND owner_email = ?;",
+                (max(0, tokens), thread_id, current_owner()),
+            )

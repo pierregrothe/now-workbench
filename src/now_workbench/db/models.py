@@ -180,9 +180,9 @@ class ChatThreadRecord(BaseModel):
     title: str
     archived: bool = False
     target_tab: str = "home"
-    # Questions asked (confirmations excluded) against the admin-set limit (ADR-021).
-    questions_asked: int = 0
-    max_questions: int = 20
+    # Tokens used with Claude against the admin-set budget (ADR-023).
+    tokens_used: int = 0
+    max_tokens: int = 2_000_000
     created_at: str = Field(default_factory=lambda: datetime.now(UTC).isoformat())
     updated_at: str = Field(default_factory=lambda: datetime.now(UTC).isoformat())
 

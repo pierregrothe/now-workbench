@@ -7,6 +7,7 @@ import logging
 import threading
 import uuid
 from collections.abc import AsyncIterator
+from dataclasses import dataclass
 from typing import Any
 
 from fastapi import APIRouter, HTTPException
@@ -17,6 +18,7 @@ from now_workbench.ai.agent import (
     ConversationFiles,
     _build_diagnostic_error_tiles,
     make_client,
+    replay_conversation,
     run_agent,
 )
 from now_workbench.ai.tiles import GenerativeUIResponse, resolve_query_to_tiles
@@ -89,8 +91,6 @@ def _ensure_default_thread(repo: DatabaseRepository) -> list[ChatThreadRecord]:
                 "summary": default_tiles.summary,
                 "layout": default_tiles.layout,
                 "tiles": [t.model_dump() for t in default_tiles.tiles],
-                "context_used": 1,
-                "context_limit": MAX_THREAD_CONTEXT_MESSAGES,
             },
         )
     )
@@ -149,11 +149,7 @@ def _resolve_effective_query(user_text: str, history: list[ChatMessageRecord]) -
     return user_text
 
 
-def _widget_payload(
-    resp: GenerativeUIResponse,
-    repo: DatabaseRepository,
-    history_len: int,
-) -> dict[str, Any]:
+def _widget_payload(resp: GenerativeUIResponse, repo: DatabaseRepository) -> dict[str, Any]:
     """Build persisted widget data for an assistant tile response."""
     active_inst = repo.get_default_instance()
     inst_label = f"{active_inst.name} ({active_inst.url})" if active_inst else "no active instance"
@@ -163,9 +159,19 @@ def _widget_payload(
         "layout": resp.layout,
         "tiles": [t.model_dump() for t in resp.tiles],
         "steps": [s.model_dump() for s in resp.steps],
-        "context_used": min(history_len + 2, MAX_THREAD_CONTEXT_MESSAGES),
-        "context_limit": MAX_THREAD_CONTEXT_MESSAGES,
+        "usage": dict(resp.usage),
     }
+
+
+@dataclass(frozen=True)
+class _Reply:
+    """Otto's answer to one message, and what it cost (ADR-023)."""
+
+    text: str
+    widget_type: str | None
+    widget_data: dict[str, Any]
+    transcript: list[dict[str, Any]] | None = None
+    tokens: int = 0
 
 
 def _agent_reply(
@@ -173,7 +179,8 @@ def _agent_reply(
     repo: DatabaseRepository,
     history: list[ChatMessageRecord],
     files: ConversationFiles | None = None,
-) -> tuple[str, str | None, dict[str, Any]] | None:
+    prior: list[dict[str, Any]] | None = None,
+) -> _Reply | None:
     """Answer with the Claude tool-calling agent when an API key is configured."""
     api_key = repo.get_decrypted_anthropic_api_key()
     if not api_key:
@@ -188,24 +195,28 @@ def _agent_reply(
             model=prefs.claude_model,
             fake_mode=prefs.sdk_fake_mode,
             files=files,
+            prior=prior,
+            compact_at=repo.get_conversation_limits().compact_at_tokens,
         )
     except Exception as exc:
         if not prefs.sdk_fake_mode:
             diag_resp = _build_diagnostic_error_tiles(str(exc))
-            return (
-                diag_resp.summary,
-                "generative_tiles",
-                _widget_payload(diag_resp, repo, len(history)),
-            )
+            return _Reply(diag_resp.summary, "generative_tiles", _widget_payload(diag_resp, repo))
         return None
-    return resp.summary, "generative_tiles", _widget_payload(resp, repo, len(history))
+    return _Reply(
+        resp.summary,
+        "generative_tiles",
+        _widget_payload(resp, repo),
+        transcript=resp.transcript or None,
+        tokens=resp.usage.get("billable", 0),
+    )
 
 
 def _confirmed_tool_reply(
     req: ChatMessageCreate,
     repo: DatabaseRepository,
     history: list[ChatMessageRecord],
-) -> tuple[str, str | None, dict[str, Any]]:
+) -> _Reply:
     """Execute a user-confirmed destructive tool call and report the result."""
     data = req.widget_data or {}
     prefs = repo.get_workbench_preferences()
@@ -213,7 +224,7 @@ def _confirmed_tool_reply(
     result = execute_tool(ctx, str(data.get("tool", "")), dict(data.get("input") or {}), True)
     tiles = result.tiles or [text_tile("tile-tool-result", "Result", result.summary)]
     resp = GenerativeUIResponse(summary=result.summary, layout=result.layout, tiles=tiles)
-    return resp.summary, "generative_tiles", _widget_payload(resp, repo, len(history))
+    return _Reply(resp.summary, "generative_tiles", _widget_payload(resp, repo))
 
 
 def _build_contextual_reply(
@@ -221,13 +232,14 @@ def _build_contextual_reply(
     repo: DatabaseRepository,
     history: list[ChatMessageRecord],
     files: ConversationFiles | None = None,
-) -> tuple[str, str | None, dict[str, Any]]:
+    prior: list[dict[str, Any]] | None = None,
+) -> _Reply:
     """Determine assistant response text and structured Generative UI tiles with context."""
-    agent = _agent_reply(user_text, repo, history, files)
+    agent = _agent_reply(user_text, repo, history, files, prior)
     if agent is not None:
         return agent
     if files is not None and files.current:
-        return (
+        return _Reply(
             "Otto needs a Claude API key to read attached files. "
             "Ask an administrator to configure one.",
             None,
@@ -257,32 +269,30 @@ def _build_contextual_reply(
         "summary": tile_resp.summary,
         "layout": tile_resp.layout,
         "tiles": [t.model_dump() for t in tile_resp.tiles],
-        "context_used": min(len(history) + 2, MAX_THREAD_CONTEXT_MESSAGES),
-        "context_limit": MAX_THREAD_CONTEXT_MESSAGES,
     }
 
     if any(kw in lower for kw in ("template", "brand", "customer")):
-        return (
+        return _Reply(
             "Configure the customer branding and routing parameters below to generate a "
             "tailored `.sn-demo.zip` bundle:",
             "template_form",
             base_widget_data,
         )
     if any(kw in lower for kw in ("switch", "target")):
-        return (
+        return _Reply(
             f"Current target is **{inst_label}**. Select or register a ServiceNow instance below:",
             "instance_selector",
             base_widget_data,
         )
     if any(kw in lower for kw in ("fluent", "schema", "table")):
-        return (
+        return _Reply(
             f"{tile_resp.summary} You can inspect `@servicenow/sdk` tables "
             "(`x_snc_ai_triage_log`, `incident`) and compare schema diffs in the "
             "**Fluent Schema** tab or via `workbench demo fluent`.",
             "generative_tiles",
             base_widget_data,
         )
-    return (
+    return _Reply(
         f"{tile_resp.summary} (Acknowledged for target **{inst_label}**.)",
         "generative_tiles",
         base_widget_data,
@@ -366,19 +376,13 @@ def _require_unsent(attachments: list[Attachment], wanted: list[str]) -> None:
         raise HTTPException(status_code=404, detail="Attachment not found in this thread.")
 
 
-def _conversation_files(
-    attachments: list[Attachment], window: list[ChatMessageRecord], current_ids: list[str]
-) -> ConversationFiles:
-    """Claude blocks for files sent earlier in the window and with the new question."""
-    window_ids = {m.id for m in window}
-    earlier: dict[str, list[dict[str, Any]]] = {}
+def _sent_files(attachments: list[Attachment]) -> dict[str, list[dict[str, Any]]]:
+    """Claude blocks of every file already sent, by the message that carried it."""
+    sent: dict[str, list[dict[str, Any]]] = {}
     for att in attachments:
-        if att.message_id in window_ids:
-            earlier.setdefault(str(att.message_id), []).extend(claude_blocks([att]))
-    by_id = {a.id: a for a in attachments}
-    return ConversationFiles(
-        by_message=earlier, current=claude_blocks([by_id[a] for a in current_ids])
-    )
+        if att.message_id is not None:
+            sent.setdefault(att.message_id, []).extend(claude_blocks([att]))
+    return sent
 
 
 @router.post("/{thread_id}/messages", response_model=list[ChatMessageRecord])
@@ -401,7 +405,7 @@ def post_thread_message(thread_id: str, req: ChatMessageCreate) -> StreamingResp
         # Confirming an action Otto already proposed is not a new question.
         if req.role == "user" and req.widget_type != "tool_confirm":
             try:
-                check_can_ask(thread, existing_msgs, repo.get_conversation_limits())
+                check_can_ask(thread, repo.get_conversation_limits())
             except LimitReachedError as exc:
                 raise HTTPException(status_code=409, detail=str(exc)) from exc
         _require_unsent(repo.list_attachments(thread_id), req.attachment_ids)
@@ -474,20 +478,36 @@ def _save_turn(
     if req.role == "user":
         context_window = existing_msgs[-MAX_THREAD_CONTEXT_MESSAGES:]
         if req.widget_type == "tool_confirm":
-            reply_text, w_type, w_data = _confirmed_tool_reply(req, repo, context_window)
+            reply = _confirmed_tool_reply(req, repo, context_window)
         else:
-            files = _conversation_files(attachments, context_window, req.attachment_ids)
-            reply_text, w_type, w_data = _build_contextual_reply(
-                req.content, repo, context_window, files
+            by_id = {a.id: a for a in attachments}
+            files = ConversationFiles(
+                by_message={}, current=claude_blocks([by_id[a] for a in req.attachment_ids])
             )
+            prior = replay_conversation(
+                existing_msgs, repo.list_transcripts(thread_id), _sent_files(attachments)
+            )
+            reply = _build_contextual_reply(req.content, repo, context_window, files, prior)
         repo.add_message(
             ChatMessageRecord(
                 id=f"msg-{uuid.uuid4().hex[:8]}",
                 thread_id=thread_id,
                 role="assistant",
-                content=reply_text,
-                widget_type=w_type,
-                widget_data=w_data,
-            )
+                content=reply.text,
+                widget_type=reply.widget_type,
+                widget_data=reply.widget_data,
+            ),
+            transcript=reply.transcript,
         )
+        repo.add_thread_tokens(thread_id, reply.tokens)
+        usage = reply.widget_data.get("usage") or {}
+        if usage:
+            logging.getLogger("uvicorn.error").info(
+                "Otto usage thread=%s input=%s cache_read=%s cache_write=%s output=%s "
+                "compactions=%s billable=%s",
+                thread_id,
+                *(usage.get(k, 0) for k in ("input", "cache_read", "cache_write", "output")),
+                usage.get("compactions", 0),
+                usage.get("billable", 0),
+            )
     return repo.list_messages(thread_id)

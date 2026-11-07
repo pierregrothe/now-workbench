@@ -10,9 +10,16 @@ export interface NavThreadItem {
   title: string;
   targetTab: string;
   archived?: boolean;
-  questionsAsked?: number;
-  maxQuestions?: number;
+  tokensUsed?: number;
+  maxTokens?: number;
   prompt?: string;
+}
+
+/** Short token count for the sidebar badge (1.2k, 2M). */
+function compactTokens(n: number): string {
+  if (n >= 1_000_000) return `${+(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${+(n / 1_000).toFixed(1)}k`;
+  return String(n);
 }
 
 const SIDEBAR_WIDTH_KEY = 'now-workbench-sidebar-width';
@@ -555,8 +562,8 @@ export class NowNavRail extends LitElement {
 
   private renderThreadItem(thread: NavThreadItem, isActive: boolean) {
     const countLabel =
-      typeof thread.questionsAsked === 'number'
-        ? `${thread.questionsAsked}/${thread.maxQuestions ?? 20}`
+      typeof thread.tokensUsed === 'number'
+        ? `${compactTokens(thread.tokensUsed)}/${compactTokens(thread.maxTokens ?? 2000000)}`
         : '';
     return html`
       <div class="thread-row-wrap ${isActive ? 'active' : ''}">

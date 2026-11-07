@@ -13,7 +13,10 @@ class ConversationLimits(BaseModel):
     """One global set of limits, edited by administrators, applied to everyone.
 
     Attributes:
-        max_turns: Questions a person may ask in one conversation.
+        max_conversation_tokens: Tokens one conversation may use with Claude, counted the
+            way they are billed (cached input at a tenth). Then a new conversation is needed.
+        compact_at_tokens: Input size at which Claude summarizes the earlier conversation
+            (server-side compaction) so it keeps going in a smaller context.
         max_age_days: Days after it starts that a conversation accepts new questions.
         max_file_mb: Largest single attachment.
         max_conversation_mb: Total attachments in one conversation.
@@ -22,7 +25,8 @@ class ConversationLimits(BaseModel):
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
-    max_turns: int = Field(default=20, ge=1, le=500)
+    max_conversation_tokens: int = Field(default=2_000_000, ge=50_000, le=50_000_000)
+    compact_at_tokens: int = Field(default=150_000, ge=50_000, le=900_000)
     max_age_days: int = Field(default=30, ge=1, le=3650)
     max_file_mb: int = Field(default=10, ge=1, le=32)
     max_conversation_mb: int = Field(default=25, ge=1, le=100)

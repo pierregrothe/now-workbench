@@ -5,6 +5,7 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 from now_workbench.api.app import create_app
+from now_workbench.db import db_session
 
 
 def test_api_instances_and_admin_diagnostics() -> None:
@@ -571,7 +572,7 @@ def test_api_threads_and_messages_endpoints(tmp_path: Path) -> None:
         t_meta = client.get("/api/threads/otto-conv-1")
         assert t_meta.status_code == 200
         assert t_meta.json()["title"] == "how many instande I have"
-        assert t_meta.json()["questions_asked"] == 1
+        assert t_meta.json()["tokens_used"] == 0
 
         # Archive conversation
         arch_res = client.put("/api/threads/otto-conv-1", json={"archived": True})
@@ -581,23 +582,18 @@ def test_api_threads_and_messages_endpoints(tmp_path: Path) -> None:
         active_only = client.get("/api/threads?include_archived=false").json()
         assert all(t["id"] != "otto-conv-1" for t in active_only)
 
-        # The question limit is an admin setting (ADR-021): 10 questions per conversation.
-        limits = client.put("/api/limits", json={"max_turns": 10})
+        # The conversation token budget is an admin setting (ADR-023).
+        limits = client.put("/api/limits", json={"max_conversation_tokens": 50_000})
         assert limits.status_code == 200
-        for idx in range(9):
-            fill_res = client.post(
-                "/api/threads/otto-conv-1/messages",
-                json={"content": f"Follow up question {idx}"},
-            )
-            assert fill_res.status_code == 200
-
-        # The 11th question is refused.
+        with db_session() as repo:
+            repo.add_thread_tokens("otto-conv-1", 50_000)
         over_limit = client.post(
             "/api/threads/otto-conv-1/messages",
-            json={"content": "One question past the limit"},
+            json={"content": "One question past the budget"},
         )
         assert over_limit.status_code == 409
-        assert "limit of 10 questions" in over_limit.json()["detail"]
+        assert "budget of 50,000 tokens" in over_limit.json()["detail"]
+        client.put("/api/limits", json={"max_conversation_tokens": 2_000_000})
 
         # Delete conversation permanently
         del_res = client.delete("/api/threads/otto-conv-1")

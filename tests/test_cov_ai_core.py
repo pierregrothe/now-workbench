@@ -23,7 +23,6 @@ from now_workbench.ai.agent import (
     AgentUnavailableError,
     ClaudeAgentRunner,
     ConversationFiles,
-    _append_tool_results,
     _assemble,
     _block_to_dict,
     _call_client_create,
@@ -383,19 +382,6 @@ def test_result_content_attaches_png_and_jpeg_images() -> None:
     assert content[2]["source"]["media_type"] == "image/png"
 
 
-def test_append_tool_results_keeps_one_cache_breakpoint() -> None:
-    messages: list[dict[str, Any]] = [
-        {"role": "user", "content": [{"type": "text", "text": "q", "cache_control": {"a": 1}}]},
-        {"role": "user", "content": "plain"},
-    ]
-    _append_tool_results(messages, [{"type": "tool_result"}, {"type": "tool_result"}])
-    assert "cache_control" not in messages[0]["content"][0]
-    assert "cache_control" not in messages[-1]["content"][0]
-    assert "cache_control" in messages[-1]["content"][1]
-    _append_tool_results(messages, [])
-    assert messages[-1]["content"] == []
-
-
 def test_assemble_layouts_and_fallback_summary() -> None:
     def tile(i: str, kind: str = "rich-text") -> UITileSpec:
         return UITileSpec(id=i, type=kind)  # type: ignore[arg-type]
@@ -497,8 +483,9 @@ async def test_run_agent_inside_running_loop_uses_sync_runner() -> None:
         resp = run_agent("list", [], repo, client, "m", fake_mode=True)
         assert resp.summary == "listed" and resp.steps
         # tool_result was fed back with a single cache breakpoint
-        last = client.messages.calls[-1]["messages"][-1]["content"]
-        assert last[-1]["cache_control"] == {"type": "ephemeral"}
+        call = client.messages.calls[-1]
+        assert call["cache_control"] == {"type": "ephemeral"}
+        assert call["system"][0]["cache_control"] == {"type": "ephemeral", "ttl": "1h"}
         with pytest.raises(AgentUnavailableError):
             run_agent("x", [], repo, _Boom(), "m", fake_mode=True)
         diag = run_agent("x", [], repo, _Boom(), "m")

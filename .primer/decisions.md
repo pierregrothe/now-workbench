@@ -373,3 +373,11 @@ vendor read from the instance, tables renamed into the scope (seeds and runbook 
 follow), shared SDK toolchain, build then install with the SDK's non-interactive CI
 credentials. Bundles that already are SDK projects deploy as is; bundles without Fluent
 sources skip deploy. Details: `.primer/adr/ADR-022-fluent-app-deploy-from-demo-bundles.md`.
+
+### 2026-11-06 -- ADR-023: Prompt caching, compaction and token budgets
+
+Otto replays each conversation byte for byte from stored transcripts (no sliding window), with
+a 1-hour cached tools+system prefix and automatic caching along the conversation. Server-side
+compaction summarizes long conversations at an admin-set size. The question cap became a
+per-conversation token budget counted as billed. Usage is logged per reply.
+Details: `.primer/adr/ADR-023-prompt-caching-compaction-and-token-budgets.md`.

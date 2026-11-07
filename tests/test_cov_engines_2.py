@@ -625,14 +625,15 @@ def _msgs(n: int) -> list[ChatMessageRecord]:
 
 
 def test_check_can_ask_limits() -> None:
-    limits = ConversationLimits(max_turns=2, max_age_days=5)
+    limits = ConversationLimits(max_conversation_tokens=50_000, max_age_days=5)
     now = datetime.now(UTC)
-    files_mod.check_can_ask(_thread(now.isoformat()), _msgs(1), limits)
-    with pytest.raises(files_mod.LimitReachedError, match="limit of 2 questions"):
-        files_mod.check_can_ask(_thread(now.isoformat()), _msgs(2), limits)
+    files_mod.check_can_ask(_thread(now.isoformat()), limits)
+    spent = _thread(now.isoformat()).model_copy(update={"tokens_used": 50_000})
+    with pytest.raises(files_mod.LimitReachedError, match="budget of 50,000"):
+        files_mod.check_can_ask(spent, limits)
     old_naive = (now - timedelta(days=9)).replace(tzinfo=None).isoformat()
     with pytest.raises(files_mod.LimitReachedError, match="older than 5 days"):
-        files_mod.check_can_ask(_thread(old_naive), [], limits)
+        files_mod.check_can_ask(_thread(old_naive), limits)
 
 
 def test_store_read_delete_and_blocks_roundtrip() -> None:

@@ -350,7 +350,17 @@ _V11 = """
 ALTER TABLE seed_operations ADD COLUMN error TEXT NOT NULL DEFAULT '';
 """
 
-MIGRATIONS: tuple[str, ...] = (_V1, _V2, _V3, _V4, _V5, _V6, _V7, _V8, _V9, _V10, _V11)
+# v12 (ADR-023): conversations are limited by tokens, not questions, and Otto replays each
+# conversation byte for byte (prompt caching). The question cap leaves the stored limits.
+_V12 = """
+ALTER TABLE chat_threads ADD COLUMN tokens_used INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE chat_messages ADD COLUMN agent_transcript TEXT
+    CHECK (agent_transcript IS NULL OR json_valid(agent_transcript));
+UPDATE app_settings SET payload = json_remove(payload, '$.max_turns')
+WHERE key = 'conversation_limits';
+"""
+
+MIGRATIONS: tuple[str, ...] = (_V1, _V2, _V3, _V4, _V5, _V6, _V7, _V8, _V9, _V10, _V11, _V12)
 SCHEMA_VERSION = len(MIGRATIONS)
 
 

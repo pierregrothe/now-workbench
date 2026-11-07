@@ -236,7 +236,7 @@ def test_db_session_and_chat_threads_lifecycle() -> None:
         assert updated is not None
         assert updated.title == "Archived Thread"
         assert updated.archived is True
-        assert updated.questions_asked == 1
+        assert updated.tokens_used == 0
         assert repo.list_threads(include_archived=False) == []
         assert len(repo.list_threads(include_archived=True)) == 1
         assert repo.update_thread("missing", ChatThreadUpdate(archived=False)) is None

@@ -52,7 +52,7 @@ async def upload_attachment(thread_id: str, filename: str, request: Request) -> 
             raise HTTPException(status_code=404, detail="Thread not found.")
         limits = repo.get_conversation_limits()
         try:
-            check_can_ask(thread, repo.list_messages(thread_id), limits)
+            check_can_ask(thread, limits)
         except LimitReachedError as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
     data = await _read_capped(request, limits.max_file_mb * _MB)

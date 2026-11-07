@@ -18,7 +18,7 @@ from now_workbench.api.app import create_app
 from now_workbench.chat.files import LimitReachedError, check_can_ask, detect_media_type
 from now_workbench.chat.models import ConversationLimits
 from now_workbench.config.settings import settings
-from now_workbench.db import ChatMessageRecord, ChatThreadRecord, db_session
+from now_workbench.db import ChatThreadRecord, db_session
 
 PDF = b"%PDF-1.4\n1 0 obj\n<<>>\nendobj\n%%EOF\n"
 PNG = base64.b64decode(
@@ -186,21 +186,24 @@ def test_attachments_are_private_and_removable(client: TestClient) -> None:
         assert res.status_code == 404
 
 
-def test_check_can_ask_turn_and_age_limits() -> None:
+def test_check_can_ask_token_budget_and_age_limits() -> None:
     """Both caps refuse new questions with a clear reason."""
-    limits = ConversationLimits(max_turns=2, max_age_days=7)
+    limits = ConversationLimits(max_conversation_tokens=50_000, max_age_days=7)
     now = datetime.now(UTC)
     stamp = now.isoformat()
     fresh = ChatThreadRecord(id="t", title="t", created_at=stamp, updated_at=stamp)
-    asked = [
-        ChatMessageRecord(id=f"m{i}", thread_id="t", role="user", content="q") for i in range(2)
-    ]
-    check_can_ask(fresh, asked[:1], limits)
-    with pytest.raises(LimitReachedError, match="2 questions"):
-        check_can_ask(fresh, asked, limits)
+    check_can_ask(fresh.model_copy(update={"tokens_used": 49_999}), limits)
+    with pytest.raises(LimitReachedError, match="budget of 50,000 tokens"):
+        check_can_ask(fresh.model_copy(update={"tokens_used": 50_000}), limits)
     old = fresh.model_copy(update={"created_at": (now - timedelta(days=8)).isoformat()})
     with pytest.raises(LimitReachedError, match="older than 7 days"):
-        check_can_ask(old, [], limits)
+        check_can_ask(old, limits)
+
+
+def _use_budget(thread: str, tokens: int = 60_000) -> None:
+    """Mark a conversation as having used ``tokens`` with Claude."""
+    with db_session() as repo:
+        repo.add_thread_tokens(thread, tokens)
 
 
 def test_delete_thread_removes_attachment_files(client: TestClient) -> None:
@@ -221,9 +224,9 @@ def test_post_thread_message_slow_reply_keeps_the_connection_alive(
     """A long reply streams spaces first (beating proxy timeouts), then valid JSON."""
     import time
 
-    def slow_reply(*_args: object, **_kwargs: object) -> tuple[str, None, dict[str, object]]:
+    def slow_reply(*_args: object, **_kwargs: object) -> object:
         time.sleep(0.35)
-        return "Done after a while.", None, {}
+        return threads_api._Reply("Done after a while.", None, {})
 
     monkeypatch.setattr(threads_api, "_KEEPALIVE_S", 0.1)
     monkeypatch.setattr(threads_api, "_build_contextual_reply", slow_reply)
@@ -234,15 +237,16 @@ def test_post_thread_message_slow_reply_keeps_the_connection_alive(
     assert res.json()[-1]["content"] == "Done after a while."
 
 
-def test_post_thread_message_confirmation_is_not_blocked_by_the_question_limit(
+def test_post_thread_message_confirmation_is_not_blocked_by_the_token_budget(
     client: TestClient,
 ) -> None:
-    """At the question cap, confirming a pending action still goes through and is not counted."""
-    client.put("/api/limits", json={"max_turns": 1})
+    """Over the budget, confirming a pending action still goes through; questions do not."""
+    client.put("/api/limits", json={"max_conversation_tokens": 50_000})
     thread = _thread(client)
-    assert client.post(f"/api/threads/{thread}/messages", json={"content": "q1"}).status_code == 200
+    _use_budget(thread)
     blocked = client.post(f"/api/threads/{thread}/messages", json={"content": "q2"})
     assert blocked.status_code == 409
+    assert "budget" in blocked.json()["detail"]
     confirm = client.post(
         f"/api/threads/{thread}/messages",
         json={
@@ -252,4 +256,4 @@ def test_post_thread_message_confirmation_is_not_blocked_by_the_question_limit(
         },
     )
     assert confirm.status_code == 200
-    client.put("/api/limits", json={"max_turns": 20})
+    client.put("/api/limits", json={"max_conversation_tokens": 2_000_000})

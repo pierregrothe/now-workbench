@@ -2,6 +2,7 @@
 
 **Status:** accepted
 **Date:** 2026-11-06
+**Amended:** 2026-11-06 by ADR-023 (the question cap became a token budget with compaction)
 
 ## Context
 

@@ -156,16 +156,17 @@ def test_upload_attachment_unknown_thread_is_404(client: TestClient) -> None:
     assert res.status_code == 404
 
 
-def test_upload_attachment_after_turn_limit_is_409(client: TestClient) -> None:
-    """Once the conversation reached its question limit, files are refused too."""
-    client.put("/api/limits", json={"max_turns": 1})
+def test_upload_attachment_after_token_budget_is_409(client: TestClient) -> None:
+    """Once the conversation used its token budget, files are refused too."""
+    client.put("/api/limits", json={"max_conversation_tokens": 50_000})
     thread = _thread(client)
-    client.post(f"/api/threads/{thread}/messages", json={"content": "first"})
+    with db_session() as repo:
+        repo.add_thread_tokens(thread, 50_000)
     res = client.post(
         f"/api/threads/{thread}/attachments", params={"filename": "a.txt"}, content=b"x"
     )
     assert res.status_code == 409
-    assert "limit" in res.json()["detail"]
+    assert "budget" in res.json()["detail"]
 
 
 def test_attachment_routes_unknown_ids_are_404(client: TestClient) -> None:
@@ -242,14 +243,15 @@ def test_ws_otto_unknown_thread_sends_error(client: TestClient) -> None:
 
 
 @pytest.mark.usefixtures("ws_claude")
-def test_ws_otto_turn_limit_sends_error(client: TestClient) -> None:
-    """A conversation at its question limit gets the limit message over the socket."""
-    client.put("/api/limits", json={"max_turns": 1})
+def test_ws_otto_token_budget_sends_error(client: TestClient) -> None:
+    """A conversation over its token budget gets the budget message over the socket."""
+    client.put("/api/limits", json={"max_conversation_tokens": 50_000})
     thread = _thread(client)
-    client.post(f"/api/threads/{thread}/messages", json={"content": "first"})
+    with db_session() as repo:
+        repo.add_thread_tokens(thread, 50_000)
     out = _ws_collect(client, {"prompt": "second", "thread_id": thread})
     assert out[0]["type"] == "error"
-    assert "limit" in out[0]["message"]
+    assert "budget" in out[0]["message"]
 
 
 # --- setup ------------------------------------------------------------------------------

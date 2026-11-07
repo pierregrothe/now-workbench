@@ -8,7 +8,8 @@ import { profileSettingsStyles } from './profile-settings-styles.js';
 import { api } from './sharing-api.js';
 
 interface Limits {
-  max_turns: number;
+  max_conversation_tokens: number;
+  compact_at_tokens: number;
   max_age_days: number;
   max_file_mb: number;
   max_conversation_mb: number;
@@ -16,7 +17,8 @@ interface Limits {
 }
 
 const FIELDS: { key: keyof Limits; label: string; min: number; max: number }[] = [
-  { key: 'max_turns', label: 'Questions per conversation', min: 1, max: 500 },
+  { key: 'max_conversation_tokens', label: 'Tokens per conversation', min: 50000, max: 50000000 },
+  { key: 'compact_at_tokens', label: 'Summarize the conversation at (tokens)', min: 50000, max: 900000 },
   { key: 'max_age_days', label: 'Days a conversation stays open', min: 1, max: 3650 },
   { key: 'max_file_mb', label: 'Largest file (MB)', min: 1, max: 32 },
   { key: 'max_conversation_mb', label: 'Files per conversation, total (MB)', min: 1, max: 100 },
@@ -62,8 +64,9 @@ export class NowLimitsSettings extends LitElement {
     return html`<section class="card">
       <h2>Conversation limits</h2>
       <p class="desc">
-        Keep Claude usage predictable for everyone. When a conversation reaches a limit, Otto
-        asks to start a new one. Attached files can be PDFs, images or text.
+        Keep Claude usage predictable for everyone. Tokens are counted as billed (cached input at
+        a tenth). Long conversations are summarized automatically; when one uses its token
+        budget, Otto asks to start a new one. Attached files can be PDFs, images or text.
       </p>
       ${limits
         ? html`<form @submit=${this.save}>
