@@ -14,9 +14,10 @@ URL, username and password), read preferences, or run the demo pipeline (`demos`
 
 - `PlaywrightCaptureEngine(bundles_dir)`: `bundles_dir` is a bundles ROOT, not a bundle
   directory; the bundle is `bundles_dir / bundle_id`.
-  - async `capture(req, instance_url, wait_timeout_ms=1500, username="", password="",
-    release="Xanadu")` -> `CaptureArtifact`; raises `CaptureFailedError` on a failed live
-    capture.
+  - async `capture(req, instance_url, *, release, wait_timeout_ms=1500, username="",
+    password="")` -> `CaptureArtifact`; `release` is required (the instance's detected
+    `InstanceRecord.release`, ADR-014). Raises `CaptureFailedError` on a failed live capture
+    and its subclass `UnknownReleaseError` on a live capture whose release is undetected.
   - `list_captures(bundle_id)`, `update_capture(bundle_id, filename, label)`,
     `delete_capture(bundle_id, filename)`, `clear_all_captures(bundle_id)` -> count.
 - `CaptureRequest`: bundle, instance id, `target_path`, `media_type` ("screenshot" or
@@ -25,6 +26,8 @@ URL, username and password), read preferences, or run the demo pipeline (`demos`
   `/api/demos/<bundle>/captures/<file>`, `engine` is `playwright-simulated` or
   `google-chrome-native`, `step_results` holds the playbook steps of a video.
 - `CaptureFailedError`: a `RuntimeError`; interfaces map it to HTTP 502 or a CLI exit 1.
+- `UnknownReleaseError`: a `CaptureFailedError`; the API maps it to HTTP 409 (a fixable
+  precondition, like "No target instance"); the CLI, Otto and the pipeline treat it as its base.
 
 ## Wiring
 
@@ -35,8 +38,8 @@ URL, username and password), read preferences, or run the demo pipeline (`demos`
 - Callers: `interfaces/api/captures.py`, `interfaces/ai/tools/captures.py`,
   `interfaces/ai/tools/demos.py`, `interfaces/cli/demos.py`, `interfaces/cli/synthesizer.py`
   and the `demos` domain (`DemoPipelineEngine.record_video_proof`).
-- Imports `InstanceRecord` (instances) and `translate_workspace_url` (releases); from
-  platform `safe_child`, `dev_script` and `spawn` / `communicate_bounded` /
+- Imports `InstanceRecord` (instances), `translate_workspace_url` and `is_release_detected`
+  (releases); from platform `safe_child`, `dev_script` and `spawn` / `communicate_bounded` /
   `ProcessTimeoutError` from `platform/procs.py`.
 - Node scripts: `scripts/dev-tools/chrome_capture.mjs` (240 s cap) and
   `scripts/dev-tools/playbook_runner.mjs` (900 s cap). Both take `--credentials-stdin`.
@@ -61,20 +64,31 @@ URL, username and password), read preferences, or run the demo pipeline (`demos`
   by hand for `/`, `\\` and `..` and raise `ValueError`. `clear_all_captures` also
   hand-checks `bundle_id` (`ValueError`).
 - `delete_capture` also removes same-stem companions (the video's .png thumbnail).
-- `target_path` goes through `translate_workspace_url` for the given release, so
-  `@workspace/itsm`-style paths resolve per release. Videos ignore `target_path`: the
-  playbook's `start_path` is used, though the artifact still records `target_path`.
-- `wait_timeout_ms` is accepted but unused by `capture`.
-- A video signs in through a synthetic `InstanceRecord` whose `release` is hard-coded
-  "Xanadu"; the storage state is keyed by `req.instance_id` (or "default-instance").
+- Every caller (API, Otto, CLI, `record_video_proof`) passes the instance's detected release;
+  nothing defaults to a release. A screenshot's `target_path` is given exactly one leading
+  `/` and then goes through `translate_workspace_url`, so slash-less and slashed paths alike
+  and `@workspace/itsm`-style tokens resolve per release; a full `http(s)://` URL keeps its
+  form (`_translate`).
+- An undetected release ("", "Unknown") is never guessed: a live capture raises
+  `UnknownReleaseError` naming the gap (run a connection test) before any browser starts; a
+  simulated capture still writes its placeholder and records the path rooted, untranslated.
+- A video replays the playbook, not `target_path`: the playbook's `start_path` and every step
+  `path` are translated for the release, and the artifact records the translated
+  `start_path` (the page the video actually opened), fake mode included.
+- `wait_timeout_ms` (the `capture_wait_timeout_ms` preference, 0..30000, default 1500; the
+  API, Otto and the CLI pass it) is the screenshot's page settle, passed to
+  `chrome_capture.mjs` as `--settle-ms`. The script's exported argument parser clamps it
+  to 0..30000 and defaults to 1500; the script only runs its capture when executed, so tests
+  import the parser. Videos dwell per playbook step.
+- A video signs in through a synthetic `InstanceRecord` carrying the given release; the
+  storage state is keyed by `req.instance_id` (or "default-instance").
 - `load_playbook` falls back to a built-in five-step incident walkthrough when
   `playbook.json` is missing OR invalid; a broken playbook is not reported.
 
 ## Known gaps
 
-- `release` defaults to "Xanadu"; `interfaces/ai/tools/demos.py` does not pass
-  `inst.release`, so Otto's captures translate paths for Xanadu, not the detected release
-  (ADR-014 says the release is never guessed).
+- A video's `CaptureRequest.target_path` has no effect, so the `target_path` argument of
+  `DemoPipelineEngine.record_video_proof` (demos) does nothing.
 
 ## Do not reinvent
 

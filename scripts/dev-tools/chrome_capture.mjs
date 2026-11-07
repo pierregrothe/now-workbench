@@ -7,6 +7,7 @@
 
 import fs from "node:fs";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import puppeteer from "../../web/node_modules/puppeteer-core/lib/puppeteer/puppeteer-core.js";
 import { describeLoadError } from "./tls_errors.mjs";
 
@@ -14,8 +15,17 @@ import { describeLoadError } from "./tls_errors.mjs";
 const CHROME_PATH =
   process.env.CHROME_PATH || "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 
-function parseArgs() {
-  const args = process.argv.slice(2);
+// Page settle before the shot (the capture_wait_timeout_ms preference), clamped to this range.
+const SETTLE_DEFAULT_MS = 1500;
+const SETTLE_MAX_MS = 30000;
+
+function parseSettleMs(raw) {
+  const ms = parseInt(raw, 10);
+  if (Number.isNaN(ms)) return SETTLE_DEFAULT_MS;
+  return Math.min(SETTLE_MAX_MS, Math.max(0, ms));
+}
+
+export function parseArgs(args = process.argv.slice(2)) {
   const options = {
     url: "",
     output: "",
@@ -25,6 +35,7 @@ function parseArgs() {
     width: 1280,
     height: 720,
     duration: 15,
+    settleMs: SETTLE_DEFAULT_MS,
     fake: false,
     credentialsStdin: false,
   };
@@ -39,6 +50,7 @@ function parseArgs() {
     else if (arg === "--width" && args[i + 1]) options.width = parseInt(args[++i], 10);
     else if (arg === "--height" && args[i + 1]) options.height = parseInt(args[++i], 10);
     else if (arg === "--duration" && args[i + 1]) options.duration = parseFloat(args[++i]);
+    else if (arg === "--settle-ms" && args[i + 1]) options.settleMs = parseSettleMs(args[++i]);
   }
   return options;
 }
@@ -595,7 +607,8 @@ async function main() {
     }
 
     await injectCursorOverlay(page);
-    await new Promise((r) => setTimeout(r, 600));
+    // Page settle before the shot: the capture_wait_timeout_ms preference.
+    await new Promise((r) => setTimeout(r, opts.settleMs));
 
     // Ensure output directory exists
     const outDir = path.dirname(path.resolve(opts.output));
@@ -771,7 +784,11 @@ async function main() {
   }
 }
 
-main().catch((err) => {
-  console.error("[ChromeCapture] Fatal:", err);
-  process.exit(1);
-});
+// Run only as a script, so tests can import parseArgs without starting a browser.
+const invokedAs = process.argv[1] ? pathToFileURL(fs.realpathSync(process.argv[1])).href : "";
+if (import.meta.url === invokedAs) {
+  main().catch((err) => {
+    console.error("[ChromeCapture] Fatal:", err);
+    process.exit(1);
+  });
+}

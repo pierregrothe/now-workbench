@@ -84,7 +84,9 @@ async def test_playwright_capture_engine_fake_screenshot_and_video(tmp_path: Pat
         label="Agent Workspace Overview",
         fake_mode=True,
     )
-    shot_artifact = await engine.capture(shot_req, instance_url="https://dev12345.service-now.com/")
+    shot_artifact = await engine.capture(
+        shot_req, instance_url="https://dev12345.service-now.com/", release="Zurich"
+    )
     assert shot_artifact.media_type == "screenshot"
     assert shot_artifact.engine == "playwright-simulated"
     assert shot_artifact.instance_url == "https://dev12345.service-now.com"
@@ -98,7 +100,9 @@ async def test_playwright_capture_engine_fake_screenshot_and_video(tmp_path: Pat
         label="ServiceNow Video Capture",
         fake_mode=True,
     )
-    vid_artifact = await engine.capture(vid_req, instance_url="https://dev12345.service-now.com")
+    vid_artifact = await engine.capture(
+        vid_req, instance_url="https://dev12345.service-now.com", release="Zurich"
+    )
     assert vid_artifact.media_type == "video"
     assert vid_artifact.filename.endswith(".webm")
 
@@ -144,7 +148,9 @@ async def test_capture_live_screenshot_uses_the_browser_script(tmp_path: Path) -
         req = CaptureRequest(
             bundle_id="live-bundle", target_path="/incident_list.do", media_type="screenshot"
         )
-        artifact = await engine.capture(req, instance_url="https://dev99999.service-now.com")
+        artifact = await engine.capture(
+            req, instance_url="https://dev99999.service-now.com", release="Zurich"
+        )
         assert artifact.engine == "google-chrome-native"
         assert Path(artifact.file_path).stat().st_size > 500
     finally:
@@ -162,7 +168,9 @@ async def test_capture_live_failure_raises_and_saves_nothing(tmp_path: Path) -> 
                 bundle_id="fallback-bundle", target_path="/incident_list.do", media_type=media
             )
             with pytest.raises(CaptureFailedError, match="could not be"):
-                await engine.capture(req, instance_url="https://dev99999.service-now.com")
+                await engine.capture(
+                    req, instance_url="https://dev99999.service-now.com", release="Zurich"
+                )
         assert engine.list_captures("fallback-bundle") == []
     finally:
         os.environ["PATH"] = old_path

@@ -873,9 +873,10 @@ async def test_execute_video_playbook_fake_mode_writes_media(tmp_path: Path) -> 
 
     video, thumb = tmp_path / "v.webm", tmp_path / "v.png"
     req = CaptureRequest(bundle_id="bid", viewport_width=640, viewport_height=480)
-    inst = capture_engine_mod._playbook_instance(None, "https://x", SignIn())
+    inst = capture_engine_mod._playbook_instance(None, "https://x", SignIn(), "Zurich")
+    playbook = capture_engine_mod.load_playbook(tmp_path, "bid")
     ok, live, steps = await capture_engine_mod._execute_video_playbook(
-        req, tmp_path, inst, video, thumb, fake_mode=True
+        req, playbook, inst, video, thumb, fake_mode=True
     )
     assert video.exists()
     assert ok is (video.stat().st_size > 500)
@@ -970,7 +971,7 @@ async def test_capture_screenshot_success_is_labelled_native(
     monkeypatch.setenv("PATH", f"{tmp_path / 'bin'}:/bin:/usr/bin")
     eng = PlaywrightCaptureEngine(bundles_dir=tmp_path / "b")
     req = CaptureRequest(bundle_id="x", target_path="/p", media_type="screenshot")
-    art = await eng.capture(req, instance_url="https://i.service-now.com")
+    art = await eng.capture(req, instance_url="https://i.service-now.com", release="Zurich")
     assert art.engine == "google-chrome-native"
     assert eng.list_captures("x")[0].id == art.id
 

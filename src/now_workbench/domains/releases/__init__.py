@@ -9,6 +9,7 @@ from now_workbench.domains.releases.compatibility import (
     compare_releases,
     evaluate_release_prerequisites,
     is_release_compatible,
+    is_release_detected,
     normalize_release,
 )
 from now_workbench.domains.releases.detection import BUILD_PROPERTY, parse_release_family
@@ -26,6 +27,7 @@ __all__ = [
     "evaluate_release_prerequisites",
     "FEATURE_MINIMUM_RELEASES",
     "is_release_compatible",
+    "is_release_detected",
     "normalize_release",
     "parse_release_family",
     "RELEASE_FAMILIES",

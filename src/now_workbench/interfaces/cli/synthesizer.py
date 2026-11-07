@@ -1,3 +1,7 @@
+# src/now_workbench/interfaces/cli/synthesizer.py
+# CLI commands: synthesize a demo bundle; capture a screenshot or video of an instance.
+# Author: Pierre Grothe
+# Date: 2026-11-07
 """CLI commands for Use-Case Demo Synthesis and Playwright Instance Capture."""
 
 import asyncio
@@ -12,6 +16,7 @@ from now_workbench.domains.capture import (
     PlaywrightCaptureEngine,
 )
 from now_workbench.domains.instances import InstanceRepository, is_simulated
+from now_workbench.domains.settings import PreferencesRepository
 from now_workbench.domains.synthesizer import (
     NoReleaseError,
     UseCaseSynthesisRequest,
@@ -21,6 +26,8 @@ from now_workbench.domains.synthesizer import (
 from now_workbench.interfaces.cli.ids import safe_id
 from now_workbench.platform.config.settings import settings
 from now_workbench.platform.db.session import db_session
+
+__all__ = ["capture_demo_cmd", "synthesize_demo_cmd"]
 
 console = Console()
 
@@ -81,6 +88,7 @@ def capture_demo_cmd(
     """Capture a Playwright screenshot (.png) or video (.webm) of the target instance."""
     with db_session() as conn:
         inst = InstanceRepository(conn).resolve(instance)
+        wait_ms = PreferencesRepository(conn).get_workbench_preferences().capture_wait_timeout_ms
     if inst is None:
         target = (
             f"Instance '{instance}' not found" if instance else "No default instance registered"
@@ -104,6 +112,7 @@ def capture_demo_cmd(
                 username=inst.username,
                 password=inst.password,
                 release=inst.release,
+                wait_timeout_ms=wait_ms,
             )
         )
     except CaptureFailedError as exc:

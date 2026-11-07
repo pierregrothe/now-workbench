@@ -54,6 +54,7 @@ def _capture(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
         PlaywrightCaptureEngine(bundles_dir=settings.get_bundles_dir()).capture(
             req,
             instance_url=inst.url,
+            release=inst.release,
             wait_timeout_ms=prefs.capture_wait_timeout_ms,
             username=inst.username,
             password=inst.password,

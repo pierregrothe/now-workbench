@@ -1,6 +1,8 @@
 # Story 2026.11e.03: Capture uses the detected release
 
-Status: backlog
+Status: done
+Started: 2026-11-07
+Done: 2026-11-07
 Spec-Clarity: high
 Depends-On: none
 Board: STORY-074
@@ -19,16 +21,16 @@ AC2:
 
 ## Tasks / Subtasks
 
-- [ ] Reproduce with a failing test first, then fix (AC: 1-2)
-- [ ] Update the affected domain card(s) so they no longer list the fixed gotcha
+- [x] Reproduce with a failing test first, then fix (AC: 1-2)
+- [x] Update the affected domain card(s) so they no longer list the fixed gotcha
 
 ## Definition of Done
 
-- [ ] All acceptance criteria verified
-- [ ] Tests added or updated and passing (pytest 100% coverage; Playwright where UI changes)
-- [ ] Ruff clean (zero violations), mypy strict, tsc clean
-- [ ] No changes outside the story's stated scope
-- [ ] References section links verified
+- [x] All acceptance criteria verified
+- [x] Tests added or updated and passing (pytest 100% coverage; Playwright where UI changes)
+- [x] Ruff clean (zero violations), mypy strict, tsc clean
+- [x] No changes outside the story's stated scope
+- [x] References section links verified
 
 ## References
 
