@@ -1,6 +1,8 @@
 # Story 2026.11b.01: Thumbs up/down and Get help under Otto's replies
 
-Status: backlog
+Status: done
+Started: 2026-11-07
+Done: 2026-11-07
 Spec-Clarity: high
 Depends-On: none
 Board: STORY-061
@@ -40,18 +42,18 @@ AC4:
 
 ## Tasks / Subtasks
 
-- [ ] Schema + repository for message feedback (owner-scoped) (AC: 1,2,3)
-- [ ] API endpoints (AC: 1,2,3)
-- [ ] Feedback row in the chat view (phone sizes too) (AC: 1,2,4)
-- [ ] Tests: pytest + Playwright (AC: 1-4)
+- [x] Schema + repository for message feedback (owner-scoped) (AC: 1,2,3)
+- [x] API endpoints (AC: 1,2,3)
+- [x] Feedback row in the chat view (phone sizes too) (AC: 1,2,4)
+- [x] Tests: pytest + Playwright (AC: 1-4)
 
 ## Definition of Done
 
-- [ ] All acceptance criteria verified
-- [ ] Tests added or updated and passing (pytest 100% coverage; Playwright where UI changes)
-- [ ] Ruff clean (zero violations), mypy strict, tsc clean
-- [ ] No changes outside the story's stated scope
-- [ ] References section links verified
+- [x] All acceptance criteria verified
+- [x] Tests added or updated and passing (pytest 100% coverage; Playwright where UI changes)
+- [x] Ruff clean (zero violations), mypy strict, tsc clean
+- [x] No changes outside the story's stated scope
+- [x] References section links verified
 
 ## Existing Code
 

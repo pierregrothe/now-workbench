@@ -5,6 +5,8 @@
 """Conversations domain (ADR-015)."""
 
 from now_workbench.domains.conversations.attachment_repository import ChatRepository
+from now_workbench.domains.conversations.feedback import list_feedback, rate_reply
+from now_workbench.domains.conversations.feedback_repository import FeedbackRepository
 from now_workbench.domains.conversations.files import (
     LimitReachedError,
     UnsupportedFileError,
@@ -16,6 +18,7 @@ from now_workbench.domains.conversations.files import (
 )
 from now_workbench.domains.conversations.limits import get_limits, set_limits
 from now_workbench.domains.conversations.models import (
+    MAX_FEEDBACK_LISTED,
     MAX_THREAD_CONTEXT_MESSAGES,
     Attachment,
     ChatMessageCreate,
@@ -24,6 +27,9 @@ from now_workbench.domains.conversations.models import (
     ChatThreadRecord,
     ChatThreadUpdate,
     ConversationLimits,
+    FeedbackCreate,
+    MessageFeedback,
+    ReplyRating,
 )
 from now_workbench.domains.conversations.repository import ThreadRepository
 from now_workbench.domains.conversations.service import (
@@ -45,11 +51,18 @@ __all__ = [
     "ConversationLimits",
     "delete_conversation",
     "delete_files",
+    "FeedbackCreate",
+    "FeedbackRepository",
     "get_limits",
     "LimitReachedError",
+    "list_feedback",
+    "MAX_FEEDBACK_LISTED",
     "MAX_THREAD_CONTEXT_MESSAGES",
+    "MessageFeedback",
+    "rate_reply",
     "read_bytes",
     "remove_attachment",
+    "ReplyRating",
     "set_limits",
     "store_attachment",
     "ThreadRepository",
