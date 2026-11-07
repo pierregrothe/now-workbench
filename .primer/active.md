@@ -7,7 +7,7 @@ Python Version: `3.14.10`
 
 ## Current Focus
 
-EPIC-018 story 01 (feedback row, schema v15) landing; EPIC-018/03 restyle in review; EPIC-021/02-03 in progress; EPIC-022 (Otto memory, schema v16) next.
+EPIC-018 story 03 (Fluent and Artifact restyle) landing; EPIC-021/02-03 in review; EPIC-022/01 (memory store, schema v16) in progress.
 
 `main` -- deployed and live at https://workbench.grothe.ca (srv01chambly, Cloudflare Access).
 Per-user data, groups and approved sharing, impersonation, attachments and limits, and an

@@ -182,12 +182,10 @@ export class NowDemoCatalog extends LitElement {
 
       ${this.catalogNotification
         ? html`
-            <div
-              style="background: var(--now-bg-surface-1, #f1f5f9); border: 1px solid var(--now-border-subtle, #cbd5e1); border-radius: 8px; padding: 10px 16px; margin-bottom: 16px; font-size: 13px; display: flex; justify-content: space-between; align-items: center;"
-            >
+            <div class="catalog-notice">
               <span>${this.catalogNotification}</span>
               <button
-                style="background: none; border: none; cursor: pointer; font-weight: 700; color: var(--now-text-secondary, #64748b); font-size: 14px;"
+                class="notice-close"
                 @click=${() => {
                   this.catalogNotification = '';
                 }}
@@ -329,22 +327,21 @@ export class NowDemoCatalog extends LitElement {
                 if (e.target === e.currentTarget) this.viewingMediaBundle = null;
               }}
             >
-              <div class="modal-card" style="width: 800px; max-width: 95vw; max-height: 85vh; overflow-y: auto;">
+              <div class="modal-card proofs-modal">
                 <div class="modal-header">
                   <div>
-                    <h2 style="margin: 0; font-size: 16px;">
+                    <h2>
                       Media Proofs: ${this.viewingMediaBundle.manifest.name}
                     </h2>
-                    <div style="font-size: 12px; color: var(--now-text-secondary, #64748b); margin-top: 4px;">
+                    <div class="proofs-sub">
                       Package created: ${this.formatBundleDate(this.viewingMediaBundle.manifest.created_at)} | Min Platform: ${this.viewingMediaBundle.manifest.min_release || this.viewingMediaBundle.manifest.sn_release}
                     </div>
                   </div>
-                  <div style="display: flex; gap: 8px; align-items: center;">
+                  <div class="proofs-tools">
                     ${this.viewingMediaBundle.media_captures && this.viewingMediaBundle.media_captures.length > 0
                       ? html`
                           <button
-                            class="btn-secondary"
-                            style="color: #dc2626; border-color: #fca5a5; font-size: 12px; padding: 4px 10px; font-weight: 600;"
+                            class="btn-secondary proof-danger"
                             @click=${() => this.handleClearAllProofs(this.viewingMediaBundle!)}
                             title="Delete all captured media for this bundle"
                           >
@@ -353,8 +350,7 @@ export class NowDemoCatalog extends LitElement {
                         `
                       : ''}
                     <button
-                      class="btn-secondary icon-btn"
-                      style="flex: 0 0 32px; width: 32px; height: 32px;"
+                      class="btn-secondary icon-btn modal-close"
                       title="Close"
                       @click=${() => {
                         this.viewingMediaBundle = null;
@@ -365,16 +361,16 @@ export class NowDemoCatalog extends LitElement {
                   </div>
                 </div>
 
-                <div class="modal-body" style="display: flex; flex-direction: column; gap: 14px; padding: 10px 0;">
+                <div class="modal-body proofs-body">
                   ${this.viewingMediaBundle.media_captures && this.viewingMediaBundle.media_captures.length > 0
                     ? this.viewingMediaBundle.media_captures.map(
                         (cap) => html`
                           <div class="proof-item">
-                            <div style="display: flex; justify-content: space-between; align-items: center;">
-                              <div style="font-weight: 600; font-size: 13px;">
+                            <div class="proof-head">
+                              <div class="proof-label">
                                 ${cap.label || cap.filename}
                               </div>
-                              <span style="font-size: 11px; font-weight: 700; color: #16a34a; background: #f0fdf4; border: 1px solid #bbf7d0; padding: 1px 6px; border-radius: 999px;">
+                              <span class="proof-type">
                                 ${cap.media_type.toUpperCase()}
                               </span>
                             </div>
@@ -385,8 +381,8 @@ export class NowDemoCatalog extends LitElement {
                                 : html`<img src=${cap.url} alt=${cap.label || cap.filename} />`}
                             </div>
 
-                            <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: var(--now-text-secondary, #64748b);">
-                              <div style="display: flex; align-items: center; gap: 4px;">
+                            <div class="proof-foot">
+                              <div class="proof-date">
                                 <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2">
                                   <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
                                   <line x1="16" y1="2" x2="16" y2="6" />
@@ -395,25 +391,24 @@ export class NowDemoCatalog extends LitElement {
                                 </svg>
                                 <span>Recorded: ${this.formatBundleDate(cap.created_at)}</span>
                               </div>
-                              <div style="display: flex; gap: 8px; align-items: center;">
+                              <div class="proof-links">
                                 <a
                                   href=${cap.url}
                                   target="_blank"
                                   rel="noopener"
-                                  style="color: #2563eb; font-weight: 600; text-decoration: none;"
+                                  class="proof-link"
                                 >
                                   Open in Tab
                                 </a>
                                 <a
                                   href=${cap.url}
                                   download=${cap.filename}
-                                  style="color: #16a34a; font-weight: 600; text-decoration: none;"
+                                  class="proof-link download"
                                 >
                                   Download
                                 </a>
                                 <button
-                                  class="btn-secondary"
-                                  style="color: #dc2626; border-color: #fca5a5; font-size: 11px; padding: 2px 8px; font-weight: 600; cursor: pointer;"
+                                  class="btn-secondary proof-danger proof-delete"
                                   @click=${() => this.handleDeleteProof(this.viewingMediaBundle!, cap.filename)}
                                   title="Delete this capture proof"
                                 >
@@ -424,7 +419,7 @@ export class NowDemoCatalog extends LitElement {
                           </div>
                         `
                       )
-                    : html`<p style="font-size: 13px; color: var(--now-text-muted);">No media proofs recorded.</p>`}
+                    : html`<p class="proofs-empty">No media proofs recorded.</p>`}
                 </div>
 
                 <div class="modal-footer">
