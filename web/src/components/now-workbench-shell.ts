@@ -9,7 +9,7 @@ import './now-conversational-workspace.js';
 import './now-demo-catalog.js';
 import './now-fluent-explorer.js';
 import './now-workbench-settings.js';
-import type { WorkbenchPreferences } from './now-workbench-settings.js';
+import type { WorkbenchPreferences } from './settings-model.js';
 import './now-presenter-hud.js';
 import './now-welcome-modal.js';
 import '../views/now-impersonation.js';

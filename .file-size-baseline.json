@@ -2,7 +2,6 @@
   "justification": "ADR-015 Q4: web components are split in their own ADR; until then these may only shrink.",
   "files": {
     "web/src/components/now-demo-catalog.ts": 737,
-    "web/src/components/now-workbench-settings.ts": 720,
     "web/src/components/now-workbench-shell.ts": 686
   }
 }

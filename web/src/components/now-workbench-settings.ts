@@ -8,83 +8,13 @@ import { LitElement, html } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import './now-admin-panel.js';
 
-export interface WorkbenchPreferences {
-  anthropic_api_key_masked: string;
-  has_anthropic_api_key: boolean;
-  anthropic_api_key_from_env: boolean;
-  claude_model: string;
-  auto_route_intent: boolean;
-  auto_execute_intent: boolean;
-  capture_viewport_width: number;
-  capture_viewport_height: number;
-  capture_default_media_type: 'screenshot' | 'video';
-  capture_wait_timeout_ms: number;
-  capture_fake_mode: boolean;
-  sc_author_name: string;
-  sc_author_email: string;
-  default_scoped_prefix: string;
-  default_brand_color: string;
-  narrative_tone: string;
-  sdk_fake_mode: boolean;
-  show_welcome_on_startup: boolean;
-  sidebar_collapsed_default: boolean;
-  hud_font_scale: string;
-  updated_at?: string;
-}
-
-const DEFAULT_PREFS: WorkbenchPreferences = {
-  anthropic_api_key_masked: '',
-  has_anthropic_api_key: false,
-  anthropic_api_key_from_env: false,
-  claude_model: 'claude-sonnet-5-5',
-  auto_route_intent: true,
-  auto_execute_intent: true,
-  capture_viewport_width: 1440,
-  capture_viewport_height: 900,
-  capture_default_media_type: 'screenshot',
-  capture_wait_timeout_ms: 1500,
-  capture_fake_mode: false,
-  sc_author_name: 'Now Workbench Solution Consultant',
-  sc_author_email: 'sc@servicenow.com',
-  default_scoped_prefix: 'x_snc',
-  default_brand_color: '#62d84e',
-  narrative_tone: 'executive',
-  sdk_fake_mode: false,
-  show_welcome_on_startup: true,
-  sidebar_collapsed_default: false,
-  hud_font_scale: 'standard',
-};
-
 import { isAdmin } from '../profile/avatars.js';
 import { StoreController } from '../controllers/store-controller.js';
 import { workbenchSettingsStyles } from './now-workbench-settings-styles.js';
-
-type SettingsSection =
-  | 'profile'
-  | 'team'
-  | 'groups'
-  | 'approvals'
-  | 'impersonate'
-  | 'claude'
-  | 'limits'
-  | 'capture'
-  | 'synthesis'
-  | 'workspace'
-  | 'instances';
-
-const SECTIONS: { id: SettingsSection; label: string; adminOnly?: boolean }[] = [
-  { id: 'profile', label: 'Profile' },
-  { id: 'team', label: 'Team', adminOnly: true },
-  { id: 'groups', label: 'Groups' },
-  { id: 'approvals', label: 'Approvals' },
-  { id: 'impersonate', label: 'View as someone' },
-  { id: 'claude', label: 'Claude and Otto', adminOnly: true },
-  { id: 'limits', label: 'Conversation limits', adminOnly: true },
-  { id: 'capture', label: 'Media capture' },
-  { id: 'synthesis', label: 'Synthesis defaults' },
-  { id: 'workspace', label: 'Workspace' },
-  { id: 'instances', label: 'ServiceNow instances' },
-];
+import { DEFAULT_PREFS, SECTIONS, type SettingsSection, type WorkbenchPreferences } from './settings-model.js';
+import './now-capture-prefs.js';
+import './now-synthesis-prefs.js';
+import './now-workspace-prefs.js';
 
 @customElement('now-workbench-settings')
 export class NowWorkbenchSettings extends LitElement {
@@ -104,15 +34,17 @@ export class NowWorkbenchSettings extends LitElement {
     void this.loadSettings();
   }
 
-
   private async loadSettings(): Promise<void> {
     try {
       const res = await fetch('/api/settings');
-      if (res.ok) {
-        this.prefs = (await res.json()) as WorkbenchPreferences;
+      if (!res.ok) {
+        this.saveMessage = `Could not load settings: ${await this.errorDetail(res)}`;
+        return;
       }
-    } catch {
-      // Offline preview uses default state
+      this.prefs = (await res.json()) as WorkbenchPreferences;
+    } catch (e) {
+      // Never present factory defaults as if they were the saved settings (ADR-013).
+      this.saveMessage = `Could not load settings: ${e instanceof Error ? e.message : String(e)}`;
     }
   }
 
@@ -124,16 +56,10 @@ export class NowWorkbenchSettings extends LitElement {
     this.saveMessage = '';
   }
 
-  private handleViewportPreset(preset: string): void {
-    const [w, h] = preset.split('x').map((n) => Number(n));
-    if (w && h) {
-      this.prefs = {
-        ...this.prefs,
-        capture_viewport_width: w,
-        capture_viewport_height: h,
-      };
-    }
-  }
+  private readonly onPrefsChange = (e: CustomEvent<Partial<WorkbenchPreferences>>): void => {
+    this.prefs = { ...this.prefs, ...e.detail };
+    this.saveMessage = '';
+  };
 
   private async saveSettings(): Promise<void> {
     this.isSaving = true;
@@ -273,21 +199,20 @@ export class NowWorkbenchSettings extends LitElement {
   private async resetSettings(): Promise<void> {
     try {
       const res = await fetch('/api/settings/reset', { method: 'POST' });
-      if (res.ok) {
-        this.prefs = (await res.json()) as WorkbenchPreferences;
-      } else {
-        this.prefs = { ...DEFAULT_PREFS };
+      if (!res.ok) {
+        this.saveMessage = `Could not reset settings: ${await this.errorDetail(res)}`;
+        return;
       }
-    } catch {
-      this.prefs = { ...DEFAULT_PREFS };
+      this.prefs = (await res.json()) as WorkbenchPreferences;
+      this.newApiKeyInput = '';
+      this.saveMessage = 'Reset to factory defaults.';
+    } catch (e) {
+      this.saveMessage = `Could not reset settings: ${e instanceof Error ? e.message : String(e)}`;
     }
-    this.newApiKeyInput = '';
-    this.saveMessage = 'Reset to factory defaults.';
   }
 
   render() {
     const hasKey = this.prefs.has_anthropic_api_key;
-    const currentViewport = `${this.prefs.capture_viewport_width}x${this.prefs.capture_viewport_height}`;
 
     return html`
       <div class="top-bar">
@@ -494,190 +419,13 @@ export class NowWorkbenchSettings extends LitElement {
                   </div>
                 </div>
 
-                <!-- 2. Instance Media Capture Defaults -->
-                <div class="section-card" ?hidden=${this.activeSection !== 'capture'}>
-                  <div class="section-header">
-                    <div>
-                      <h2 class="section-title">Instance Media Capture Defaults</h2>
-                      <p class="section-desc">
-                        Default browser viewport resolution, capture format (.png / .webm), page settle delay, and offline fallback.
-                      </p>
-                    </div>
-                  </div>
-
-                  <div class="grid-2">
-                    <div class="field">
-                      <label>Browser Viewport Resolution</label>
-                      <select
-                        .value=${currentViewport}
-                        @change=${(e: Event) =>
-                          this.handleViewportPreset((e.target as HTMLSelectElement).value)}
-                      >
-                        <option value="1440x900">1440 x 900 (Presentation Standard)</option>
-                        <option value="1920x1080">1920 x 1080 (Full HD 1080p)</option>
-                        <option value="1280x720">1280 x 720 (Compact 720p)</option>
-                      </select>
-                    </div>
-
-                    <div class="field">
-                      <label>Default Capture Format</label>
-                      <select
-                        .value=${this.prefs.capture_default_media_type}
-                        @change=${(e: Event) =>
-                          this.updateField(
-                            'capture_default_media_type',
-                            (e.target as HTMLSelectElement).value as 'screenshot' | 'video'
-                          )}
-                      >
-                        <option value="screenshot">Screenshot (.png)</option>
-                        <option value="video">Walkthrough Video (.webm)</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  <div class="grid-2">
-                    <div class="field">
-                      <label>Page Settle Timeout (ms)</label>
-                      <input
-                        type="number"
-                        min="0"
-                        max="15000"
-                        step="250"
-                        .value=${String(this.prefs.capture_wait_timeout_ms)}
-                        @input=${(e: Event) =>
-                          this.updateField(
-                            'capture_wait_timeout_ms',
-                            Number((e.target as HTMLInputElement).value) || 1500
-                          )}
-                      />
-                    </div>
-
-                    <div class="toggle-row">
-                      <div class="toggle-label-group">
-                        <span class="toggle-title">Offline Simulation Fallback</span>
-                        <span class="toggle-sub">
-                          Generate deterministic preview captures when offline or without instance credentials
-                        </span>
-                      </div>
-                      <input
-                        type="checkbox"
-                        .checked=${this.prefs.capture_fake_mode}
-                        @change=${(e: Event) =>
-                          this.updateField(
-                            'capture_fake_mode',
-                            (e.target as HTMLInputElement).checked
-                          )}
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <!-- 3. Solution Consultant & Demo Synthesis Defaults -->
-                <div class="section-card" ?hidden=${this.activeSection !== 'synthesis'}>
-                  <div class="section-header">
-                    <div>
-                      <h2 class="section-title">Solution Consultant & Synthesis Defaults</h2>
-                      <p class="section-desc">
-                        Default author metadata, scoped table prefix, and SC narrative tone.
-                      </p>
-                    </div>
-                  </div>
-
-                  <div class="grid-2">
-                    <div class="field">
-                      <label>Solution Consultant Name (Bundle Author)</label>
-                      <input
-                        type="text"
-                        .value=${this.prefs.sc_author_name}
-                        @input=${(e: Event) =>
-                          this.updateField(
-                            'sc_author_name',
-                            (e.target as HTMLInputElement).value
-                          )}
-                      />
-                    </div>
-
-                    <div class="field">
-                      <label>Solution Consultant Email</label>
-                      <input
-                        type="email"
-                        .value=${this.prefs.sc_author_email}
-                        @input=${(e: Event) =>
-                          this.updateField(
-                            'sc_author_email',
-                            (e.target as HTMLInputElement).value
-                          )}
-                      />
-                    </div>
-                  </div>
-
-                  <div class="grid-2">
-                    <div class="field">
-                      <label>Default Scoped Table Prefix</label>
-                      <input
-                        type="text"
-                        .value=${this.prefs.default_scoped_prefix}
-                        @input=${(e: Event) =>
-                          this.updateField(
-                            'default_scoped_prefix',
-                            (e.target as HTMLInputElement).value
-                          )}
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <!-- 4. UI & Presenter HUD Preferences -->
-                <div class="section-card" ?hidden=${this.activeSection !== 'workspace'}>
-                  <div class="section-header">
-                    <div>
-                      <h2 class="section-title">Workspace UI & Presenter HUD</h2>
-                      <p class="section-desc">
-                        Control startup dialogs, navigation rail defaults, and Presenter HUD teleprompter sizing.
-                      </p>
-                    </div>
-                  </div>
-
-                  <div class="grid-2">
-                    <div class="toggle-row">
-                      <div class="toggle-label-group">
-                        <span class="toggle-title">Show Welcome Modal on Startup</span>
-                        <span class="toggle-sub">
-                          Display the "Welcome to Now Workbench" dialog when launching the workspace
-                        </span>
-                      </div>
-                      <input
-                        type="checkbox"
-                        .checked=${this.prefs.show_welcome_on_startup}
-                        @change=${(e: Event) =>
-                          this.updateField(
-                            'show_welcome_on_startup',
-                            (e.target as HTMLInputElement).checked
-                          )}
-                      />
-                    </div>
-
-                  </div>
-
-                  <div class="grid-2" style="margin-top: 14px;">
-                    <div class="field">
-                      <label>Presenter HUD Font Scale</label>
-                      <select
-                        .value=${this.prefs.hud_font_scale}
-                        @change=${(e: Event) =>
-                          this.updateField(
-                            'hud_font_scale',
-                            (e.target as HTMLSelectElement).value
-                          )}
-                      >
-                        <option value="compact">Compact</option>
-                        <option value="standard">Standard</option>
-                        <option value="large">Large (Teleprompter)</option>
-                      </select>
-                    </div>
-                  </div>
-
-                </div>
+                ${this.activeSection === 'capture'
+                  ? html`<now-capture-prefs .prefs=${this.prefs} @prefs-change=${this.onPrefsChange}></now-capture-prefs>`
+                  : this.activeSection === 'synthesis'
+                  ? html`<now-synthesis-prefs .prefs=${this.prefs} @prefs-change=${this.onPrefsChange}></now-synthesis-prefs>`
+                  : this.activeSection === 'workspace'
+                  ? html`<now-workspace-prefs .prefs=${this.prefs} @prefs-change=${this.onPrefsChange}></now-workspace-prefs>`
+                  : ''}
                 <div class="actions-bar">
                   <button
                     class="btn icon-btn"
