@@ -180,8 +180,9 @@ class ChatThreadRecord(BaseModel):
     title: str
     archived: bool = False
     target_tab: str = "home"
-    message_count: int = 0
-    max_messages: int = MAX_THREAD_CONTEXT_MESSAGES
+    # Questions asked (confirmations excluded) against the admin-set limit (ADR-021).
+    questions_asked: int = 0
+    max_questions: int = 20
     created_at: str = Field(default_factory=lambda: datetime.now(UTC).isoformat())
     updated_at: str = Field(default_factory=lambda: datetime.now(UTC).isoformat())
 

@@ -230,16 +230,16 @@ export class NowWorkbenchShell extends LitElement {
           title: string;
           archived?: boolean;
           target_tab?: string;
-          message_count?: number;
-          max_messages?: number;
+          questions_asked?: number;
+          max_questions?: number;
         }>;
         this.recentThreads = list.map((t) => ({
           id: t.id,
           title: t.title,
           targetTab: t.target_tab || 'home',
           archived: Boolean(t.archived),
-          messageCount: t.message_count ?? 0,
-          maxMessages: t.max_messages ?? 20,
+          questionsAsked: t.questions_asked ?? 0,
+          maxQuestions: t.max_questions ?? 20,
         }));
       }
     } catch {

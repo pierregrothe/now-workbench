@@ -571,7 +571,7 @@ def test_api_threads_and_messages_endpoints(tmp_path: Path) -> None:
         t_meta = client.get("/api/threads/otto-conv-1")
         assert t_meta.status_code == 200
         assert t_meta.json()["title"] == "how many instande I have"
-        assert t_meta.json()["message_count"] == 2
+        assert t_meta.json()["questions_asked"] == 1
 
         # Archive conversation
         arch_res = client.put("/api/threads/otto-conv-1", json={"archived": True})

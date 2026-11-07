@@ -240,7 +240,7 @@ test('the breadcrumb shows the stored conversation title', async ({ page }) => {
     route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify({ id: 'default-thread', title: 'Quarterly demo prep', archived: false, target_tab: 'home', message_count: 1, max_messages: 20, created_at: '2026-11-06T12:00:00Z', updated_at: '2026-11-06T12:00:00Z' }),
+      body: JSON.stringify({ id: 'default-thread', title: 'Quarterly demo prep', archived: false, target_tab: 'home', questions_asked: 1, max_questions: 20, created_at: '2026-11-06T12:00:00Z', updated_at: '2026-11-06T12:00:00Z' }),
     }),
   );
   await page.route('**/api/threads/default-thread/messages', (route) =>

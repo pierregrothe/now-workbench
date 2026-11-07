@@ -10,8 +10,8 @@ export interface NavThreadItem {
   title: string;
   targetTab: string;
   archived?: boolean;
-  messageCount?: number;
-  maxMessages?: number;
+  questionsAsked?: number;
+  maxQuestions?: number;
   prompt?: string;
 }
 
@@ -555,8 +555,8 @@ export class NowNavRail extends LitElement {
 
   private renderThreadItem(thread: NavThreadItem, isActive: boolean) {
     const countLabel =
-      typeof thread.messageCount === 'number'
-        ? `${thread.messageCount}/${thread.maxMessages ?? 20}`
+      typeof thread.questionsAsked === 'number'
+        ? `${thread.questionsAsked}/${thread.maxQuestions ?? 20}`
         : '';
     return html`
       <div class="thread-row-wrap ${isActive ? 'active' : ''}">

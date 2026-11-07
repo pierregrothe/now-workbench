@@ -7,7 +7,6 @@ from datetime import UTC, datetime
 
 from now_workbench.auth.owner import current_owner
 from now_workbench.db.models import (
-    MAX_THREAD_CONTEXT_MESSAGES,
     ChatMessageRecord,
     ChatThreadCreate,
     ChatThreadRecord,
@@ -28,7 +27,11 @@ class ThreadRepositoryMixin:
         cursor = self.conn.execute(
             f"""
             SELECT t.id, t.title, t.archived, t.target_tab, t.created_at, t.updated_at,
-                   COUNT(m.id) AS msg_count
+                   SUM(CASE WHEN m.role = 'user'
+                            AND COALESCE(m.widget_type, '') != 'tool_confirm'
+                       THEN 1 ELSE 0 END) AS asked,
+                   COALESCE((SELECT json_extract(payload, '$.max_turns') FROM app_settings
+                             WHERE key = 'conversation_limits'), 20) AS max_q
             FROM chat_threads t
             LEFT JOIN chat_messages m ON m.thread_id = t.id
             {where_clause}
@@ -43,8 +46,8 @@ class ThreadRepositoryMixin:
                 title=row["title"],
                 archived=bool(row["archived"]),
                 target_tab=row["target_tab"] or "home",
-                message_count=int(row["msg_count"] or 0),
-                max_messages=MAX_THREAD_CONTEXT_MESSAGES,
+                questions_asked=int(row["asked"] or 0),
+                max_questions=int(row["max_q"]),
                 created_at=row["created_at"],
                 updated_at=row["updated_at"],
             )
@@ -56,7 +59,11 @@ class ThreadRepositoryMixin:
         cursor = self.conn.execute(
             """
             SELECT t.id, t.title, t.archived, t.target_tab, t.created_at, t.updated_at,
-                   COUNT(m.id) AS msg_count
+                   SUM(CASE WHEN m.role = 'user'
+                            AND COALESCE(m.widget_type, '') != 'tool_confirm'
+                       THEN 1 ELSE 0 END) AS asked,
+                   COALESCE((SELECT json_extract(payload, '$.max_turns') FROM app_settings
+                             WHERE key = 'conversation_limits'), 20) AS max_q
             FROM chat_threads t
             LEFT JOIN chat_messages m ON m.thread_id = t.id
             WHERE t.id = ? AND t.owner_email = ?
@@ -72,8 +79,8 @@ class ThreadRepositoryMixin:
             title=row["title"],
             archived=bool(row["archived"]),
             target_tab=row["target_tab"] or "home",
-            message_count=int(row["msg_count"] or 0),
-            max_messages=MAX_THREAD_CONTEXT_MESSAGES,
+            questions_asked=int(row["asked"] or 0),
+            max_questions=int(row["max_q"]),
             created_at=row["created_at"],
             updated_at=row["updated_at"],
         )
