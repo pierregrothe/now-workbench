@@ -18,12 +18,12 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 from fastapi.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 
-from now_workbench.api.app import create_app
-from now_workbench.auth.access import ACCESS_HEADER, AccessValidator
-from now_workbench.auth.guard import assert_safe_binding, is_loopback_host
-from now_workbench.auth.models import Role
-from now_workbench.db import db_session
-from now_workbench.db.repos.users import UserRepository
+from now_workbench.domains.identity.models import Role
+from now_workbench.domains.identity.repository import UserRepository
+from now_workbench.interfaces.api.access import ACCESS_HEADER, AccessValidator
+from now_workbench.interfaces.api.app import create_app
+from now_workbench.interfaces.api.guard import assert_safe_binding, is_loopback_host
+from now_workbench.platform.db.session import db_session
 
 TEAM = "example.cloudflareaccess.com"
 AUD = "aud-tag-123"
@@ -227,7 +227,7 @@ def test_serve_refuses_a_public_bind_without_access() -> None:
     """`workbench serve --host 0.0.0.0` exits before listening when Access is not configured."""
     from typer.testing import CliRunner
 
-    from now_workbench.cli import app as cli_app
+    from now_workbench.interfaces.cli.main import app as cli_app
 
     result = CliRunner().invoke(cli_app, ["serve", "--host", "0.0.0.0", "--port", "8099"])
     assert result.exit_code == 1

@@ -2,8 +2,8 @@
 
 from pathlib import Path
 
-from now_workbench.bundles.manager import BundleManager
-from now_workbench.bundles.models import DemoManifest
+from now_workbench.domains.bundles.manager import BundleManager
+from now_workbench.domains.bundles.models import DemoManifest
 
 
 def test_list_and_inspect_bundle(tmp_path: Path) -> None:

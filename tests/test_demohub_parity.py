@@ -11,14 +11,14 @@ import pytest
 from fastapi.testclient import TestClient
 from typer.testing import CliRunner
 
-from now_workbench.ai.client import validate_api_key
-from now_workbench.api.app import create_app
-from now_workbench.bundles.manager import BundleManager
-from now_workbench.cli import app as cli_app
-from now_workbench.db import init_db
-from now_workbench.db.models import WorkbenchPreferencesUpdate
-from now_workbench.db.repos.preferences import PreferencesRepository
-from now_workbench.seed.date_wizard import resolve_date_expression, transform_dataset_dates
+from now_workbench.domains.bundles.manager import BundleManager
+from now_workbench.domains.seed.date_wizard import resolve_date_expression, transform_dataset_dates
+from now_workbench.domains.settings.models import WorkbenchPreferencesUpdate
+from now_workbench.domains.settings.repository import PreferencesRepository
+from now_workbench.interfaces.ai.client import validate_api_key
+from now_workbench.interfaces.api.app import create_app
+from now_workbench.interfaces.cli.main import app as cli_app
+from now_workbench.platform.db.session import init_db
 
 runner = CliRunner(env={"COLUMNS": "250"})
 

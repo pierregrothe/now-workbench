@@ -10,8 +10,8 @@ from pathlib import Path
 
 import pytest
 
-from now_workbench.procs import ProcessTimeoutError, communicate_bounded, spawn, stop
-from now_workbench.sdk.runner import NowSdkRunner
+from now_workbench.platform.procs import ProcessTimeoutError, communicate_bounded, spawn, stop
+from now_workbench.platform.sdk.runner import NowSdkRunner
 
 
 async def test_communicate_bounded_returns_output_with_stdin(tmp_path: Path) -> None:
@@ -36,7 +36,7 @@ async def test_communicate_bounded_stops_the_whole_group_on_timeout(tmp_path: Pa
 
 async def test_stop_escalates_when_the_process_ignores_terminate() -> None:
     """A process that traps SIGTERM is killed after the grace period."""
-    from now_workbench import procs
+    from now_workbench.platform import procs
 
     proc = await spawn(["sh", "-c", "trap '' TERM; sleep 30"])
     await asyncio.sleep(0.2)
@@ -65,7 +65,7 @@ async def test_run_chrome_capture_reports_a_stuck_browser(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """A capture that outlives its deadline is stopped and reported, not waited on forever."""
-    from now_workbench.capture import engine
+    from now_workbench.domains.capture import engine
 
     fake_node = tmp_path / "node"
     fake_node.write_text("#!/bin/sh\nsleep 30\n", encoding="utf-8")
@@ -80,8 +80,8 @@ async def test_run_chrome_capture_reports_a_stuck_browser(
 
 async def test_run_runner_reports_a_stuck_playbook(monkeypatch: pytest.MonkeyPatch) -> None:
     """A walkthrough that outlives its deadline is stopped and reported."""
-    from now_workbench.capture import driver
-    from now_workbench.db.models import InstanceRecord
+    from now_workbench.domains.capture import driver
+    from now_workbench.domains.instances.models import InstanceRecord
 
     monkeypatch.setattr(driver, "_PLAYBOOK_TIMEOUT_S", 0.3)
     inst = InstanceRecord(id="i", name="I", url="https://x.service-now.com")
@@ -91,7 +91,7 @@ async def test_run_runner_reports_a_stuck_playbook(monkeypatch: pytest.MonkeyPat
 
 async def test_otto_client_aclose_closes_only_the_pool_it_created() -> None:
     """A client built from a key is closed; a client handed in is left to its owner."""
-    from now_workbench.ai.client import OttoClient
+    from now_workbench.interfaces.ai.client import OttoClient
 
     owned = OttoClient(api_key="sk-ant-x")
     await owned.aclose()

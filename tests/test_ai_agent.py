@@ -6,13 +6,15 @@ from typing import Any
 import typer
 from fastapi.testclient import TestClient
 
-from now_workbench.ai.agent import run_agent
-from now_workbench.ai.tools import REGISTRY, ToolContext, execute_tool
-from now_workbench.api.app import create_app
-from now_workbench.cli import app as cli_app
-from now_workbench.db import InstanceCreate, db_session
-from now_workbench.db.repos.instances import InstanceRepository
-from now_workbench.db.repos.preferences import PreferencesRepository
+from now_workbench.domains.instances.models import InstanceCreate
+from now_workbench.domains.instances.repository import InstanceRepository
+from now_workbench.domains.settings.repository import PreferencesRepository
+from now_workbench.interfaces.ai.agent import run_agent
+from now_workbench.interfaces.ai.tools import execute_tool
+from now_workbench.interfaces.ai.tools.base import REGISTRY, ToolContext
+from now_workbench.interfaces.api.app import create_app
+from now_workbench.interfaces.cli.main import app as cli_app
+from now_workbench.platform.db.session import db_session
 
 # Operator commands, not chat actions: Otto must never stream the database into a conversation.
 CLI_EXCLUDED = {"serve", "version", "backup"}
@@ -171,7 +173,7 @@ def test_confirm_message_executes_tool_through_thread_api() -> None:
 
 async def test_claude_agent_runner_stream_events() -> None:
     """Verify real-time event streaming in ClaudeAgentRunner (ADR-011)."""
-    from now_workbench.ai.agent import AgentEventType, ClaudeAgentRunner
+    from now_workbench.interfaces.ai.agent import AgentEventType, ClaudeAgentRunner
 
     with db_session() as conn:
         client = _FakeClient(
@@ -195,7 +197,7 @@ async def test_claude_agent_runner_stream_events() -> None:
 
 async def test_agent_live_mode_diagnostic_tile_on_error() -> None:
     """Verify zero silent fallback and explicit diagnostic tile in live mode (ADR-011)."""
-    from now_workbench.ai.agent import ClaudeAgentRunner
+    from now_workbench.interfaces.ai.agent import ClaudeAgentRunner
 
     class _ErrorMessages:
         def create(self, **kwargs: Any) -> Any:
@@ -217,8 +219,8 @@ async def test_agent_live_mode_diagnostic_tile_on_error() -> None:
 
 def test_assemble_records_one_step_per_tool_result() -> None:
     """Otto's visible steps are the tool runs that actually happened, in order."""
-    from now_workbench.ai.agent import _assemble
-    from now_workbench.ai.tools.base import ToolResult
+    from now_workbench.interfaces.ai.agent import _assemble
+    from now_workbench.interfaces.ai.tools.base import ToolResult
 
     resp = _assemble(
         "Done.",
@@ -235,15 +237,15 @@ def test_assemble_records_one_step_per_tool_result() -> None:
 
 def test_assemble_without_tools_has_no_steps() -> None:
     """A plain answer shows no invented steps."""
-    from now_workbench.ai.agent import _assemble
+    from now_workbench.interfaces.ai.agent import _assemble
 
     assert _assemble("Hello.", []).steps == []
 
 
 def test_result_content_sends_attached_images_to_claude() -> None:
     """A tool can show Claude what it produced (e.g. a screenshot), not just describe it."""
-    from now_workbench.ai.agent import _result_content
-    from now_workbench.ai.tools import ToolResult
+    from now_workbench.interfaces.ai.agent import _result_content
+    from now_workbench.interfaces.ai.tools.base import ToolResult
 
     assert _result_content(ToolResult(summary="done")) == "done\n{}"
     blocks = _result_content(ToolResult(summary="shot", images=["iVBORw0KGgo=", "/9j/4AAQ"]))

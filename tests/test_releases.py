@@ -1,13 +1,12 @@
 """Tests for ServiceNow platform release hierarchy, compatibility, and workspace resolution."""
 
-from now_workbench.releases import (
+from now_workbench.domains.releases.compatibility import (
     compare_releases,
     evaluate_release_prerequisites,
     is_release_compatible,
     normalize_release,
-    resolve_workspace,
-    translate_workspace_url,
 )
+from now_workbench.domains.releases.workspaces import resolve_workspace, translate_workspace_url
 
 
 def test_normalize_release() -> None:

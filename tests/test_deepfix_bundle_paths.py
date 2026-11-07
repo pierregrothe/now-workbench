@@ -9,8 +9,8 @@ from pathlib import Path
 
 import pytest
 
-from now_workbench.bundles.manager import BundleManager
-from now_workbench.config.paths import UnsafePathError
+from now_workbench.domains.bundles.manager import BundleManager
+from now_workbench.platform.config.paths import UnsafePathError
 
 
 def _make_bundle(root: Path, bundle_id: str) -> None:

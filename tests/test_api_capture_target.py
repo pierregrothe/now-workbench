@@ -7,9 +7,9 @@
 import pytest
 from fastapi.testclient import TestClient
 
-from now_workbench.api.app import create_app
-from now_workbench.db import db_session
-from now_workbench.db.repos.instances import InstanceRepository
+from now_workbench.domains.instances.repository import InstanceRepository
+from now_workbench.interfaces.api.app import create_app
+from now_workbench.platform.db.session import db_session
 
 _BODY = {
     "bundle_id": "sample-ai-assistant",

@@ -8,10 +8,10 @@ from pathlib import Path
 
 import pytest
 
-from now_workbench.capture import driver as driver_mod
-from now_workbench.capture.driver import PlaywrightPlaybookDriver
-from now_workbench.capture.playbook import DemoPlaybook, PlaybookActionType, PlaybookStep
-from now_workbench.db.models import InstanceRecord
+from now_workbench.domains.capture import driver as driver_mod
+from now_workbench.domains.capture.driver import PlaywrightPlaybookDriver
+from now_workbench.domains.capture.playbook import DemoPlaybook, PlaybookActionType, PlaybookStep
+from now_workbench.domains.instances.models import InstanceRecord
 
 
 def _playbook() -> DemoPlaybook:

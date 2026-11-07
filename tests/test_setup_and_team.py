@@ -16,13 +16,18 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 from fastapi.testclient import TestClient
 from typer.testing import CliRunner
 
-from now_workbench.api.app import create_app
-from now_workbench.auth.access import ACCESS_HEADER, AccessValidator
-from now_workbench.auth.models import Role
-from now_workbench.auth.setup import MAX_ATTEMPTS, SetupCodes, TooManyAttemptsError, WrongCodeError
-from now_workbench.cli import app as cli_app
-from now_workbench.db import db_session
-from now_workbench.db.repos.users import UserRepository
+from now_workbench.domains.identity.models import Role
+from now_workbench.domains.identity.repository import UserRepository
+from now_workbench.domains.identity.setup import (
+    MAX_ATTEMPTS,
+    SetupCodes,
+    TooManyAttemptsError,
+    WrongCodeError,
+)
+from now_workbench.interfaces.api.access import ACCESS_HEADER, AccessValidator
+from now_workbench.interfaces.api.app import create_app
+from now_workbench.interfaces.cli.main import app as cli_app
+from now_workbench.platform.db.session import db_session
 
 _KEY = rsa.generate_private_key(public_exponent=65537, key_size=2048)
 TEAM, AUD = "t.cloudflareaccess.com", "aud"

@@ -3,8 +3,8 @@
 import json
 from pathlib import Path
 
-from now_workbench.db.models import TemplateInstantiationRequest
-from now_workbench.templates.engine import TemplateEngine
+from now_workbench.domains.templates.engine import TemplateEngine
+from now_workbench.domains.templates.models import TemplateInstantiationRequest
 
 
 def test_template_instantiation_with_placeholders(tmp_path: Path) -> None:
@@ -80,8 +80,8 @@ def test_template_instantiation_with_placeholders(tmp_path: Path) -> None:
 
 def test_reference_template_bundle() -> None:
     """Verify the reference enterprise customer service AI template bundle."""
-    from now_workbench.bundles.manager import BundleManager
-    from now_workbench.config.settings import settings
+    from now_workbench.domains.bundles.manager import BundleManager
+    from now_workbench.platform.config.settings import settings
 
     mgr = BundleManager(storage_dir=settings.bundles_dir)
     tmpl_dir = settings.bundles_dir / "template-customer-service-ai"

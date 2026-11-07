@@ -14,13 +14,13 @@ import pytest
 from cryptography.hazmat.primitives.asymmetric import rsa
 from fastapi.testclient import TestClient
 
-from now_workbench.api.app import create_app
-from now_workbench.auth.access import ACCESS_HEADER, AccessValidator
-from now_workbench.auth.models import Role
-from now_workbench.db import db_session
-from now_workbench.db.repos.users import UserRepository
-from now_workbench.db.schema import MIGRATIONS, SCHEMA_VERSION, apply_migrations
-from now_workbench.profile.avatars import MAX_AVATAR_BYTES, PRESET_AVATARS, sniff_image
+from now_workbench.domains.identity.models import Role
+from now_workbench.domains.identity.repository import UserRepository
+from now_workbench.domains.profile.avatars import MAX_AVATAR_BYTES, PRESET_AVATARS, sniff_image
+from now_workbench.interfaces.api.access import ACCESS_HEADER, AccessValidator
+from now_workbench.interfaces.api.app import create_app
+from now_workbench.platform.db.schema import MIGRATIONS, SCHEMA_VERSION, apply_migrations
+from now_workbench.platform.db.session import db_session
 
 PNG = b"\x89PNG\r\n\x1a\n" + b"\x00" * 32
 _KEY = rsa.generate_private_key(public_exponent=65537, key_size=2048)

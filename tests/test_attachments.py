@@ -13,14 +13,18 @@ import pytest
 from access_kit import as_user, multi_user_client
 from fastapi.testclient import TestClient
 
-from now_workbench.api import threads as threads_api
-from now_workbench.api.app import create_app
-from now_workbench.chat.files import LimitReachedError, check_can_ask, detect_media_type
-from now_workbench.chat.models import ConversationLimits
-from now_workbench.config.settings import settings
-from now_workbench.db import ChatThreadRecord, db_session
-from now_workbench.db.repos.chat import ChatRepository
-from now_workbench.db.repos.threads import ThreadRepository
+from now_workbench.domains.conversations.attachment_repository import ChatRepository
+from now_workbench.domains.conversations.files import (
+    LimitReachedError,
+    check_can_ask,
+    detect_media_type,
+)
+from now_workbench.domains.conversations.models import ChatThreadRecord, ConversationLimits
+from now_workbench.domains.conversations.repository import ThreadRepository
+from now_workbench.interfaces.api import threads as threads_api
+from now_workbench.interfaces.api.app import create_app
+from now_workbench.platform.config.settings import settings
+from now_workbench.platform.db.session import db_session
 
 PDF = b"%PDF-1.4\n1 0 obj\n<<>>\nendobj\n%%EOF\n"
 PNG = base64.b64decode(

@@ -11,19 +11,20 @@ from pathlib import Path
 
 import pytest
 
-from now_workbench.bundles import pipeline as pipeline_mod
-from now_workbench.bundles.pipeline import DemoPipelineEngine, PipelineStepError
-from now_workbench.db import InstanceCreate, db_session
-from now_workbench.db.repos.instances import InstanceRepository
-from now_workbench.properties.engine import PropertyEngine
-from now_workbench.sdk.project import (
+from now_workbench.domains.demos import pipeline as pipeline_mod
+from now_workbench.domains.demos.pipeline import DemoPipelineEngine, PipelineStepError
+from now_workbench.domains.instances.models import InstanceCreate
+from now_workbench.domains.instances.repository import InstanceRepository
+from now_workbench.domains.properties.engine import PropertyEngine
+from now_workbench.platform.db.session import db_session
+from now_workbench.platform.sdk.project import (
     SdkProject,
     SdkProjectError,
     prepare_project,
     scope_for,
     table_map_for,
 )
-from now_workbench.sdk.runner import SdkExecutionResult
+from now_workbench.platform.sdk.runner import SdkExecutionResult
 
 REPO = Path(__file__).resolve().parents[1]
 
@@ -264,7 +265,7 @@ async def test_test_demo_script_checks_renamed_tables(tmp_path: Path) -> None:
 
 async def test_run_command_that_hangs_times_out(tmp_path: Path) -> None:
     """A stuck SDK or npm command is stopped and reported, never waited on forever."""
-    from now_workbench.sdk import project as project_mod
+    from now_workbench.platform.sdk import project as project_mod
 
     with pytest.raises(SdkProjectError, match="timed out"):
         await project_mod._run(["sleep", "5"], tmp_path, timeout_s=0.2)

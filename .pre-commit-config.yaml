@@ -50,6 +50,15 @@ repos:
         always_run: true
         stages: [pre-commit]
 
+      - id: import-contracts
+        name: Architecture Import Contracts (ADR-015)
+        entry: python .claude/hooks/_venv_run.py lint-imports
+        language: system
+        types: [python]
+        pass_filenames: false
+        always_run: true
+        stages: [pre-commit]
+
       - id: file-size
         name: File Size Limits (ADR-005)
         entry: python scripts/check_file_sizes.py

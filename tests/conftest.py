@@ -5,12 +5,13 @@ from pathlib import Path
 
 import pytest
 
-from now_workbench.auth.models import LOCAL_EMAIL
-from now_workbench.auth.owner import owner_scope
-from now_workbench.config.settings import settings
-from now_workbench.db import InstanceCreate, TemplateRecord, db_session
-from now_workbench.db.repos.instances import InstanceRepository
-from now_workbench.db.repos.templates import TemplateRepository
+from now_workbench.domains.instances.models import InstanceCreate
+from now_workbench.domains.instances.repository import InstanceRepository
+from now_workbench.domains.templates.models import TemplateRecord
+from now_workbench.domains.templates.repository import TemplateRepository
+from now_workbench.platform.config.settings import settings
+from now_workbench.platform.db.session import db_session
+from now_workbench.platform.owner import LOCAL_EMAIL, owner_scope
 
 
 @pytest.fixture(autouse=True)

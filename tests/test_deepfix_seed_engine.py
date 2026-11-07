@@ -11,11 +11,12 @@ from pathlib import Path
 import httpx
 import pytest
 
-from now_workbench.db import InstanceCreate, init_db
-from now_workbench.db.models import SeedOperationRecord, SeedRecordItem
-from now_workbench.db.repos.instances import InstanceRepository
-from now_workbench.db.repos.seeds import SeedRepository
-from now_workbench.seed.engine import SeedEngine, SeedPayloadError
+from now_workbench.domains.instances.models import InstanceCreate
+from now_workbench.domains.instances.repository import InstanceRepository
+from now_workbench.domains.seed.engine import SeedEngine, SeedPayloadError
+from now_workbench.domains.seed.models import SeedOperationRecord, SeedRecordItem
+from now_workbench.domains.seed.repository import SeedRepository
+from now_workbench.platform.db.session import init_db
 
 
 def _repo() -> sqlite3.Connection:

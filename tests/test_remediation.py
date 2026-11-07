@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from now_workbench.remediation import (
+from now_workbench.platform.remediation import (
     RemediationPlan,
     execute_remediation,
     inspect_remediation_needs,

@@ -12,7 +12,7 @@ on one ``UnsafePathError`` handler to answer HTTP 400 (never 500, never a filesy
 import pytest
 from fastapi.testclient import TestClient
 
-from now_workbench.api.app import create_app
+from now_workbench.interfaces.api.app import create_app
 
 # Valid as a URL path segment, but not valid bundle ids.
 UNSAFE_IDS = [".hidden", "a..b", "x" * 129, "bad%20id"]

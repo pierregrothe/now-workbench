@@ -13,11 +13,11 @@ import jwt
 from cryptography.hazmat.primitives.asymmetric import rsa
 from fastapi.testclient import TestClient
 
-from now_workbench.api.app import create_app
-from now_workbench.auth.access import ACCESS_HEADER, AccessValidator
-from now_workbench.auth.models import Role
-from now_workbench.db import db_session
-from now_workbench.db.repos.users import UserRepository
+from now_workbench.domains.identity.models import Role
+from now_workbench.domains.identity.repository import UserRepository
+from now_workbench.interfaces.api.access import ACCESS_HEADER, AccessValidator
+from now_workbench.interfaces.api.app import create_app
+from now_workbench.platform.db.session import db_session
 
 __all__ = ["as_user", "multi_user_client"]
 

@@ -24,7 +24,7 @@ dependencies = [
 ]
 
 [project.scripts]
-workbench = "now_workbench.cli:app"
+workbench = "now_workbench.interfaces.cli.main:app"
 
 [dependency-groups]
 dev = [
@@ -35,6 +35,7 @@ dev = [
     "mypy>=1.13.0",
     "black>=24.10.0",
     "pre-commit>=4.7.0",
+    "import-linter>=2.16",
 ]
 
 [tool.uv]

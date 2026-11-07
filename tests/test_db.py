@@ -2,19 +2,14 @@
 
 from pathlib import Path
 
-from now_workbench.auth.owner import owner_scope
-from now_workbench.db import (
-    ChatMessageRecord,
-    ChatThreadCreate,
-    InstanceCreate,
-    InstanceUpdate,
-    TemplateRecord,
-    db_session,
-    init_db,
-)
-from now_workbench.db.repos.instances import InstanceRepository
-from now_workbench.db.repos.templates import TemplateRepository
-from now_workbench.db.repos.threads import ThreadRepository
+from now_workbench.domains.conversations.models import ChatMessageRecord, ChatThreadCreate
+from now_workbench.domains.conversations.repository import ThreadRepository
+from now_workbench.domains.instances.models import InstanceCreate, InstanceUpdate
+from now_workbench.domains.instances.repository import InstanceRepository
+from now_workbench.domains.templates.models import TemplateRecord
+from now_workbench.domains.templates.repository import TemplateRepository
+from now_workbench.platform.db.session import db_session, init_db
+from now_workbench.platform.owner import owner_scope
 
 
 def test_instance_registry_lifecycle() -> None:
@@ -75,7 +70,7 @@ def test_instance_registry_lifecycle() -> None:
     assert by_name.id == "acme-sandbox"
 
     # Update instance (rename and update auth)
-    from now_workbench.db.models import InstanceUpdate
+    from now_workbench.domains.instances.models import InstanceUpdate
 
     up_rec = instance_repo.update_instance(
         "acme-sandbox",
@@ -130,8 +125,8 @@ def test_template_registry_lifecycle() -> None:
 
 def test_seed_default_instance_if_empty() -> None:
     """Verify seeding default instance into empty connection when settings configured."""
-    from now_workbench.config.settings import settings
-    from now_workbench.db.session import seed_default_instance_if_empty
+    from now_workbench.domains.instances.bootstrap import seed_default_instance_if_empty
+    from now_workbench.platform.config.settings import settings
 
     # Test when settings has no instance url
     old_url = settings.sn_instance_url
@@ -171,7 +166,7 @@ def test_seed_default_instance_if_empty() -> None:
 
 def test_init_db_file_and_get_db_path(tmp_path: Path) -> None:
     """Verify file-based SQLite database initialization with WAL mode."""
-    from now_workbench.db.session import get_db_path
+    from now_workbench.platform.db.session import get_db_path
 
     db_file = tmp_path / "custom.db"
     conn = init_db(db_file)
@@ -231,7 +226,7 @@ def test_db_session_and_chat_threads_lifecycle() -> None:
         assert messages[1].widget_data == {"count": 2}
 
         # Update (archive & rename) and delete thread
-        from now_workbench.db.models import ChatThreadUpdate
+        from now_workbench.domains.conversations.models import ChatThreadUpdate
 
         updated = thread_repo.update_thread(
             "t-100", ChatThreadUpdate(title="Archived Thread", archived=True)

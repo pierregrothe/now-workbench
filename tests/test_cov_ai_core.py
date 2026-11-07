@@ -13,9 +13,12 @@ import anthropic
 import httpx
 import pytest
 
-from now_workbench.ai import agent as agent_mod
-from now_workbench.ai import client as client_mod
-from now_workbench.ai.agent import (
+from now_workbench.domains.conversations.models import ChatMessageRecord
+from now_workbench.domains.instances.models import InstanceCreate
+from now_workbench.domains.instances.repository import InstanceRepository
+from now_workbench.interfaces.ai import agent as agent_mod
+from now_workbench.interfaces.ai import client as client_mod
+from now_workbench.interfaces.ai.agent import (
     AgentEventType,
     AgentUnavailableError,
     ClaudeAgentRunner,
@@ -27,18 +30,24 @@ from now_workbench.ai.agent import (
     _result_content,
     run_agent,
 )
-from now_workbench.ai.client import OttoClient, validate_api_key
-from now_workbench.ai.tiles import (
+from now_workbench.interfaces.ai.client import OttoClient, validate_api_key
+from now_workbench.interfaces.ai.tiles import (
     GenerativeUIResponse,
     UITileSpec,
     build_instance_response,
     format_instance_status,
     resolve_query_to_tiles,
 )
-from now_workbench.ai.tools import REGISTRY, ToolContext, execute_tool, tool_definitions
-from now_workbench.ai.tools.base import ToolResult, ToolSpec, resolve_instance, run_async
-from now_workbench.db import ChatMessageRecord, InstanceCreate, db_session
-from now_workbench.db.repos.instances import InstanceRepository
+from now_workbench.interfaces.ai.tools import execute_tool, tool_definitions
+from now_workbench.interfaces.ai.tools.base import (
+    REGISTRY,
+    ToolContext,
+    ToolResult,
+    ToolSpec,
+    resolve_instance,
+    run_async,
+)
+from now_workbench.platform.db.session import db_session
 
 
 def _ctx(repo: Any) -> ToolContext:
@@ -246,7 +255,7 @@ def test_system_tools_settings_roundtrip_and_diagnostics() -> None:
 
 
 def test_model_to_text_truncates_long_payloads() -> None:
-    from now_workbench.ai.tools.base import model_to_text
+    from now_workbench.interfaces.ai.tools.base import model_to_text
 
     out = model_to_text({"k": "x" * 50}, limit=10)
     assert out.endswith("...[truncated]") and len(out) == 10 + len("...[truncated]")
@@ -511,7 +520,7 @@ async def test_runner_without_tools_skips_cache_marker(monkeypatch: pytest.Monke
 
 
 def test_resolve_instance_blank_returns_default_and_media_tile_shape() -> None:
-    from now_workbench.ai.tools.base import media_tile
+    from now_workbench.interfaces.ai.tools.base import media_tile
 
     with db_session() as conn:
         assert resolve_instance(conn, None).id == "default-instance"

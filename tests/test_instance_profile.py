@@ -10,28 +10,28 @@ from datetime import UTC, datetime
 import httpx
 import pytest
 
-from now_workbench.connectivity import check_and_record_instance
-from now_workbench.db import (
+from now_workbench.domains.instances.connectivity import check_and_record_instance
+from now_workbench.domains.instances.models import (
     InstanceCreate,
     InstanceNode,
     InstanceProfile,
+    InstanceRecord,
     InstanceUpdate,
-    init_db,
 )
-from now_workbench.db.models import InstanceRecord
-from now_workbench.db.repos.instances import InstanceRepository
-from now_workbench.instance_profile import (
+from now_workbench.domains.instances.profile import (
     collect_instance_profile,
     datacenter_from_hostname,
     parse_build_date,
     parse_node_stats,
 )
-from now_workbench.releases import (
+from now_workbench.domains.instances.repository import InstanceRepository
+from now_workbench.domains.releases.compatibility import (
     compare_releases,
     evaluate_release_prerequisites,
     is_release_compatible,
-    parse_release_family,
 )
+from now_workbench.domains.releases.detection import parse_release_family
+from now_workbench.platform.db.session import init_db
 
 WAR = "glide-australia-02-11-2026__patch7w42-10-08-2026_10-13-2026_1248.zip"
 
@@ -321,8 +321,8 @@ def test_instances_api_includes_profile_without_password() -> None:
     """GET /api/instances returns the detected profile and never the password."""
     from fastapi.testclient import TestClient
 
-    from now_workbench.api.app import create_app
-    from now_workbench.db import db_session
+    from now_workbench.interfaces.api.app import create_app
+    from now_workbench.platform.db.session import db_session
 
     with db_session() as conn:
         inst = InstanceRepository(conn).add_instance(
@@ -377,7 +377,7 @@ def test_instances_api_purpose_validation_and_public_view() -> None:
     """The API accepts declared purposes, rejects others, and exposes purpose publicly."""
     from fastapi.testclient import TestClient
 
-    from now_workbench.api.app import create_app
+    from now_workbench.interfaces.api.app import create_app
 
     client = TestClient(create_app())
     bad = client.post(

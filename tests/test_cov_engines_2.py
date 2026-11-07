@@ -16,26 +16,31 @@ import httpx
 import pytest
 from typer.testing import CliRunner
 
-from now_workbench import cli as cli_mod
-from now_workbench.bundles import pipeline as pipeline_mod
-from now_workbench.bundles.manager import BundleManager
-from now_workbench.bundles.pipeline import DemoPipelineEngine, PipelineStepError
-from now_workbench.capture import driver as driver_mod
-from now_workbench.chat import files as files_mod
-from now_workbench.chat.models import Attachment, ConversationLimits
-from now_workbench.cli import app
-from now_workbench.config.settings import settings
-from now_workbench.db import (
-    InstanceCreate,
-    InstanceProfile,
-    db_session,
-    init_db,
+from now_workbench.domains.bundles.manager import BundleManager
+from now_workbench.domains.capture import driver as driver_mod
+from now_workbench.domains.conversations import files as files_mod
+from now_workbench.domains.conversations.models import (
+    Attachment,
+    ChatMessageRecord,
+    ChatThreadRecord,
+    ConversationLimits,
 )
-from now_workbench.db.models import ChatMessageRecord, ChatThreadRecord, SeedRecordItem
-from now_workbench.db.repos.instances import InstanceRepository
-from now_workbench.db.repos.seeds import SeedRepository
-from now_workbench.fluent.engine import FluentEngine
-from now_workbench.remediation import (
+from now_workbench.domains.demos import pipeline as pipeline_mod
+from now_workbench.domains.demos.pipeline import DemoPipelineEngine, PipelineStepError
+from now_workbench.domains.fluent.engine import FluentEngine
+from now_workbench.domains.instances.models import InstanceCreate, InstanceProfile
+from now_workbench.domains.instances.repository import InstanceRepository
+from now_workbench.domains.runbooks.engine import RunbookEngine
+from now_workbench.domains.seed.engine import SeedEngine, SeedPayloadError
+from now_workbench.domains.seed.models import SeedRecordItem
+from now_workbench.domains.seed.repository import SeedRepository
+from now_workbench.domains.synthesizer.engine import UseCaseSynthesizer
+from now_workbench.domains.synthesizer.models import UseCaseSynthesisRequest
+from now_workbench.interfaces.cli import main as cli_mod
+from now_workbench.interfaces.cli.main import app
+from now_workbench.platform.config.settings import settings
+from now_workbench.platform.db.session import db_session, init_db
+from now_workbench.platform.remediation import (
     RemediationAction,
     RemediationPlan,
     execute_remediation,
@@ -44,11 +49,7 @@ from now_workbench.remediation import (
     remediate_env_file,
     remediate_sdk,
 )
-from now_workbench.runbooks.engine import RunbookEngine
-from now_workbench.sdk.runner import SdkExecutionResult
-from now_workbench.seed.engine import SeedEngine, SeedPayloadError
-from now_workbench.synthesizer.engine import UseCaseSynthesizer
-from now_workbench.synthesizer.models import UseCaseSynthesisRequest
+from now_workbench.platform.sdk.runner import SdkExecutionResult
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SAMPLE = "sample-ai-assistant"
@@ -294,7 +295,7 @@ def test_rollback_demo_prints_errors_from_unreachable_instance() -> None:
         InstanceRepository(conn).add_instance(
             InstanceCreate(id="dead", name="Dead", url="http://127.0.0.1:1")
         )
-        from now_workbench.db.models import SeedOperationRecord
+        from now_workbench.domains.seed.models import SeedOperationRecord
 
         SeedRepository(conn).record_seed_operation(
             SeedOperationRecord(
@@ -324,8 +325,8 @@ def test_doctor_branches(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Non
 
 
 def test_doctor_registry_variants(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    from now_workbench.db.repos.instances import InstanceRepository as Instances
-    from now_workbench.db.repos.preferences import PreferencesRepository as Prefs
+    from now_workbench.domains.instances.repository import InstanceRepository as Instances
+    from now_workbench.domains.settings.repository import PreferencesRepository as Prefs
 
     monkeypatch.setattr(Instances, "get_default_instance", lambda self: None)
     res = runner.invoke(app, ["doctor"])
@@ -418,7 +419,7 @@ def test_synthesize_and_capture_cli(bundles: Path, monkeypatch: pytest.MonkeyPat
 
 
 def test_capture_cli_without_default_instance_exits_1(monkeypatch: pytest.MonkeyPatch) -> None:
-    from now_workbench.db.repos.instances import InstanceRepository
+    from now_workbench.domains.instances.repository import InstanceRepository
 
     monkeypatch.setattr(InstanceRepository, "get_default_instance", lambda self: None)
     res = runner.invoke(app, ["demo", "capture", "x", "--fake"])
@@ -451,7 +452,7 @@ def test_synthesize_requires_release_and_avoids_collisions(tmp_path: Path) -> No
 
 
 def test_synthesizer_helpers_fall_back_on_empty_input() -> None:
-    from now_workbench.synthesizer import engine as eng
+    from now_workbench.domains.synthesizer import engine as eng
 
     assert eng._slugify("!!!") == "custom-demo"
     assert eng._table_slug("a b", prefix="!!") == "x_snc_a_b_case"
@@ -756,7 +757,7 @@ async def test_seed_engine_live_post_rollback_and_oauth_paths(tmp_path: Path) ->
 async def test_seed_engine_rollback_collects_failures() -> None:
     conn = _repo()
     seed_repo = SeedRepository(conn)
-    from now_workbench.db.models import SeedOperationRecord
+    from now_workbench.domains.seed.models import SeedOperationRecord
 
     items = [
         SeedRecordItem(table="incident", sys_id="missing"),
@@ -837,7 +838,7 @@ def test_bundle_manager_list_after_storage_removed(tmp_path: Path) -> None:
 async def test_full_pipeline_property_and_deploy_failures(
     bundles: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from now_workbench.properties.models import PropertyApplyResult
+    from now_workbench.domains.properties.models import PropertyApplyResult
 
     with db_session() as conn:
         instance_repo = InstanceRepository(conn)
@@ -864,7 +865,7 @@ async def test_full_pipeline_property_and_deploy_failures(
 
 
 async def test_execute_video_playbook_fake_mode_writes_media(tmp_path: Path) -> None:
-    from now_workbench.capture import engine as capture_engine_mod
+    from now_workbench.domains.capture import engine as capture_engine_mod
 
     video, thumb = tmp_path / "v.webm", tmp_path / "v.png"
     ok, live, steps = await capture_engine_mod._execute_video_playbook(
@@ -879,7 +880,7 @@ async def test_execute_video_playbook_fake_mode_writes_media(tmp_path: Path) -> 
 async def test_run_chrome_capture_success_with_stub_node(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from now_workbench.capture import engine as capture_engine_mod
+    from now_workbench.domains.capture import engine as capture_engine_mod
 
     _stub(
         tmp_path / "bin",
@@ -896,7 +897,7 @@ async def test_run_chrome_capture_success_with_stub_node(
 def test_migrate_rolls_back_a_failing_migration(monkeypatch: pytest.MonkeyPatch) -> None:
     import sqlite3
 
-    from now_workbench.db import schema as schema_mod
+    from now_workbench.platform.db import schema as schema_mod
 
     conn = sqlite3.connect(":memory:", isolation_level=None)
     schema_mod.apply_migrations(conn)
@@ -949,8 +950,8 @@ def test_instance_cli_activate_rename_delete_test_flows() -> None:
 async def test_capture_screenshot_success_is_labelled_native(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from now_workbench.capture.engine import PlaywrightCaptureEngine
-    from now_workbench.capture.models import CaptureRequest
+    from now_workbench.domains.capture.engine import PlaywrightCaptureEngine
+    from now_workbench.domains.capture.models import CaptureRequest
 
     _stub(
         tmp_path / "bin",
@@ -972,7 +973,10 @@ def test_cli_module_runs_as_main(monkeypatch: pytest.MonkeyPatch) -> None:
 
     monkeypatch.setattr(sys, "argv", ["workbench", "--help"])
     with pytest.raises(SystemExit) as exc:
-        runpy.run_path(str(REPO_ROOT / "src" / "now_workbench" / "cli.py"), run_name="__main__")
+        runpy.run_path(
+            str(REPO_ROOT / "src" / "now_workbench" / "interfaces" / "cli" / "main.py"),
+            run_name="__main__",
+        )
     assert exc.value.code == 0
 
 

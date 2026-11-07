@@ -8,9 +8,10 @@ import pytest
 from fastapi.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 
-from now_workbench.api.app import create_app
-from now_workbench.db import InstanceCreate, db_session
-from now_workbench.db.repos.instances import InstanceRepository
+from now_workbench.domains.instances.models import InstanceCreate
+from now_workbench.domains.instances.repository import InstanceRepository
+from now_workbench.interfaces.api.app import create_app
+from now_workbench.platform.db.session import db_session
 
 BUNDLE = "sample-ai-assistant"
 GOOD_ORIGIN = "http://localhost:8080"

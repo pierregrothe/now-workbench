@@ -3,13 +3,9 @@
 import json
 from pathlib import Path
 
-from now_workbench.capture.driver import PlaywrightPlaybookDriver, load_playbook
-from now_workbench.capture.playbook import (
-    DemoPlaybook,
-    PlaybookActionType,
-    PlaybookStep,
-)
-from now_workbench.db.models import InstanceRecord
+from now_workbench.domains.capture.driver import PlaywrightPlaybookDriver, load_playbook
+from now_workbench.domains.capture.playbook import DemoPlaybook, PlaybookActionType, PlaybookStep
+from now_workbench.domains.instances.models import InstanceRecord
 
 
 def test_demo_playbook_model_validation() -> None:

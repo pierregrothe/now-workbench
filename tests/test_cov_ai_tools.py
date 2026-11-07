@@ -13,15 +13,17 @@ from typing import Any
 
 import pytest
 
-from now_workbench.ai.tools import ToolContext, ToolResult, execute_tool
-from now_workbench.capture.models import CaptureArtifact, CaptureRequest
-from now_workbench.config.settings import settings
-from now_workbench.db import InstanceCreate, InstanceProfile, db_session
-from now_workbench.db.models import WorkbenchPreferencesUpdate
-from now_workbench.db.repos.instances import InstanceRepository
-from now_workbench.db.repos.preferences import PreferencesRepository
-from now_workbench.properties.engine import PropertyEngine
-from now_workbench.sharing.access import ReadOnlyBundleError
+from now_workbench.domains.capture.models import CaptureArtifact, CaptureRequest
+from now_workbench.domains.instances.models import InstanceCreate, InstanceProfile
+from now_workbench.domains.instances.repository import InstanceRepository
+from now_workbench.domains.properties.engine import PropertyEngine
+from now_workbench.domains.settings.models import WorkbenchPreferencesUpdate
+from now_workbench.domains.settings.repository import PreferencesRepository
+from now_workbench.domains.sharing.access import ReadOnlyBundleError
+from now_workbench.interfaces.ai.tools import execute_tool
+from now_workbench.interfaces.ai.tools.base import ToolContext, ToolResult
+from now_workbench.platform.config.settings import settings
+from now_workbench.platform.db.session import db_session
 
 REPO_BUNDLES = Path(__file__).resolve().parent.parent / "bundles"
 SAMPLE = "sample-ai-assistant"
@@ -236,7 +238,7 @@ def test_capture_media_live_attaches_image(
     library: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(
-        "now_workbench.ai.tools.bundles.PlaywrightCaptureEngine", _FakeCaptureEngine
+        "now_workbench.interfaces.ai.tools.bundles.PlaywrightCaptureEngine", _FakeCaptureEngine
     )
     _FakeCaptureEngine.root = tmp_path
     _FakeCaptureEngine.media = "screenshot"
@@ -255,7 +257,7 @@ def test_capture_media_live_video_uses_png_poster(
     library: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(
-        "now_workbench.ai.tools.bundles.PlaywrightCaptureEngine", _FakeCaptureEngine
+        "now_workbench.interfaces.ai.tools.bundles.PlaywrightCaptureEngine", _FakeCaptureEngine
     )
     _FakeCaptureEngine.root = tmp_path
     _FakeCaptureEngine.media = "video"
@@ -273,7 +275,7 @@ def test_capture_media_oversized_image_is_not_attached(
     library: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(
-        "now_workbench.ai.tools.bundles.PlaywrightCaptureEngine", _FakeCaptureEngine
+        "now_workbench.interfaces.ai.tools.bundles.PlaywrightCaptureEngine", _FakeCaptureEngine
     )
     _FakeCaptureEngine.root = tmp_path
     _FakeCaptureEngine.media = "screenshot"
@@ -514,7 +516,7 @@ def test_bundle_access_read_only_share_becomes_value_error(
     def read_only(*_a: Any, **_k: Any) -> None:
         raise ReadOnlyBundleError("'x' is shared with you read-only.")
 
-    monkeypatch.setattr("now_workbench.ai.tools.bundles.resolve_bundle", read_only)
+    monkeypatch.setattr("now_workbench.interfaces.ai.tools.bundles.resolve_bundle", read_only)
     res = _run("update_bundle", {"bundle_id": "x", "name": "N"})
     assert not res.ok
     assert "shared with you read-only" in res.summary

@@ -4,10 +4,11 @@ from pathlib import Path
 
 import pytest
 
-from now_workbench.db import InstanceCreate, init_db
-from now_workbench.db.repos.instances import InstanceRepository
-from now_workbench.db.repos.seeds import SeedRepository
-from now_workbench.seed.engine import SeedEngine, SeedPayloadError
+from now_workbench.domains.instances.models import InstanceCreate
+from now_workbench.domains.instances.repository import InstanceRepository
+from now_workbench.domains.seed.engine import SeedEngine, SeedPayloadError
+from now_workbench.domains.seed.repository import SeedRepository
+from now_workbench.platform.db.session import init_db
 
 
 @pytest.mark.asyncio
@@ -92,7 +93,7 @@ async def test_seed_engine_edge_cases_and_http_transport(tmp_path: Path) -> None
     """Verify edge cases and Table API HTTP interactions using in-memory mock transport."""
     import httpx
 
-    from now_workbench.db.models import InstanceRecord
+    from now_workbench.domains.instances.models import InstanceRecord
 
     conn = init_db(":memory:")
     seed_repo = SeedRepository(conn)
@@ -188,7 +189,7 @@ async def test_seed_engine_edge_cases_and_http_transport(tmp_path: Path) -> None
         engine._resolve_instance("instance-404")
 
     # 11. Rollback failure records error in non-fake mode
-    from now_workbench.db.models import SeedOperationRecord, SeedRecordItem
+    from now_workbench.domains.seed.models import SeedOperationRecord, SeedRecordItem
 
     fail_op = SeedOperationRecord(
         id="op-with-unreachable-record",

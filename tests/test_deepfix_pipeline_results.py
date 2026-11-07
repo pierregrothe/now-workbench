@@ -7,15 +7,16 @@ from pathlib import Path
 
 import pytest
 
-from now_workbench.bundles import pipeline as pipeline_mod
-from now_workbench.bundles.pipeline import DemoPipelineEngine, PipelineStepError
-from now_workbench.db import InstanceCreate, InstanceProfile, db_session
-from now_workbench.db.repos.instances import InstanceRepository
-from now_workbench.properties.engine import PropertyEngine
-from now_workbench.properties.models import PropertyApplyResult
-from now_workbench.sdk.runner import SdkExecutionResult
-from now_workbench.synthesizer.engine import UseCaseSynthesizer
-from now_workbench.synthesizer.models import UseCaseSynthesisRequest
+from now_workbench.domains.demos import pipeline as pipeline_mod
+from now_workbench.domains.demos.pipeline import DemoPipelineEngine, PipelineStepError
+from now_workbench.domains.instances.models import InstanceCreate, InstanceProfile
+from now_workbench.domains.instances.repository import InstanceRepository
+from now_workbench.domains.properties.engine import PropertyEngine
+from now_workbench.domains.properties.models import PropertyApplyResult
+from now_workbench.domains.synthesizer.engine import UseCaseSynthesizer
+from now_workbench.domains.synthesizer.models import UseCaseSynthesisRequest
+from now_workbench.platform.db.session import db_session
+from now_workbench.platform.sdk.runner import SdkExecutionResult
 
 
 class _FailingRunner:

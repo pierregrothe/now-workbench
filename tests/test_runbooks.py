@@ -5,9 +5,9 @@ from pathlib import Path
 import httpx
 import pytest
 
-from now_workbench.db.models import InstanceRecord
-from now_workbench.runbooks.engine import RunbookEngine
-from now_workbench.runbooks.models import DemoPersona, RunbookGuide, RunbookStage
+from now_workbench.domains.instances.models import InstanceRecord
+from now_workbench.domains.runbooks.engine import RunbookEngine
+from now_workbench.domains.runbooks.models import DemoPersona, RunbookGuide, RunbookStage
 
 SAMPLE_GUIDE_MD = """# Demonstration Guide: GenAI Agentic Incident Router
 

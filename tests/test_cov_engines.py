@@ -15,35 +15,31 @@ import httpx
 import pytest
 from typer.testing import CliRunner
 
-from now_workbench.bundles.manager import BundleManager
-from now_workbench.bundles.pipeline import DemoPipelineEngine
-from now_workbench.capture import driver as driver_mod
-from now_workbench.capture import engine as capture_engine_mod
-from now_workbench.capture.engine import CaptureFailedError, PlaywrightCaptureEngine
-from now_workbench.capture.models import CaptureArtifact, CaptureRequest
-from now_workbench.cli import app
-from now_workbench.db import (
-    InstanceCreate,
-    InstanceProfile,
-    db_session,
-    init_db,
-)
-from now_workbench.db.models import InstanceRecord, SeedOperationRecord, SeedRecordItem
-from now_workbench.db.repos.instances import InstanceRepository
-from now_workbench.db.repos.seeds import SeedRepository
-from now_workbench.db.schema import MIGRATIONS, SCHEMA_VERSION
-from now_workbench.db.schema import apply_migrations as migrate
-from now_workbench.plugins.manager import PluginManager
-from now_workbench.releases.compatibility import (
+from now_workbench.domains.bundles.manager import BundleManager
+from now_workbench.domains.capture import driver as driver_mod
+from now_workbench.domains.capture import engine as capture_engine_mod
+from now_workbench.domains.capture.engine import CaptureFailedError, PlaywrightCaptureEngine
+from now_workbench.domains.capture.models import CaptureArtifact, CaptureRequest
+from now_workbench.domains.demos.pipeline import DemoPipelineEngine
+from now_workbench.domains.instances.models import InstanceCreate, InstanceProfile, InstanceRecord
+from now_workbench.domains.instances.repository import InstanceRepository
+from now_workbench.domains.plugins.manager import PluginManager
+from now_workbench.domains.releases.compatibility import (
     check_feature_compatibility,
     compare_releases,
     evaluate_release_prerequisites,
     get_release_index,
     is_release_compatible,
 )
-from now_workbench.releases.workspaces import resolve_workspace, translate_workspace_url
-from now_workbench.runbooks.models import RunbookTestResult, StageTestResult
-from now_workbench.seed.engine import SeedEngine
+from now_workbench.domains.releases.workspaces import resolve_workspace, translate_workspace_url
+from now_workbench.domains.runbooks.models import RunbookTestResult, StageTestResult
+from now_workbench.domains.seed.engine import SeedEngine
+from now_workbench.domains.seed.models import SeedOperationRecord, SeedRecordItem
+from now_workbench.domains.seed.repository import SeedRepository
+from now_workbench.interfaces.cli.main import app
+from now_workbench.platform.db.schema import MIGRATIONS, SCHEMA_VERSION
+from now_workbench.platform.db.schema import apply_migrations as migrate
+from now_workbench.platform.db.session import db_session, init_db
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SAMPLE = "sample-ai-assistant"
@@ -361,8 +357,7 @@ def test_update_bundle_manifest_missing_files_raise(bundles: Path) -> None:
 async def test_run_chrome_capture_script_missing(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    fake_file = tmp_path / "a" / "b" / "c" / "engine.py"
-    monkeypatch.setattr(capture_engine_mod, "__file__", str(fake_file))
+    monkeypatch.setattr(capture_engine_mod, "dev_script", lambda name: tmp_path / name)
     ok, why = await capture_engine_mod._run_chrome_capture(
         "https://x", tmp_path / "o.png", "screenshot", 10, 10
     )
@@ -578,7 +573,7 @@ def test_check_feature_compatibility_branches() -> None:
     ok, msg = check_feature_compatibility("plain widget", "Zurich")
     assert ok is True
     assert "no specific release constraint" in msg
-    from now_workbench.releases.compatibility import FEATURE_MINIMUM_RELEASES
+    from now_workbench.domains.releases.compatibility import FEATURE_MINIMUM_RELEASES
 
     feat, (min_rel, _why) = next(iter(FEATURE_MINIMUM_RELEASES.items()))
     ok_new, msg_new = check_feature_compatibility(feat, "Zurich")
@@ -741,7 +736,7 @@ def test_migrate_reports_broken_foreign_keys(monkeypatch: pytest.MonkeyPatch) ->
     conn.execute("CREATE TABLE zc (pid INTEGER REFERENCES zp(id))")
     conn.execute("INSERT INTO zc VALUES (99)")
     conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION - 1}")
-    from now_workbench.db import schema as schema_mod
+    from now_workbench.platform.db import schema as schema_mod
 
     patched = (*MIGRATIONS[: SCHEMA_VERSION - 1], "SELECT 1;")
     monkeypatch.setattr(schema_mod, "MIGRATIONS", patched)

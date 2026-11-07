@@ -16,14 +16,14 @@ import pytest
 from access_kit import _AUD, _KEY, _TEAM, as_user, multi_user_client
 from fastapi.testclient import TestClient
 
-from now_workbench.api import threads as threads_api
-from now_workbench.api.app import _log_setup_code, create_app
-from now_workbench.auth.access import ACCESS_HEADER, AccessValidator
-from now_workbench.config.settings import settings
-from now_workbench.db import db_session
-from now_workbench.db.repos.threads import ThreadRepository
+from now_workbench.domains.conversations.repository import ThreadRepository
+from now_workbench.interfaces.api import threads as threads_api
+from now_workbench.interfaces.api.access import ACCESS_HEADER, AccessValidator
+from now_workbench.interfaces.api.app import _log_setup_code, create_app
+from now_workbench.platform.config.settings import settings
+from now_workbench.platform.db.session import db_session
 
-app_module = importlib.import_module("now_workbench.api.app")
+app_module = importlib.import_module("now_workbench.interfaces.api.app")
 PNG_HEADER = b"\x89PNG\r\n\x1a\n" + b"0" * 32
 
 

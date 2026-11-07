@@ -11,8 +11,8 @@ from pathlib import Path
 
 import pytest
 
-from now_workbench.capture.driver import _build_runner_cmd, encode_stdin_credentials
-from now_workbench.db.models import InstanceRecord
+from now_workbench.domains.capture.driver import _build_runner_cmd, encode_stdin_credentials
+from now_workbench.domains.instances.models import InstanceRecord
 
 _SCRIPTS = Path(__file__).resolve().parents[1] / "scripts" / "dev-tools"
 

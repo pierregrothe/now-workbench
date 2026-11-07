@@ -3,8 +3,8 @@
 import pytest
 from fastapi.testclient import TestClient
 
-from now_workbench.ai.client import OttoClient
-from now_workbench.api.app import create_app
+from now_workbench.interfaces.ai.client import OttoClient
+from now_workbench.interfaces.api.app import create_app
 
 
 @pytest.mark.asyncio

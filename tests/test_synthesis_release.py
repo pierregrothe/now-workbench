@@ -10,12 +10,14 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from now_workbench.api.app import create_app
-from now_workbench.db import UNKNOWN_RELEASE, InstanceCreate, InstanceProfile, db_session
-from now_workbench.db.repos.instances import InstanceRepository
-from now_workbench.synthesizer.engine import UseCaseSynthesizer
-from now_workbench.synthesizer.models import UseCaseSynthesisRequest
-from now_workbench.synthesizer.release import NoReleaseError, resolve_synthesis_release
+from now_workbench.domains.instances.models import InstanceCreate, InstanceProfile
+from now_workbench.domains.instances.repository import InstanceRepository
+from now_workbench.domains.releases.models import UNKNOWN_RELEASE
+from now_workbench.domains.synthesizer.engine import UseCaseSynthesizer
+from now_workbench.domains.synthesizer.models import UseCaseSynthesisRequest
+from now_workbench.domains.synthesizer.release import NoReleaseError, resolve_synthesis_release
+from now_workbench.interfaces.api.app import create_app
+from now_workbench.platform.db.session import db_session
 
 
 def _add(conn: sqlite3.Connection, instance_id: str, release: str, default: bool = False) -> None:

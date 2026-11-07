@@ -12,7 +12,7 @@ import pytest
 from access_kit import as_user, multi_user_client
 from fastapi.testclient import TestClient
 
-from now_workbench.db import db_session
+from now_workbench.platform.db.session import db_session
 
 ADMIN, ANA, BEN, CAL = (
     "admin@example.com",

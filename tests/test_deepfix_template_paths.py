@@ -8,9 +8,9 @@ from pathlib import Path
 
 import pytest
 
-from now_workbench.config.paths import UnsafePathError
-from now_workbench.db.models import TemplateInstantiationRequest
-from now_workbench.templates.engine import TemplateEngine
+from now_workbench.domains.templates.engine import TemplateEngine
+from now_workbench.domains.templates.models import TemplateInstantiationRequest
+from now_workbench.platform.config.paths import UnsafePathError
 
 
 def _setup(tmp_path: Path) -> tuple[TemplateEngine, Path, Path]:

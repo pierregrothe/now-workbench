@@ -50,6 +50,17 @@ policies:
         stage: commit
     status: enforced
 
+  - slug: layered-architecture
+    name: Layered packages with domain public roots (import-linter)
+    category: architecture
+    constitutional: true
+    justifying_adrs: [ADR-015]
+    checks:
+      - kind: pre-commit-hook
+        id: import-contracts
+        stage: commit
+    status: enforced
+
   - slug: file-size-limits
     name: File size limits (src 800, tests 1000)
     category: quality

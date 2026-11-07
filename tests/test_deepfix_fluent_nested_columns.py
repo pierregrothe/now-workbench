@@ -3,8 +3,8 @@
 # Author: Pierre Grothe
 # Date: 2026-11-06
 
-from now_workbench.fluent.engine import FluentEngine
-from now_workbench.fluent.models import FluentColumnDef
+from now_workbench.domains.fluent.engine import FluentEngine
+from now_workbench.domains.fluent.models import FluentColumnDef
 
 
 def _columns(columns_src: str) -> dict[str, FluentColumnDef]:

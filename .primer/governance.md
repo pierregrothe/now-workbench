@@ -11,10 +11,11 @@ and /primer sync. Prose outside the markers is user-owned.
 Hooks that block commits and pushes locally. There is no GitHub Actions CI;
 local git hooks and harness hooks are the primary gates.
 
-<!-- govtable:gates-blocking:start (count=10) -->
+<!-- govtable:gates-blocking:start (count=11) -->
 | Hook | Description | Scope | ADR | Tool |
 |------|-------------|-------|-----|------|
 | conventional-pre-commit | Conventional Commits message validation | global | [ADR-005] | conventional-pre-commit |
+| import-contracts | Layers, acyclic domains and domain public roots (import-linter) | project | [ADR-015] | lint-imports |
 | file-size | File size limits (src 800, tests 1000 lines) | project | [ADR-005] | scripts/check_file_sizes.py |
 | mypy | Static type checking (mypy strict mode) | project | [ADR-005] | mypy |
 | primer-reconcile | Governance policy registry drift gate | project | [ADR-005] | .claude/scripts/primer-reconcile.py |

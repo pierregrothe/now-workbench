@@ -15,25 +15,22 @@
 now-workbench/
 +-- .primer/                   # Primer framework context, registry, & ADRs
 +-- .ratchet/                  # Metric ratchets and baselines.json
-+-- src/now_workbench/         # Python application package (src layout)
-|   +-- config/                # Pydantic v2 settings, paths, instance profiles
-|   +-- db/                    # SQLite WAL session, models, and DatabaseRepository
-|   +-- ai/                    # Claude API / Otto assistant integration (streaming + tools)
-|   +-- sdk/                   # Async NowSdkRunner (spawns & streams @servicenow/sdk)
-|   +-- bundles/               # Demo bundle manager (spec, pack, unpack, validate)
-|   +-- seed/                  # ServiceNow Table API seed loader & rollback tracker
-|   +-- templates/             # Customer parameterization & template instantiation engine
-|   +-- runbooks/              # Guided presenter runbook parser & stage verifier
-|   +-- properties/            # System property snapshotting, apply, restore, & reset
-|   +-- fluent/                # Balanced-brace Fluent (*.now.ts) AST parser & diff engine
-|   +-- capture/               # Playwright screenshot/video capture engine & playbook driver
-|   +-- releases/              # Platform release hierarchy, min-version checks, workspace evolution
-|   +-- plugins/               # ServiceNow instance plugin & module management
-|   +-- synthesizer/           # Use-case-to-demo synthesizer engine & CLI
-|   +-- instances/             # Instance registry CLI (`workbench instance ...`)
-|   +-- api/                   # FastAPI routes (demos, instances, templates, threads) & WS
-|   +-- remediation.py         # Automated toolchain & environment doctor --fix engine
-|   +-- cli.py                 # Typer CLI entrypoint (`workbench`)
++-- src/now_workbench/         # Python package, three layers (ADR-015, .importlinter)
+|   +-- platform/              # No domain knowledge; imports nothing above it
+|   |   +-- config/            # Pydantic v2 settings, crypto, path containment, origins
+|   |   +-- db/                # SQLite WAL session, migrations, Repository base, on_migrated
+|   |   +-- sdk/               # Async NowSdkRunner and Fluent project generation
+|   |   +-- owner.py           # Ambient owner ContextVar (fail-closed scoping)
+|   |   +-- procs.py           # Bounded child processes (deadline, group stop, reap)
+|   |   +-- remediation.py     # doctor --fix toolchain remediation
+|   +-- domains/               # One package per domain; others import only its __init__
+|   |   +-- releases/ identity/ groups/ settings/ profile/ templates/ bundles/ fluent/
+|   |   +-- instances/ conversations/ sharing/ plugins/ seed/ properties/ runbooks/
+|   |   +-- capture/ synthesizer/ demos/   # demos = the deploy pipeline (top of the order)
+|   +-- interfaces/            # Delivery; imported by nothing; __init__ is the composition root
+|   |   +-- api/               # FastAPI routes, WebSocket, Cloudflare Access guard
+|   |   +-- cli/               # Typer CLI (`workbench`, main.py) and per-domain commands
+|   |   +-- ai/                # Otto: Claude client, agent loop, tiles, tools
 +-- web/                       # Lit Web Components frontend (Lux + Otto)
 |   +-- src/
 |   |   +-- styles/lux-theme.css # ServiceNow Lux design tokens & variables

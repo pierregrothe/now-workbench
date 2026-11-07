@@ -7,9 +7,9 @@
 import typer
 from typer.testing import CliRunner
 
-from now_workbench.db.repos.instances import InstanceRepository
-from now_workbench.db.session import db_session
-from now_workbench.synthesizer.cli import capture_demo_cmd
+from now_workbench.domains.instances.repository import InstanceRepository
+from now_workbench.interfaces.cli.synthesizer import capture_demo_cmd
+from now_workbench.platform.db.session import db_session
 
 _app = typer.Typer()
 _app.command()(capture_demo_cmd)

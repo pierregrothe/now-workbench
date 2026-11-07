@@ -5,12 +5,14 @@ from pathlib import Path
 
 from typer.testing import CliRunner
 
-from now_workbench.cli import app
-from now_workbench.db import init_db
-from now_workbench.db.models import InstanceCreate, SeedOperationRecord, SeedRecordItem
-from now_workbench.db.repos.instances import InstanceRepository
-from now_workbench.db.repos.seeds import SeedRepository
-from now_workbench.properties import PropertyEngine, PropertySnapshot
+from now_workbench.domains.instances.models import InstanceCreate
+from now_workbench.domains.instances.repository import InstanceRepository
+from now_workbench.domains.properties.engine import PropertyEngine
+from now_workbench.domains.properties.models import PropertySnapshot
+from now_workbench.domains.seed.models import SeedOperationRecord, SeedRecordItem
+from now_workbench.domains.seed.repository import SeedRepository
+from now_workbench.interfaces.cli.main import app
+from now_workbench.platform.db.session import init_db
 
 runner = CliRunner(env={"COLUMNS": "250", "REMEDIATION_TIMEOUT": "1"})
 
@@ -244,7 +246,7 @@ def test_cli_main_entrypoint() -> None:
     old_argv = sys.argv
     sys.argv = ["workbench", "--help"]
     try:
-        runpy.run_path("src/now_workbench/cli.py", run_name="__main__")
+        runpy.run_path("src/now_workbench/interfaces/cli/main.py", run_name="__main__")
     except SystemExit as exc:
         assert exc.code == 0
     finally:
@@ -329,7 +331,7 @@ def test_cli_seed_and_rollback_flow() -> None:
     assert "Created" in res_seed.stdout
 
     # Extract operation ID from database
-    from now_workbench.db import init_db
+    from now_workbench.platform.db.session import init_db
 
     conn = init_db()
     ops = SeedRepository(conn).list_seed_operations()
@@ -345,7 +347,8 @@ def test_cli_seed_and_rollback_flow() -> None:
     # 4. Rollback reporting errors (non-fake mode with immediate connection refused)
     import uuid
 
-    from now_workbench.db.models import InstanceCreate, SeedOperationRecord, SeedRecordItem
+    from now_workbench.domains.instances.models import InstanceCreate
+    from now_workbench.domains.seed.models import SeedOperationRecord, SeedRecordItem
 
     err_op_id = f"op-refused-{uuid.uuid4().hex[:8]}"
     err_inst_id = f"inst-refused-{uuid.uuid4().hex[:8]}"
@@ -407,13 +410,13 @@ def test_cli_instance_test_all_targets() -> None:
 
 
 def test_cli_helpers_and_status_formatting() -> None:
-    from now_workbench.cli import (
+    from now_workbench.domains.instances.models import InstanceRecord
+    from now_workbench.interfaces.cli.main import (
         _format_instance_status,
         _render_doctor_table,
         _render_remediation_summary,
     )
-    from now_workbench.db.models import InstanceRecord
-    from now_workbench.remediation import RemediationPlan
+    from now_workbench.platform.remediation import RemediationPlan
 
     # 1. Format status helper across all branches
     inst_auth = InstanceRecord(id="1", name="1", url="u", status="authenticated")

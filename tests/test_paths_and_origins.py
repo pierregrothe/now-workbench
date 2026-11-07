@@ -9,9 +9,9 @@ from pathlib import Path
 
 import pytest
 
-from now_workbench.config.origins import is_origin_allowed
-from now_workbench.config.paths import UnsafePathError, safe_child
-from now_workbench.config.settings import Settings
+from now_workbench.platform.config.origins import is_origin_allowed
+from now_workbench.platform.config.paths import UnsafePathError, safe_child
+from now_workbench.platform.config.settings import Settings
 
 
 @pytest.mark.parametrize("name", ["sample-ai-assistant", "hr_onboarding.v2", "A1", "x" * 128])

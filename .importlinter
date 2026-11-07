@@ -1,0 +1,163 @@
+# .importlinter
+# Architecture contracts of ADR-015, checked by `lint-imports` at every commit.
+
+[importlinter]
+root_package = now_workbench
+
+[importlinter:contract:layers]
+name = Layers: interfaces > domains > platform (never upward)
+type = layers
+layers =
+    now_workbench.interfaces
+    now_workbench.domains
+    now_workbench.platform
+
+[importlinter:contract:acyclic-domains]
+name = Domains depend on each other without cycles
+type = acyclic_siblings
+ancestors =
+    now_workbench.domains
+
+[importlinter:contract:root-bundles]
+name = Public root: other packages import domains.bundles only through its __init__
+type = protected
+protected_modules =
+    now_workbench.domains.bundles.*
+allowed_importers =
+    now_workbench.domains.bundles
+
+[importlinter:contract:root-capture]
+name = Public root: other packages import domains.capture only through its __init__
+type = protected
+protected_modules =
+    now_workbench.domains.capture.*
+allowed_importers =
+    now_workbench.domains.capture
+
+[importlinter:contract:root-conversations]
+name = Public root: other packages import domains.conversations only through its __init__
+type = protected
+protected_modules =
+    now_workbench.domains.conversations.*
+allowed_importers =
+    now_workbench.domains.conversations
+
+[importlinter:contract:root-demos]
+name = Public root: other packages import domains.demos only through its __init__
+type = protected
+protected_modules =
+    now_workbench.domains.demos.*
+allowed_importers =
+    now_workbench.domains.demos
+
+[importlinter:contract:root-fluent]
+name = Public root: other packages import domains.fluent only through its __init__
+type = protected
+protected_modules =
+    now_workbench.domains.fluent.*
+allowed_importers =
+    now_workbench.domains.fluent
+
+[importlinter:contract:root-groups]
+name = Public root: other packages import domains.groups only through its __init__
+type = protected
+protected_modules =
+    now_workbench.domains.groups.*
+allowed_importers =
+    now_workbench.domains.groups
+
+[importlinter:contract:root-identity]
+name = Public root: other packages import domains.identity only through its __init__
+type = protected
+protected_modules =
+    now_workbench.domains.identity.*
+allowed_importers =
+    now_workbench.domains.identity
+
+[importlinter:contract:root-instances]
+name = Public root: other packages import domains.instances only through its __init__
+type = protected
+protected_modules =
+    now_workbench.domains.instances.*
+allowed_importers =
+    now_workbench.domains.instances
+
+[importlinter:contract:root-plugins]
+name = Public root: other packages import domains.plugins only through its __init__
+type = protected
+protected_modules =
+    now_workbench.domains.plugins.*
+allowed_importers =
+    now_workbench.domains.plugins
+
+[importlinter:contract:root-profile]
+name = Public root: other packages import domains.profile only through its __init__
+type = protected
+protected_modules =
+    now_workbench.domains.profile.*
+allowed_importers =
+    now_workbench.domains.profile
+
+[importlinter:contract:root-properties]
+name = Public root: other packages import domains.properties only through its __init__
+type = protected
+protected_modules =
+    now_workbench.domains.properties.*
+allowed_importers =
+    now_workbench.domains.properties
+
+[importlinter:contract:root-releases]
+name = Public root: other packages import domains.releases only through its __init__
+type = protected
+protected_modules =
+    now_workbench.domains.releases.*
+allowed_importers =
+    now_workbench.domains.releases
+
+[importlinter:contract:root-runbooks]
+name = Public root: other packages import domains.runbooks only through its __init__
+type = protected
+protected_modules =
+    now_workbench.domains.runbooks.*
+allowed_importers =
+    now_workbench.domains.runbooks
+
+[importlinter:contract:root-seed]
+name = Public root: other packages import domains.seed only through its __init__
+type = protected
+protected_modules =
+    now_workbench.domains.seed.*
+allowed_importers =
+    now_workbench.domains.seed
+
+[importlinter:contract:root-settings]
+name = Public root: other packages import domains.settings only through its __init__
+type = protected
+protected_modules =
+    now_workbench.domains.settings.*
+allowed_importers =
+    now_workbench.domains.settings
+
+[importlinter:contract:root-sharing]
+name = Public root: other packages import domains.sharing only through its __init__
+type = protected
+protected_modules =
+    now_workbench.domains.sharing.*
+allowed_importers =
+    now_workbench.domains.sharing
+
+[importlinter:contract:root-synthesizer]
+name = Public root: other packages import domains.synthesizer only through its __init__
+type = protected
+protected_modules =
+    now_workbench.domains.synthesizer.*
+allowed_importers =
+    now_workbench.domains.synthesizer
+
+[importlinter:contract:root-templates]
+name = Public root: other packages import domains.templates only through its __init__
+type = protected
+protected_modules =
+    now_workbench.domains.templates.*
+allowed_importers =
+    now_workbench.domains.templates

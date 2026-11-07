@@ -8,10 +8,11 @@ import sqlite3
 
 import httpx
 
-from now_workbench.db import InstanceCreate, InstanceRecord, init_db
-from now_workbench.db.repos.instances import InstanceRepository
-from now_workbench.plugins.manager import PluginManager
-from now_workbench.plugins.repository import PluginRepository
+from now_workbench.domains.instances.models import InstanceCreate, InstanceRecord
+from now_workbench.domains.instances.repository import InstanceRepository
+from now_workbench.domains.plugins.manager import PluginManager
+from now_workbench.domains.plugins.repository import PluginRepository
+from now_workbench.platform.db.session import init_db
 
 
 def _setup(

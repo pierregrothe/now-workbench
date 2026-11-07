@@ -11,12 +11,13 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
-from now_workbench.ai.agent import replay_conversation
-from now_workbench.api import threads as threads_api
-from now_workbench.api.app import create_app
-from now_workbench.config.settings import settings
-from now_workbench.db import ChatMessageRecord, db_session
-from now_workbench.db.repos.threads import ThreadRepository
+from now_workbench.domains.conversations.models import ChatMessageRecord
+from now_workbench.domains.conversations.repository import ThreadRepository
+from now_workbench.interfaces.ai.agent import replay_conversation
+from now_workbench.interfaces.api import threads as threads_api
+from now_workbench.interfaces.api.app import create_app
+from now_workbench.platform.config.settings import settings
+from now_workbench.platform.db.session import db_session
 
 
 @dataclass
@@ -200,8 +201,8 @@ def test_replay_conversation_handles_legacy_text_files_and_role_order() -> None:
 
 def test_list_transcripts_is_private_to_the_owner() -> None:
     """Another owner never reads a conversation's transcripts."""
-    from now_workbench.auth.owner import owner_scope
-    from now_workbench.db import ChatThreadCreate
+    from now_workbench.domains.conversations.models import ChatThreadCreate
+    from now_workbench.platform.owner import owner_scope
 
     with db_session() as conn:
         thread_repo = ThreadRepository(conn)
@@ -217,7 +218,7 @@ def test_list_transcripts_is_private_to_the_owner() -> None:
 
 def test_run_agent_signed_compaction_block_and_trailing_user_turn_are_kept() -> None:
     """A signed compaction block keeps its signature; a question joins a trailing user turn."""
-    from now_workbench.ai.agent import run_agent
+    from now_workbench.interfaces.ai.agent import run_agent
 
     @dataclass
     class _Signed:

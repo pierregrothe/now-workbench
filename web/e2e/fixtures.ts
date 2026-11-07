@@ -43,9 +43,11 @@ export async function seedInstance(
 export function seedProfile(profile: Record<string, unknown>): void {
   const script = [
     'import json, sys',
-    'from now_workbench.db import InstanceProfile, db_session',
-    'with db_session() as repo:',
-    '    repo.save_instance_profile(InstanceProfile.model_validate(json.load(sys.stdin)))',
+    'from now_workbench.domains.instances import InstanceProfile, InstanceRepository',
+    'from now_workbench.platform.db.session import db_session',
+    'with db_session() as conn:',
+    '    profile = InstanceProfile.model_validate(json.load(sys.stdin))',
+    '    InstanceRepository(conn).save_instance_profile(profile)',
   ].join('\n');
   execFileSync('uv', ['run', 'python', '-c', script], {
     cwd: REPO_ROOT,

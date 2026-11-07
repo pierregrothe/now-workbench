@@ -8,8 +8,8 @@ from typing import Any
 
 import pytest
 
-from now_workbench.ai.agent import AgentUnavailableError, run_agent
-from now_workbench.db import db_session
+from now_workbench.interfaces.ai.agent import AgentUnavailableError, run_agent
+from now_workbench.platform.db.session import db_session
 
 
 class _BrokenMessages:

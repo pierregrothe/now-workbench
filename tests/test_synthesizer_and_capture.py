@@ -10,20 +10,21 @@ import pytest
 from fastapi.testclient import TestClient
 from typer.testing import CliRunner
 
-from now_workbench.api.app import create_app
-from now_workbench.capture.engine import CaptureFailedError, PlaywrightCaptureEngine
-from now_workbench.capture.models import CaptureRequest
-from now_workbench.cli import app as cli_app
-from now_workbench.config.settings import settings
-from now_workbench.db import InstanceCreate, InstanceProfile, db_session
-from now_workbench.db.repos.instances import InstanceRepository
-from now_workbench.db.repos.preferences import PreferencesRepository
-from now_workbench.synthesizer.engine import (
+from now_workbench.domains.capture.engine import CaptureFailedError, PlaywrightCaptureEngine
+from now_workbench.domains.capture.models import CaptureRequest
+from now_workbench.domains.instances.models import InstanceCreate, InstanceProfile
+from now_workbench.domains.instances.repository import InstanceRepository
+from now_workbench.domains.settings.repository import PreferencesRepository
+from now_workbench.domains.synthesizer.engine import (
     UseCaseSynthesizer,
     _extract_persona_parts,
     _slugify,
 )
-from now_workbench.synthesizer.models import UseCaseSynthesisRequest
+from now_workbench.domains.synthesizer.models import UseCaseSynthesisRequest
+from now_workbench.interfaces.api.app import create_app
+from now_workbench.interfaces.cli.main import app as cli_app
+from now_workbench.platform.config.settings import settings
+from now_workbench.platform.db.session import db_session
 
 
 def test_slugify_and_persona_helpers() -> None:
@@ -425,7 +426,7 @@ def test_workbench_settings_api_and_cli(tmp_path: Path) -> None:
 
 
 def _run_workbench_settings_assertions() -> None:
-    from now_workbench.db.session import db_session
+    from now_workbench.platform.db.session import db_session
 
     app = create_app()
     client = TestClient(app)

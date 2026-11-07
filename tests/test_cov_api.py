@@ -17,20 +17,21 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 from fastapi import Depends, FastAPI
 from fastapi.testclient import TestClient
 
-from now_workbench.auth.access import AccessValidator
-from now_workbench.auth.guard import current_user
-from now_workbench.auth.models import AuthUser
-from now_workbench.auth.setup import SetupCodes, SetupError, TooManyAttemptsError
-from now_workbench.bundles.manager import BundleManager
-from now_workbench.bundles.pipeline import DemoPipelineEngine
-from now_workbench.capture.engine import CaptureFailedError, PlaywrightCaptureEngine
-from now_workbench.db import db_session
-from now_workbench.db.repos.artifacts import ArtifactRepository
-from now_workbench.db.repos.groups import GroupRepository
-from now_workbench.db.repos.users import UserRepository
-from now_workbench.sharing.access import sync_registry
-from now_workbench.sharing.models import GroupKind, ShareTarget
-from now_workbench.sharing.store import published_root, snapshot_bundle
+from now_workbench.domains.bundles.manager import BundleManager
+from now_workbench.domains.capture.engine import CaptureFailedError, PlaywrightCaptureEngine
+from now_workbench.domains.demos.pipeline import DemoPipelineEngine
+from now_workbench.domains.groups.models import GroupKind
+from now_workbench.domains.groups.repository import GroupRepository
+from now_workbench.domains.identity.models import AuthUser
+from now_workbench.domains.identity.repository import UserRepository
+from now_workbench.domains.identity.setup import SetupCodes, SetupError, TooManyAttemptsError
+from now_workbench.domains.sharing.access import sync_registry
+from now_workbench.domains.sharing.models import ShareTarget
+from now_workbench.domains.sharing.repository import ArtifactRepository
+from now_workbench.domains.sharing.store import published_root, snapshot_bundle
+from now_workbench.interfaces.api.access import AccessValidator
+from now_workbench.interfaces.api.guard import current_user
+from now_workbench.platform.db.session import db_session
 
 # --- auth -------------------------------------------------------------------------------
 
@@ -102,7 +103,7 @@ def test_access_validator_without_resolver_fetches_jwks_client(
         def get_signing_key_from_jwt(self, token: str) -> FakeSigningKey:
             return FakeSigningKey(key.public_key())
 
-    monkeypatch.setattr("now_workbench.auth.access.PyJWKClient", FakeJWKClient)
+    monkeypatch.setattr("now_workbench.interfaces.api.access.PyJWKClient", FakeJWKClient)
     validator = AccessValidator("team.cloudflareaccess.com", "aud")
     now = int(time.time())
     token = jwt.encode(
@@ -220,7 +221,7 @@ def demos(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClien
     bundles.mkdir()
     shutil.copytree(SAMPLE, bundles / BID)
     monkeypatch.setenv("WORKBENCH_BUNDLES_DIR", str(bundles))
-    from now_workbench.api.app import create_app
+    from now_workbench.interfaces.api.app import create_app
 
     with TestClient(create_app()) as client:
         yield client

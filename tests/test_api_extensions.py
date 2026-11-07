@@ -4,10 +4,10 @@ from pathlib import Path
 
 from fastapi.testclient import TestClient
 
-from now_workbench.api.app import create_app
-from now_workbench.db import db_session
-from now_workbench.db.repos.templates import TemplateRepository
-from now_workbench.db.repos.threads import ThreadRepository
+from now_workbench.domains.conversations.repository import ThreadRepository
+from now_workbench.domains.templates.repository import TemplateRepository
+from now_workbench.interfaces.api.app import create_app
+from now_workbench.platform.db.session import db_session
 
 
 def test_api_instances_and_admin_diagnostics() -> None:
@@ -197,7 +197,8 @@ def test_api_demos_and_error_routes() -> None:
     assert bad_inst_seed.status_code == 400
 
     # 8. Template instantiate failure returns 400
-    from now_workbench.db import TemplateRecord, db_session
+    from now_workbench.domains.templates.models import TemplateRecord
+    from now_workbench.platform.db.session import db_session
 
     with db_session() as conn:
         TemplateRepository(conn).save_template(
@@ -219,8 +220,8 @@ def test_verify_instance_authentication_responses() -> None:
     """Verify live authentication probing across HTTP 200, 401, 500, and network error."""
     import httpx
 
-    from now_workbench.connectivity import verify_instance_authentication
-    from now_workbench.db.models import InstanceRecord
+    from now_workbench.domains.instances.connectivity import verify_instance_authentication
+    from now_workbench.domains.instances.models import InstanceRecord
 
     inst = InstanceRecord(
         id="test-inst",

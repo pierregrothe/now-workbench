@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from now_workbench.sdk.runner import NowSdkRunner
+from now_workbench.platform.sdk.runner import NowSdkRunner
 
 
 @pytest.mark.asyncio

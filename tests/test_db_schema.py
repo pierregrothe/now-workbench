@@ -9,20 +9,15 @@ from pathlib import Path
 
 import pytest
 
-from now_workbench.db import (
-    ChatMessageRecord,
-    ChatThreadCreate,
-    InstanceCreate,
-    InstanceUpdate,
-    db_session,
-    init_db,
-)
-from now_workbench.db.models import WorkbenchPreferencesUpdate
-from now_workbench.db.repos.instances import InstanceRepository
-from now_workbench.db.repos.preferences import PreferencesRepository
-from now_workbench.db.repos.threads import ThreadRepository
-from now_workbench.db.schema import SCHEMA_VERSION, apply_migrations
-from now_workbench.plugins.repository import PluginRepository
+from now_workbench.domains.conversations.models import ChatMessageRecord, ChatThreadCreate
+from now_workbench.domains.conversations.repository import ThreadRepository
+from now_workbench.domains.instances.models import InstanceCreate, InstanceUpdate
+from now_workbench.domains.instances.repository import InstanceRepository
+from now_workbench.domains.plugins.repository import PluginRepository
+from now_workbench.domains.settings.models import WorkbenchPreferencesUpdate
+from now_workbench.domains.settings.repository import PreferencesRepository
+from now_workbench.platform.db.schema import SCHEMA_VERSION, apply_migrations
+from now_workbench.platform.db.session import db_session, init_db
 
 
 def _memory_repo() -> sqlite3.Connection:
@@ -227,7 +222,7 @@ def test_set_secret_empty_value_deletes() -> None:
 
 def test_prepare_file_db_current_database_returns_early(tmp_path: Path) -> None:
     """A second migrator that finds the schema already current does nothing."""
-    from now_workbench.db.session import _prepare_file_db
+    from now_workbench.platform.db.session import _prepare_file_db
 
     target = tmp_path / "raced.db"
     init_db(target).close()
@@ -254,7 +249,7 @@ def test_get_workbench_preferences_uses_key_from_environment(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """WORKBENCH_ANTHROPIC_API_KEY wins, is never written to the database, and is not editable."""
-    from now_workbench.config.settings import settings
+    from now_workbench.platform.config.settings import settings
 
     monkeypatch.setattr(settings, "anthropic_api_key", "sk-ant-test-env1234")
     conn = _memory_repo()
@@ -276,7 +271,7 @@ def test_instances_api_duplicate_name_returns_conflict() -> None:
     """Registering or renaming onto an existing name returns HTTP 409, never a 500."""
     from fastapi.testclient import TestClient
 
-    from now_workbench.api.app import create_app
+    from now_workbench.interfaces.api.app import create_app
 
     client = TestClient(create_app())
     body = {"name": "Conflict", "url": "fake://c.service-now.com", "password": "pw"}
@@ -297,7 +292,7 @@ def test_get_data_dir_without_override_uses_settings_default(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """With no WORKBENCH_DATA_DIR the import-time settings default applies."""
-    from now_workbench.config.settings import settings
+    from now_workbench.platform.config.settings import settings
 
     monkeypatch.delenv("WORKBENCH_DATA_DIR")
     assert settings.get_data_dir() == settings.data_dir
@@ -305,7 +300,7 @@ def test_get_data_dir_without_override_uses_settings_default(
 
 def test_apply_migrations_v1_to_v2_keeps_instances_and_drops_release() -> None:
     """Upgrading a v1 registry keeps instances; the stored release column is removed."""
-    from now_workbench.db.schema import MIGRATIONS
+    from now_workbench.platform.db.schema import MIGRATIONS
 
     conn = sqlite3.connect(":memory:")
     conn.row_factory = sqlite3.Row
@@ -326,7 +321,7 @@ def test_apply_migrations_v1_to_v2_keeps_instances_and_drops_release() -> None:
 
 def test_apply_migrations_v2_to_v3_adds_purpose_and_renames_reported_fields() -> None:
     """v3 defaults existing instances to 'demo' and keeps reported profile values."""
-    from now_workbench.db.schema import MIGRATIONS
+    from now_workbench.platform.db.schema import MIGRATIONS
 
     conn = sqlite3.connect(":memory:")
     conn.row_factory = sqlite3.Row
@@ -353,7 +348,7 @@ def test_apply_migrations_v2_to_v3_adds_purpose_and_renames_reported_fields() ->
 
 def test_apply_migrations_v3_to_v4_strips_default_release_preference() -> None:
     """Stored preferences lose the removed default_sn_release key and keep the rest."""
-    from now_workbench.db.schema import MIGRATIONS
+    from now_workbench.platform.db.schema import MIGRATIONS
 
     conn = sqlite3.connect(":memory:")
     conn.row_factory = sqlite3.Row
@@ -374,7 +369,7 @@ def test_apply_migrations_v3_to_v4_strips_default_release_preference() -> None:
 
 def test_apply_migrations_v6_to_v7_strips_theme_preference() -> None:
     """Stored preferences lose the removed theme_mode key and keep the rest."""
-    from now_workbench.db.schema import MIGRATIONS
+    from now_workbench.platform.db.schema import MIGRATIONS
 
     conn = sqlite3.connect(":memory:")
     conn.row_factory = sqlite3.Row

@@ -3,8 +3,8 @@
 import pytest
 from fastapi.testclient import TestClient
 
-from now_workbench.api.app import create_app
-from now_workbench.db.repos.instances import InstanceRepository
+from now_workbench.domains.instances.repository import InstanceRepository
+from now_workbench.interfaces.api.app import create_app
 
 
 def test_health_check() -> None:
@@ -96,7 +96,7 @@ async def test_log_broadcaster_disconnect() -> None:
     """Verify LogBroadcaster handles connection failures gracefully."""
     from typing import Any
 
-    from now_workbench.api.app import LogBroadcaster
+    from now_workbench.interfaces.api.app import LogBroadcaster
 
     broadcaster = LogBroadcaster()
     # Broadcast to empty connections
@@ -116,9 +116,10 @@ async def test_log_broadcaster_disconnect() -> None:
 
 def test_seed_database_populated_and_empty() -> None:
     """Verify seed_database handles populated vs empty repository."""
-    from now_workbench.api.app import seed_database
-    from now_workbench.config.settings import settings
-    from now_workbench.db import InstanceCreate, init_db
+    from now_workbench.domains.instances.models import InstanceCreate
+    from now_workbench.interfaces.api.app import seed_database
+    from now_workbench.platform.config.settings import settings
+    from now_workbench.platform.db.session import init_db
 
     conn = init_db(":memory:")
     instance_repo = InstanceRepository(conn)

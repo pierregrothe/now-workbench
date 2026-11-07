@@ -9,8 +9,8 @@ from pathlib import Path
 
 import httpx
 
-from now_workbench.db.models import InstanceRecord
-from now_workbench.properties.engine import PropertyEngine
+from now_workbench.domains.instances.models import InstanceRecord
+from now_workbench.domains.properties.engine import PropertyEngine
 
 
 def _handler(request: httpx.Request) -> httpx.Response:

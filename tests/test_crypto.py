@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from now_workbench.config.crypto import (
+from now_workbench.platform.config.crypto import (
     SecretDecryptionError,
     mask_api_key,
     resolve_key_file,

@@ -11,19 +11,18 @@ from contextvars import Context
 import pytest
 from access_kit import as_user, multi_user_client
 
-from now_workbench.ai.tools.base import run_async
-from now_workbench.auth.models import LOCAL_EMAIL, Role
-from now_workbench.auth.owner import NoOwnerError, current_owner, operator_owner, owner_scope
-from now_workbench.db import (
-    ChatThreadCreate,
-    InstanceCreate,
-    init_db,
-)
-from now_workbench.db.repos.instances import InstanceRepository
-from now_workbench.db.repos.preferences import PreferencesRepository
-from now_workbench.db.repos.threads import ThreadRepository
-from now_workbench.db.repos.users import UserRepository
-from now_workbench.db.schema import MIGRATIONS, SCHEMA_VERSION, apply_migrations
+from now_workbench.domains.conversations.models import ChatThreadCreate
+from now_workbench.domains.conversations.repository import ThreadRepository
+from now_workbench.domains.identity.models import Role
+from now_workbench.domains.identity.owner import operator_owner
+from now_workbench.domains.identity.repository import UserRepository
+from now_workbench.domains.instances.models import InstanceCreate
+from now_workbench.domains.instances.repository import InstanceRepository
+from now_workbench.domains.settings.repository import PreferencesRepository
+from now_workbench.interfaces.ai.tools.base import run_async
+from now_workbench.platform.db.schema import MIGRATIONS, SCHEMA_VERSION, apply_migrations
+from now_workbench.platform.db.session import init_db
+from now_workbench.platform.owner import LOCAL_EMAIL, NoOwnerError, current_owner, owner_scope
 
 ADMIN, ANA, BEN = "admin@example.com", "ana@example.com", "ben@example.com"
 
@@ -95,7 +94,7 @@ def test_threads_are_private_and_ids_cannot_be_hijacked() -> None:
 
 def test_preferences_are_per_user() -> None:
     """One person's settings do not change another's."""
-    from now_workbench.db.models import WorkbenchPreferencesUpdate
+    from now_workbench.domains.settings.models import WorkbenchPreferencesUpdate
 
     conn = init_db(":memory:")
     pref_repo = PreferencesRepository(conn)

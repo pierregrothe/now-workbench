@@ -2,8 +2,8 @@
 
 from pathlib import Path
 
-from now_workbench.fluent.engine import FluentEngine
-from now_workbench.fluent.models import (
+from now_workbench.domains.fluent.engine import FluentEngine
+from now_workbench.domains.fluent.models import (
     FluentColumnDef,
     FluentSchemaDiff,
     FluentTableSchema,

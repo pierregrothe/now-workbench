@@ -1,6 +1,6 @@
 """Tests for Generative UI Tile Catalog schemas and tool-calling models."""
 
-from now_workbench.ai.tiles import (
+from now_workbench.interfaces.ai.tiles import (
     RENDER_UI_TILES_TOOL,
     GenerativeUIResponse,
     UITileSpec,

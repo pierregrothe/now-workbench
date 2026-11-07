@@ -7,14 +7,15 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
-from now_workbench.ai.tools import execute_tool
-from now_workbench.ai.tools.base import ToolContext
-from now_workbench.bundles.pipeline import DemoPipelineEngine
-from now_workbench.cli import app
-from now_workbench.db import InstanceCreate, InstanceProfile, db_session
-from now_workbench.db.repos.instances import InstanceRepository
-from now_workbench.synthesizer.engine import UseCaseSynthesizer
-from now_workbench.synthesizer.models import UseCaseSynthesisRequest
+from now_workbench.domains.demos.pipeline import DemoPipelineEngine
+from now_workbench.domains.instances.models import InstanceCreate, InstanceProfile
+from now_workbench.domains.instances.repository import InstanceRepository
+from now_workbench.domains.synthesizer.engine import UseCaseSynthesizer
+from now_workbench.domains.synthesizer.models import UseCaseSynthesisRequest
+from now_workbench.interfaces.ai.tools import execute_tool
+from now_workbench.interfaces.ai.tools.base import ToolContext
+from now_workbench.interfaces.cli.main import app
+from now_workbench.platform.db.session import db_session
 
 
 @pytest.fixture
@@ -136,7 +137,7 @@ def test_agent_tools_pipeline_parity(tmp_path: Path, synthesized_demo, monkeypat
     db_file = tmp_path / "test.db"
 
     # Route settings bundles dir to test fixture
-    from now_workbench.config.settings import Settings
+    from now_workbench.platform.config.settings import Settings
 
     monkeypatch.setattr(Settings, "get_bundles_dir", lambda self: bundles_dir)
 
@@ -188,8 +189,8 @@ def test_cli_pipeline_commands(tmp_path: Path, synthesized_demo, monkeypatch):
     bundles_dir, bundle_id = synthesized_demo
     db_file = tmp_path / "test.db"
 
-    from now_workbench.config.settings import Settings
-    from now_workbench.db import session as db_session_module
+    from now_workbench.platform.config.settings import Settings
+    from now_workbench.platform.db import session as db_session_module
 
     monkeypatch.setattr(Settings, "get_bundles_dir", lambda self: bundles_dir)
     monkeypatch.setattr(db_session_module, "get_db_path", lambda: db_file)

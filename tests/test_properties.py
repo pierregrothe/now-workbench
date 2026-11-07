@@ -6,9 +6,9 @@ from pathlib import Path
 import httpx
 import pytest
 
-from now_workbench.db.models import InstanceRecord
-from now_workbench.properties.engine import PropertyEngine
-from now_workbench.properties.models import (
+from now_workbench.domains.instances.models import InstanceRecord
+from now_workbench.domains.properties.engine import PropertyEngine
+from now_workbench.domains.properties.models import (
     PropertyApplyResult,
     PropertyRecord,
     PropertySnapshot,

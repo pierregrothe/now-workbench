@@ -47,8 +47,9 @@ uv run ruff check .
 uv run ruff format --check .
 uv run mypy src
 
-# Ratchets & Primer Governance
+# Ratchets, architecture contracts & Primer Governance
 uv run python .ratchet/ratchet_check.py all
+uv run lint-imports
 uv run python .claude/scripts/primer-reconcile.py
 
 # Pre-commit install & run
@@ -78,6 +79,10 @@ cd web && npm run test:e2e
 5. **Subprocess Streaming**: Never use blocking `subprocess.run` in async code; stream lines via `asyncio.create_subprocess_exec`.
 6. **Absolute Imports**: Always import from `now_workbench.<module>` (no relative `..` imports).
 7. **UI Consistency**: Keep Lit Web Components aligned with ServiceNow Lux tokens in `web/src/styles/lux-theme.css`.
+8. **Layers (ADR-015)**: `interfaces -> domains -> platform`, never upward. Another package imports a
+   domain only through `now_workbench.domains.<name>` (its `__init__`); add a name there to share it.
+   Each domain owns its `<Name>Repository(conn)`; `db_session()` yields the connection. Checked by
+   `uv run lint-imports` (`.importlinter`).
 
 <!-- primer:triggers:start (managed by /primer bootstrap -- edit outside the markers) -->
 ## Primer Workflow Triggers
