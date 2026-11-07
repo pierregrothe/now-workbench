@@ -1,9 +1,9 @@
 ---
 id: PRD-004
 title: Otto memory per person
-status: draft
+status: accepted
 date: 2026-11-07
-adrs: [ADR-002, ADR-020, ADR-023, ADR-028, ADR-031]
+adrs: [ADR-002, ADR-020, ADR-023, ADR-028, ADR-031, ADR-034]
 charter_link: charter.md#1-vision--purpose
 milestone: unscheduled
 ---
@@ -102,9 +102,9 @@ Remembering this per person makes Otto useful from the first message of a new th
 - The Claude API (Anthropic) runs the model. The workbench owns storage, scheduling, policy
   and the UI.
 
-## Open Questions
+## Resolved Questions (owner, 2026-11-07)
 
-- The quiet period before extraction: 10 minutes is the proposal (settable by an
-  administrator in the conversation limits).
-- Caps: the proposal is 50 items and 4,000 characters per person sent to Claude. The oldest
-  low-use items are dropped from recall first, but they stay stored.
+- Quiet period before extraction: 10 minutes after the last message, adjustable by an
+  administrator in the conversation limits.
+- Caps on what Otto receives: 50 items and 4,000 characters per person. Past the cap, the oldest
+  least-used items are left out of recall first; they stay stored and visible on Profile.
