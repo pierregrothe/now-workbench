@@ -71,7 +71,7 @@ local git hooks and harness hooks are the primary gates.
 
 ## ADR Catalog
 
-<!-- govtable:adr-catalog:start (count=30) -->
+<!-- govtable:adr-catalog:start (count=31) -->
 | ADR | Title | Enforcement | Status |
 |-----|-------|-------------|--------|
 | 001 | Hybrid Runtime with Python Core & Lit Web Components | hook | accepted |
@@ -104,6 +104,7 @@ local git hooks and harness hooks are the primary gates.
 | 028 | Telemetry, Live Instance Charts and Rendered Text | architecture | accepted |
 | 029 | Mutation Gate, Telemetry Retention and S3 Backups | governance | accepted |
 | 030 | Phone and Tablet Layouts | architecture | accepted |
+| 031 | Monthly Claude Usage Allowances | architecture | accepted |
 <!-- govtable:adr-catalog:end -->
 
 Full ADR files: `.primer/adr/`

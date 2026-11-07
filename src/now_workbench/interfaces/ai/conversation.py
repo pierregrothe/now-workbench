@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from now_workbench.domains.conversations import ChatMessageRecord
+from now_workbench.domains.telemetry import CACHE_READ_WEIGHT, CACHE_WRITE_WEIGHT
 from now_workbench.interfaces.ai.audience import Audience
 from now_workbench.interfaces.ai.tools import tool_definitions
 from now_workbench.interfaces.ai.tools.base import ToolResult, model_to_text
@@ -116,13 +117,6 @@ _COMPACT_INSTRUCTIONS = (
 )
 
 
-# Billing weights per token kind (cache reads cost a tenth, writes a quarter more).
-_CACHE_READ_WEIGHT = 0.1
-
-
-_CACHE_WRITE_WEIGHT = 1.25
-
-
 def build_request(
     model: str, messages: list[dict[str, Any]], compact_at: int, audience: Audience | None = None
 ) -> dict[str, Any]:
@@ -191,8 +185,8 @@ def add_usage(total: dict[str, int], resp: Any) -> dict[str, int]:
     total["billable"] = round(
         total.get("input", 0)
         + total.get("output", 0)
-        + _CACHE_WRITE_WEIGHT * total.get("cache_write", 0)
-        + _CACHE_READ_WEIGHT * total.get("cache_read", 0)
+        + CACHE_WRITE_WEIGHT * total.get("cache_write", 0)
+        + CACHE_READ_WEIGHT * total.get("cache_read", 0)
     )
     return counts
 

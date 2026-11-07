@@ -174,6 +174,11 @@ export const chatViewStyles = css`
         color: #b42318;
       }
 
+      .usage-warning {
+        font-size: 12.5px;
+        color: #8a4b00;
+      }
+
       .attach-size {
         color: #6b7280;
         font-size: 11.5px;

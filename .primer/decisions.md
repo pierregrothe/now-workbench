@@ -444,3 +444,11 @@ phone top bar; two-pane screens (Settings, Fluent, Synthesizer, Capture, Actions
 or less. `100dvh`, safe areas, 16px fields (no iOS zoom), 40px touch targets, and no tooltips on
 touch. Plain CSS media queries, no dependency; 16 Playwright tests cover phone, landscape,
 tablet and desktop. Details: `.primer/adr/ADR-030-phone-and-tablet-layouts.md`.
+
+### 2026-11-07 -- ADR-031: Monthly Claude usage allowances
+
+Each non-administrator has a monthly allowance of billable Claude tokens (default 10M, counted
+from telemetry like the conversation budget). From 80% Otto warns next to the prompt; at 100%
+no Claude call is made (HTTP 429, WebSocket error). Enforced beside the conversation check at
+every Claude entry point, with an architecture test. Details:
+`.primer/adr/ADR-031-monthly-usage-allowances.md`.

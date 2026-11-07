@@ -24,7 +24,7 @@ from now_workbench.interfaces.api.app import _log_setup_code, create_app
 from now_workbench.platform.config.settings import settings
 from now_workbench.platform.db.session import db_session
 
-app_module = importlib.import_module("now_workbench.interfaces.api.app")
+ws_module = importlib.import_module("now_workbench.interfaces.api.otto_ws")
 PNG_HEADER = b"\x89PNG\r\n\x1a\n" + b"0" * 32
 
 
@@ -222,7 +222,7 @@ def _ws_collect(client: TestClient, payload: dict[str, Any]) -> list[dict[str, A
 @pytest.fixture
 def ws_claude(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(settings, "anthropic_api_key", "sk-ant-test-0000")
-    monkeypatch.setattr(app_module, "make_async_client", lambda _k: _FakeClient(_TextMessages()))
+    monkeypatch.setattr(ws_module, "make_async_client", lambda _k: _FakeClient(_TextMessages()))
 
 
 @pytest.mark.usefixtures("ws_claude")

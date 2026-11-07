@@ -12,10 +12,22 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-__all__ = ["ActionEvent", "UsageEvent", "ActionOutcome", "ActionSource"]
+__all__ = [
+    "ActionEvent",
+    "UsageEvent",
+    "ActionOutcome",
+    "ActionSource",
+    "CACHE_READ_WEIGHT",
+    "CACHE_WRITE_WEIGHT",
+]
 
 ActionSource = Literal["otto", "actions"]
 ActionOutcome = Literal["ok", "failed", "pending"]
+
+# Billing weights per token kind (cache reads cost a tenth, writes a quarter more). Billable
+# tokens = input + output + weighted cache writes and reads (ADR-023, ADR-031).
+CACHE_READ_WEIGHT = 0.1
+CACHE_WRITE_WEIGHT = 1.25
 
 
 class UsageEvent(BaseModel):

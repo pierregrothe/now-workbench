@@ -10,7 +10,12 @@ Reads are scoped to the current owner unless `everyone` is set; only the team se
 
 from typing import Any
 
-from now_workbench.domains.telemetry.models import ActionEvent, UsageEvent
+from now_workbench.domains.telemetry.models import (
+    CACHE_READ_WEIGHT,
+    CACHE_WRITE_WEIGHT,
+    ActionEvent,
+    UsageEvent,
+)
 from now_workbench.platform.db.repository import Repository
 from now_workbench.platform.owner import current_owner
 
@@ -51,6 +56,12 @@ _TOKENS_BY_PERSON = (
     "SELECT owner_email AS who, SUM("
     + " + ".join(TOKEN_KINDS)
     + ") AS n FROM usage_events WHERE created_at >= ? {scope} GROUP BY owner_email;"
+)
+# Billable tokens as the conversation budget counts them (ADR-023), for the allowance.
+_BILLABLE_SINCE = (
+    "SELECT COALESCE(SUM(input_tokens + output_tokens"
+    f" + {CACHE_WRITE_WEIGHT} * cache_write + {CACHE_READ_WEIGHT} * cache_read), 0) AS n"
+    " FROM usage_events WHERE created_at >= ? {scope};"
 )
 _ACTIONS_BY_PERSON = (
     "SELECT owner_email AS who, COUNT(*) AS n FROM action_events "
@@ -149,6 +160,17 @@ class TelemetryRepository(Repository):
             One row per action: name, runs, failed, avg_ms.
         """
         return [dict(r) for r in self._own(_ACTION_TOTALS, since)]
+
+    def billable_since(self, since: str) -> int:
+        """Return the owner's billable tokens from `since` on, rounded to the nearest token.
+
+        Args:
+            since: First instant (ISO timestamp, UTC).
+
+        Returns:
+            Input + output + 1.25 x cache writes + 0.1 x cache reads.
+        """
+        return round(float(self._own(_BILLABLE_SINCE, since)[0][0]))
 
     def tokens_by_person(self, since: str) -> dict[str, int]:
         """Return every person's total tokens from `since` on (team view, administrators)."""

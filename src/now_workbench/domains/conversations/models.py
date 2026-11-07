@@ -33,6 +33,8 @@ class ConversationLimits(BaseModel):
         max_file_mb: Largest single attachment.
         max_conversation_mb: Total attachments in one conversation.
         max_files: Attachments in one conversation.
+        monthly_allowance_tokens: Billable Claude tokens each non-administrator may use per
+            UTC month across all conversations (ADR-031).
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
@@ -43,6 +45,7 @@ class ConversationLimits(BaseModel):
     max_file_mb: int = Field(default=10, ge=1, le=32)
     max_conversation_mb: int = Field(default=25, ge=1, le=100)
     max_files: int = Field(default=10, ge=1, le=50)
+    monthly_allowance_tokens: int = Field(default=10_000_000, ge=100_000, le=1_000_000_000)
 
 
 class Attachment(BaseModel):

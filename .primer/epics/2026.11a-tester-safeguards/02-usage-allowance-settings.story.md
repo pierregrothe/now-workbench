@@ -81,6 +81,6 @@ AC4:
 
 ## References
 
-- ADR: new ADR-031 (usage allowances)
+- ADR: `.primer/adr/ADR-031-monthly-usage-allowances.md`
 - ADR: `.primer/adr/ADR-020-impersonation.md` (impersonation)
 - Source: owner backlog review 2026-11-07 (active.md Next Steps / Known Issues)

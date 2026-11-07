@@ -31,8 +31,12 @@ from now_workbench.domains.conversations import (
 )
 from now_workbench.interfaces.ai.conversation import ConversationFiles, replay_conversation
 from now_workbench.interfaces.ai.tile_routing import resolve_query_to_tiles
+from now_workbench.interfaces.api.allowance import AllowanceExhaustedError, enforce_allowance
 from now_workbench.interfaces.api.replies import build_contextual_reply, confirmed_tool_reply
 from now_workbench.platform.db.session import db_session, get_db_path
+
+# The 80% allowance warning travels as a header: it is shown, never stored in the history.
+USAGE_WARNING_HEADER = "X-Usage-Warning"
 
 __all__ = [
     "create_thread",
@@ -44,6 +48,7 @@ __all__ = [
     "list_thread_messages",
     "list_threads",
     "post_thread_message",
+    "USAGE_WARNING_HEADER",
     "router",
     "update_thread",
 ]
@@ -200,18 +205,24 @@ def post_thread_message(thread_id: str, req: ChatMessageCreate) -> StreamingResp
             raise HTTPException(status_code=404, detail="Thread not found.")
         existing_msgs = thread_repo.list_messages(thread_id)
         # Confirming an action Otto already proposed is not a new question.
+        note = ""
         if req.role == "user" and req.widget_type != "tool_confirm":
             try:
                 check_can_ask(thread, chat_repo.get_conversation_limits())
             except LimitReachedError as exc:
                 raise HTTPException(status_code=409, detail=str(exc)) from exc
+            try:
+                note = enforce_allowance(conn)
+            except AllowanceExhaustedError as exc:
+                raise HTTPException(status_code=429, detail=str(exc)) from exc
         _require_unsent(chat_repo.list_attachments(thread_id), req.attachment_ids)
         if req.role == "user":
             _auto_title(conn, thread, req.content)
 
     worker = _ReplyWorker(thread_id, req, existing_msgs)
     contextvars.copy_context().run(worker.start)
-    return StreamingResponse(worker.stream(), media_type="application/json")
+    headers = {USAGE_WARNING_HEADER: note} if note else None
+    return StreamingResponse(worker.stream(), media_type="application/json", headers=headers)
 
 
 class _ReplyWorker:

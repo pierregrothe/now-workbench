@@ -72,6 +72,8 @@ export class ThreadController implements ReactiveController {
   public isUploading: boolean = false;
   /** Why the last upload failed, shown next to the prompt. */
   public attachError: string = '';
+  /** The monthly-allowance warning (ADR-031) from the last answer, shown next to the prompt. */
+  public usageWarning: string = '';
 
   constructor(host: ReactiveControllerHost) {
     this.host = host;
@@ -87,6 +89,8 @@ export class ThreadController implements ReactiveController {
   }
 
   async setThread(threadId: string): Promise<void> {
+    // Opening the conversation the first question just created keeps that answer's warning.
+    if (threadId !== this.threadId) this.usageWarning = '';
     this.threadId = threadId;
     this.messages = [];
     this.title = '';
@@ -127,6 +131,7 @@ export class ThreadController implements ReactiveController {
     this.messages = [...this.messages, userMsg];
     this.isStreaming = true;
     this.error = null;
+    this.usageWarning = '';
     this.host.requestUpdate();
 
     try {
@@ -155,6 +160,7 @@ export class ThreadController implements ReactiveController {
       const history = mapThreadRecords(body);
       const agentMsg = [...history].reverse().find((m) => m.sender === 'agent') ?? null;
       this.messages = history;
+      this.usageWarning = res.headers.get('X-Usage-Warning') ?? '';
       if (createdThreadId) {
         this.onThreadCreated?.(createdThreadId);
       }

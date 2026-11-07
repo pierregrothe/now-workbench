@@ -210,6 +210,9 @@ export class NowChatView extends LitElement {
         ${this.threadCtrl.attachError
           ? html`<div class="attach-error" role="alert">${this.threadCtrl.attachError}</div>`
           : ''}
+        ${this.threadCtrl.usageWarning
+          ? html`<div class="usage-warning" role="status">${this.threadCtrl.usageWarning}</div>`
+          : ''}
         <div class="prompt-foot">
           <span class="prompt-foot-left">
             <button

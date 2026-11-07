@@ -1,6 +1,8 @@
 # Story 2026.11a.01: Monthly Claude usage allowance per person, enforced
 
-Status: backlog
+Status: done
+Done: 2026-11-07
+Started: 2026-11-07
 Spec-Clarity: high
 Depends-On: none
 Board: STORY-054
@@ -46,19 +48,19 @@ AC5:
 
 ## Tasks / Subtasks
 
-- [ ] Telemetry: billable tokens this month per owner (repository aggregate, mutation-gated) (AC: 1,2,3)
-- [ ] Domain service `check_allowance(conn, user, now)` returning ok / warn / refused with percentage and reset date (AC: 1,2,3,4,5)
-- [ ] Enforce at every Claude entry point (thread messages, WebSocket, legacy stream) before the call (AC: 3)
-- [ ] Surface the warning on the reply and the 429 message in the chat view (AC: 2,3)
-- [ ] Tests: service table tests, API 429, guard test that every Claude entry point checks the allowance (AC: 1-5)
+- [x] Telemetry: billable tokens this month per owner (repository aggregate, mutation-gated) (AC: 1,2,3)
+- [x] Domain service `check_allowance(conn, user, now)` returning ok / warn / refused with percentage and reset date (AC: 1,2,3,4,5)
+- [x] Enforce at every Claude entry point (thread messages, WebSocket, legacy stream) before the call (AC: 3)
+- [x] Surface the warning on the reply and the 429 message in the chat view (AC: 2,3)
+- [x] Tests: service table tests, API 429, guard test that every Claude entry point checks the allowance (AC: 1-5)
 
 ## Definition of Done
 
-- [ ] All acceptance criteria verified
-- [ ] Tests added or updated and passing (pytest 100% coverage; Playwright where UI changes)
-- [ ] Ruff clean (zero violations), mypy strict, tsc clean
-- [ ] No changes outside the story's stated scope
-- [ ] References section links verified
+- [x] All acceptance criteria verified
+- [x] Tests added or updated and passing (pytest 100% coverage; Playwright where UI changes)
+- [x] Ruff clean (zero violations), mypy strict, tsc clean
+- [x] No changes outside the story's stated scope
+- [x] References section links verified
 
 ## Existing Code
 
@@ -91,5 +93,5 @@ AC5:
 
 - ADR: `.primer/adr/ADR-028-telemetry-and-live-instance-charts.md`
 - ADR: `.primer/adr/ADR-023-prompt-caching-compaction-and-token-budgets.md` (token budgets)
-- ADR: new ADR-031 (usage allowances)
+- ADR: `.primer/adr/ADR-031-monthly-usage-allowances.md`
 - Source: owner backlog review 2026-11-07 (active.md Next Steps / Known Issues)
