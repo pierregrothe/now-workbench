@@ -54,10 +54,18 @@ and `_SECRET_ACCESS_KEY`. The existing file and stdout targets are unchanged.
   check it against two signatures produced by botocore. It also matched botocore on 200
   random requests (regions, endpoints, key characters) checked outside the repository.
 - **Integrity:** the body's SHA-256 is signed, so the bucket rejects a body altered in
-  transit. Only HTTPS endpoints are accepted, and bucket names are checked against the S3
-  naming rules before they go into the path.
+  transit. Endpoints must be HTTPS (one exception below), and bucket names are checked
+  against the S3 naming rules before they go into the path.
 - **Secrets:** the master key is still never part of a backup. The bucket's credentials live
-  only in `.env`, which the owner fills in.
+  only in the server's `.env` (mode 600). For Garage they were piped from the NAS straight
+  into it at the owner's request, never displayed.
+- **Garage on the NAS (amended 2026-11-07):** the owner's bucket is Garage on syn01chambly,
+  which serves plain HTTP. Plain HTTP is therefore accepted, but only to a private or loopback
+  IP literal (never a name, so DNS cannot redirect it); everything else must be HTTPS. The
+  signature still covers the body. The workbench container is firewalled away from the LAN,
+  so `deploy/workbench-backup.sh` uploads from a separate short-lived container on the host
+  network, run nightly by cron, with only the `WORKBENCH_BACKUP_S3_*` settings. The firewall
+  is unchanged.
 - **Retention and scheduling** of the objects belong to the bucket (lifecycle rules) and the
   host (cron). The workbench uploads; it does not delete.
 

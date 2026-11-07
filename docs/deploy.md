@@ -115,6 +115,17 @@ Expire old snapshots with a bucket lifecycle rule; the workbench never deletes. 
 nightly, add a host cron entry, for example
 `0 2 * * * docker exec now-workbench workbench backup --s3 >> ~/workbench-backup.log 2>&1`.
 
+**On srv01chambly the bucket is Garage on the NAS** (`now-workbench-backups`, key
+`now-workbench-backup` with read and write on that bucket only; endpoint
+`http://172.16.15.11:3900`, region `garage`). Plain HTTP is accepted only for a private IP
+address. The workbench container cannot reach the LAN (firewall), so the upload runs in a
+separate short-lived container on the host network, `deploy/workbench-backup.sh`, which
+receives only the `WORKBENCH_BACKUP_S3_*` settings. It runs nightly from the `pierre` crontab:
+
+```
+15 3 * * * /opt/docker/now-workbench/deploy/workbench-backup.sh >> /home/pierre/workbench-backup.log 2>&1
+```
+
 Telemetry (Claude usage and action runs) is purged after `WORKBENCH_TELEMETRY_RETENTION_DAYS`
 (365 by default, at least 60), at startup and every day.
 

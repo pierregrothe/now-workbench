@@ -7,11 +7,14 @@
 One signed `PUT` through httpx, so backups need no AWS SDK. The payload's SHA-256 is part of
 the signature, so the bucket rejects a body altered in transit. Works with AWS S3 and with
 S3-compatible stores (Cloudflare R2, MinIO, Backblaze B2) through a custom endpoint, using
-path-style addressing (`<endpoint>/<bucket>/<key>`).
+path-style addressing (`<endpoint>/<bucket>/<key>`). Endpoints must be HTTPS, except a
+self-hosted store at a private or loopback IP address (Garage on the NAS), which may be plain
+HTTP: the signature still protects the body, and the traffic stays on the LAN (ADR-029).
 """
 
 import hashlib
 import hmac
+import ipaddress
 import re
 from dataclasses import dataclass
 from datetime import datetime
@@ -105,6 +108,24 @@ def sign_v4(
     )
 
 
+def _on_private_network(host: str) -> bool:
+    """True for a private or loopback IP literal; names never qualify (no DNS involved)."""
+    try:
+        return ipaddress.ip_address(host).is_private
+    except ValueError:
+        return False
+
+
+def _check_endpoint(base: str) -> None:
+    """Refuse an endpoint that is neither HTTPS nor plain HTTP to a private IP address."""
+    parts = urlsplit(base)
+    if parts.scheme == "https":
+        return
+    if parts.scheme == "http" and _on_private_network(str(parts.hostname)):
+        return
+    raise ValueError(f"S3 endpoint must use https (plain http only to a private IP): {base}")
+
+
 def put_object(
     target: S3Target,
     key: str,
@@ -125,12 +146,12 @@ def put_object(
         "s3://<bucket>/<key>".
 
     Raises:
-        ValueError: The endpoint is not HTTPS, or the bucket name is not valid.
+        ValueError: The endpoint is neither HTTPS nor plain HTTP to a private IP address,
+            or the bucket name is not valid.
         RuntimeError: The bucket refused the upload (status and reply included).
     """
     base = target.base_url()
-    if not base.startswith("https://"):
-        raise ValueError(f"S3 endpoint must use https: {base}")
+    _check_endpoint(base)
     if not _BUCKET.fullmatch(target.bucket):
         raise ValueError(f"Not a valid S3 bucket name: {target.bucket!r}")
     url = f"{base}/{target.bucket}/{quote(key)}"

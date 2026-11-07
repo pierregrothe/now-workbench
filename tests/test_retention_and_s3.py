@@ -241,12 +241,36 @@ def test_put_object_reports_a_refusal_with_its_status() -> None:
     )
 
 
-def test_put_object_refuses_a_plain_http_endpoint() -> None:
+@pytest.mark.parametrize(
+    "endpoint",
+    [
+        "http://minio.local:9000",
+        "http://8.8.8.8:3900",
+        "ftp://10.0.0.1",
+        "http://localhost:3900",
+        "s3.example",
+    ],
+)
+def test_put_object_refuses_plain_http_off_the_private_network(endpoint: str) -> None:
     seen, transport = _capture()
-    plain = S3Target("b", "r", "k", "s", endpoint="http://minio.local:9000")
-    with pytest.raises(ValueError, match=r"^S3 endpoint must use https: http://minio.local:9000$"):
+    plain = S3Target("bkt", "r", "k", "s", endpoint=endpoint)
+    with pytest.raises(ValueError) as err:
         put_object(plain, "k", b"", transport=transport)
+    assert str(err.value) == (
+        f"S3 endpoint must use https (plain http only to a private IP): {endpoint}"
+    )
     assert seen == []
+
+
+@pytest.mark.parametrize(
+    "endpoint", ["http://172.16.15.11:3900", "http://127.0.0.1:3900", "http://[fd00::1]:3900"]
+)
+def test_put_object_allows_plain_http_to_a_private_ip(endpoint: str) -> None:
+    seen, transport = _capture()
+    garage = S3Target("now-workbench-backups", "garage", "k", "s", endpoint=endpoint)
+    where = put_object(garage, "nw/x.db", b"db", now=NOW, transport=transport)
+    assert where == "s3://now-workbench-backups/nw/x.db"
+    assert str(seen[0].url) == f"{endpoint}/now-workbench-backups/nw/x.db"
 
 
 def test_put_object_waits_up_to_a_minute() -> None:
