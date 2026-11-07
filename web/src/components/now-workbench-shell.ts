@@ -1,5 +1,5 @@
 import { sendIcon } from '../icons.js';
-import { LitElement, html, css } from 'lit';
+import { LitElement, html } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import '../views/now-access-gate.js';
 import type { GateMode } from '../views/now-access-gate.js';
@@ -16,6 +16,7 @@ import '../views/now-impersonation.js';
 import './now-command-palette.js';
 import { smartTooltip } from '../utils/tooltip.js';
 import { workbenchStore } from '../context/workbench-context.js';
+import { workbenchShellStyles } from './now-workbench-shell-styles.js';
 
 interface DetectedIntent {
   tab: string;
@@ -51,120 +52,7 @@ function resolveInitialTab(): string {
 
 @customElement('now-workbench-shell')
 export class NowWorkbenchShell extends LitElement {
-  static styles = css`
-    :host {
-      display: flex;
-      height: 100vh;
-      width: 100vw;
-      overflow: hidden;
-      background-color: var(--now-bg-surface-0, #ffffff);
-      color: var(--now-text-primary, #16181d);
-      font-family: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    }
-
-    .content-area {
-      flex: 1;
-      height: 100vh;
-      overflow: hidden;
-      position: relative;
-      display: flex;
-      flex-direction: column;
-      background: var(--now-bg-canvas, #ffffff);
-    }
-
-    .thread-error-banner {
-      padding: 8px 16px;
-      background: #fdecea;
-      color: #b3261e;
-      font-size: 13px;
-    }
-
-    .active-view-stage {
-      flex: 1;
-      overflow-y: auto;
-      display: flex;
-      flex-direction: column;
-    }
-
-    /* Docked Bottom Chat Bar (shown whenever activeTab !== 'home') */
-    .bottom-chat-dock {
-      flex-shrink: 0;
-      padding: 10px 36px 14px 36px;
-      background: var(--otto-canvas, #efece7);
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 6px;
-      z-index: 20;
-    }
-
-    .intent-route-caption {
-      width: 100%;
-      max-width: 768px;
-      font-size: 11.5px;
-      color: var(--now-text-secondary, #6b7280);
-      text-align: center;
-    }
-
-    .bottom-prompt-box {
-      width: calc(100% - 16px);
-      max-width: 752px;
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-      background: #ffffff;
-      border-radius: 32px;
-      padding: 18px 14px 12px 24px;
-      margin: 8px 0 4px;
-      box-sizing: border-box;
-      box-shadow:
-        0 0 0 8px #f4f3f0,
-        0 0 8px 8px rgba(0, 0, 0, 0.05),
-        0 20px 25px 3px rgba(0, 0, 0, 0.1);
-    }
-
-    .bottom-prompt-box input {
-      border: none;
-      background: transparent;
-      font-family: inherit;
-      font-size: 16px;
-      line-height: 24px;
-      color: var(--now-text-primary, #16181d);
-      outline: none;
-    }
-
-    .bottom-prompt-foot {
-      display: flex;
-      justify-content: flex-end;
-    }
-
-    .bottom-send-btn {
-      position: relative;
-      appearance: none;
-      border: none;
-      background: #c9f0c1;
-      color: #4b5f4b;
-      width: 36px;
-      height: 36px;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      border-radius: 50%;
-      cursor: pointer;
-      transition: background 0.12s ease, transform 0.1s ease;
-    }
-
-    .bottom-send-btn:hover {
-      opacity: 0.9;
-      transform: scale(1.05);
-    }
-
-    .bottom-send-btn svg {
-      width: 16px;
-      height: 16px;
-      fill: currentColor;
-    }
-  `;
+  static styles = workbenchShellStyles;
 
   @state() private activeTab = resolveInitialTab();
   @state() private activeThreadId = '';

@@ -1,6 +1,7 @@
 """FastAPI backend server for now-workbench."""
 
 import logging
+import platform
 import sqlite3
 import uuid
 from collections.abc import AsyncIterator, Callable
@@ -278,7 +279,7 @@ def _register_diagnostics(app: FastAPI, sdk_runner: NowSdkRunner) -> None:
             default_inst = instance_repo.get_default_instance()
         return {
             "app_version": "0.2.0",
-            "python_runtime": "3.14.10",
+            "python_runtime": platform.python_version(),
             "toolchain": env_probe,
             "instances_count": len(instances),
             "active_instance": default_inst.name if default_inst else "None",
