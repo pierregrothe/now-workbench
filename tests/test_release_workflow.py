@@ -14,6 +14,7 @@ from pathlib import Path
 from types import ModuleType
 
 import pytest
+import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -191,10 +192,32 @@ def test_changelog_engine_is_the_primer_template() -> None:
     assert (ROOT / "scripts/dev-tools/primer_changelog.py").read_bytes() == template.read_bytes()
 
 
+def _release_steps() -> dict[str, str]:
+    workflow = yaml.safe_load((ROOT / ".github/workflows/release.yml").read_text())
+    assert workflow["permissions"] == {"contents": "write", "pull-requests": "write"}
+    return {s["name"]: s.get("run", "") for s in workflow["jobs"]["release"]["steps"]}
+
+
 def test_release_workflow_lands_the_bump_through_a_pull_request() -> None:
-    """main is protected with no bypass, so the bot must never push to it directly."""
-    workflow = (ROOT / ".github/workflows/release.yml").read_text()
-    assert "push origin main" not in workflow
-    assert "--atomic" not in workflow
-    assert 'gh pr merge "$BRANCH" --squash' in workflow
-    assert "pull-requests: write" in workflow
+    """main is protected with no bypass, so no step may push to it; the bump goes through a PR."""
+    steps = _release_steps()
+    scripts = "\n".join(steps.values())
+    pushes = [line.strip() for line in scripts.splitlines() if "git push" in line]
+    assert pushes == ['git push --force origin "$BRANCH"', 'git push origin "v$VERSION"']
+    land = steps["Land the bump through a pull request and tag it"]
+    assert 'BRANCH="release/v$VERSION"' in land
+    assert 'gh pr merge "$BRANCH" --squash --delete-branch && break' in land
+    assert 'git tag "v$VERSION" "$SHA"' in land
+
+
+def test_release_workflow_refuses_a_second_release_for_one_merge() -> None:
+    order = list(_release_steps())
+    assert order.index("Refuse a second release for the same merge") < order.index(
+        "Bump the version and roll the changelog"
+    )
+
+
+@pytest.mark.parametrize("name", list(_release_steps()))
+def test_release_workflow_step_scripts_parse_as_bash(name: str) -> None:
+    script = _release_steps()[name]
+    assert subprocess.run(["bash", "-n"], input=script, text=True).returncode == 0

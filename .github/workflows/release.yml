@@ -54,6 +54,17 @@ jobs:
         with:
           version: '0.13.7'
 
+      # A rerun after this merge's bump already landed must not cut a second version.
+      - name: Refuse a second release for the same merge
+        if: steps.gate.outputs.release == 'true'
+        env:
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          if git log --format=%B origin/main | grep -q "^Release after PR #$PR ("; then
+            echo "PR #$PR already has its release commit on main; tag or publish it by hand." >&2
+            exit 1
+          fi
+
       - name: Bump the version and roll the changelog
         if: steps.gate.outputs.release == 'true'
         id: bump
@@ -61,6 +72,9 @@ jobs:
           VERSION="$(python scripts/dev-tools/release_gate.py bump)"
           uv lock
           python scripts/dev-tools/primer_changelog.py roll "$VERSION" --allow-empty
+          # Notes come from this tree, before gh switches branches during the merge.
+          awk -v v="$VERSION" '$0 ~ "^## \\[" v "\\]" {on=1; next} /^## \[/ {on=0} on' CHANGELOG.md > "$RUNNER_TEMP/notes.md"
+          test -s "$RUNNER_TEMP/notes.md"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       # main is protected (ruleset: pull requests only, no bypass), so the bump lands as its own
@@ -80,16 +94,25 @@ jobs:
           git switch -c "$BRANCH"
           git add pyproject.toml uv.lock web/package.json web/package-lock.json CHANGELOG.md
           git commit -m "chore(release): v$VERSION" -m "Release after PR #$PR ($REASON)."
-          git push origin "$BRANCH"
-          gh pr create --base main --head "$BRANCH" --title "chore(release): v$VERSION" \
-            --body "Release after PR #$PR ($REASON). Opened and merged by the release workflow."
+          # Re-entrant: a failed earlier run may have left this branch and its PR behind.
+          git push --force origin "$BRANCH"
+          if [ "$(gh pr view "$BRANCH" --json state --jq .state 2>/dev/null)" != "OPEN" ]; then
+            gh pr create --base main --head "$BRANCH" --title "chore(release): v$VERSION" \
+              --body "Release after PR #$PR ($REASON). Opened and merged by the release workflow."
+          fi
           # GitHub computes mergeability asynchronously; retry briefly.
           for attempt in 1 2 3 4 5 6; do
             gh pr merge "$BRANCH" --squash --delete-branch && break
             [ "$attempt" = 6 ] && exit 1
             sleep 10
           done
-          SHA="$(gh pr view "$BRANCH" --json mergeCommit --jq .mergeCommit.oid)"
+          SHA=""
+          for attempt in 1 2 3 4 5 6; do
+            SHA="$(gh pr view "$BRANCH" --json mergeCommit --jq '.mergeCommit.oid // empty')"
+            [ -n "$SHA" ] && break
+            sleep 5
+          done
+          test -n "$SHA"
           git fetch --quiet origin main
           git tag "v$VERSION" "$SHA"
           git push origin "v$VERSION"
@@ -100,5 +123,4 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ steps.bump.outputs.version }}
         run: |
-          awk -v v="$VERSION" '$0 ~ "^## \\[" v "\\]" {on=1; next} /^## \[/ {on=0} on' CHANGELOG.md > notes.md
-          gh release create "v$VERSION" --title "v$VERSION" --notes-file notes.md
+          gh release create "v$VERSION" --title "v$VERSION" --notes-file "$RUNNER_TEMP/notes.md"

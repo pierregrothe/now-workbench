@@ -64,5 +64,6 @@ and already apply.
   `main` is not re-tested.
 - The release workflow is serialized (`concurrency`, no cancel-in-progress). GitHub keeps only
   one pending run, so in a burst of three merges the middle run is dropped. A release merge
-  caught that way needs its run re-started by hand. The bump commit and the tag are pushed
-  atomically.
+  caught that way needs its run re-started by hand. The bump PR step is re-entrant (it
+  force-updates a stale `release/vX` and reuses its open PR). A rerun after the bump already
+  merged stops at a guard instead of cutting a second version; tag or publish that one by hand.
