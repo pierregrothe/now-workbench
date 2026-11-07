@@ -191,6 +191,57 @@ def _execute_turn_calls(
     return results, tool_results, events
 
 
+class _AgentLoop:
+    """State of one question's tool loop, shared by the async runner and the sync path.
+
+    The two drivers differ only in how they call the API (awaited or not) and in streaming
+    events; message assembly, usage, tool execution and the final reply live here once.
+    """
+
+    def __init__(self, question: Question, ctx: ToolContext, model: str) -> None:
+        self.ctx = ctx
+        self.model = model
+        self.compact_at = question.compact_at
+        self.messages = (
+            with_question(question.prior, question.text, question.files)
+            if question.prior is not None
+            else messages_for(question.history, question.text, question.files)
+        )
+        self.start = len(self.messages)
+        self.usage: dict[str, int] = {}
+        self.results: list[ToolResult] = []
+        self.final_text = ""
+
+    def request(self) -> dict[str, Any]:
+        """Keyword arguments of the next Messages API call."""
+        return build_request(self.model, self.messages, self.compact_at)
+
+    def absorb(self, resp: Any) -> list[Any]:
+        """Record one response; return the tool calls to run (empty when Otto is done)."""
+        add_usage(self.usage, resp)
+        self.final_text = "".join(b.text for b in resp.content if b.type == "text")
+        blocks = [d for b in resp.content if (d := block_to_dict(b)) is not None]
+        self.messages.append({"role": "assistant", "content": blocks})
+        calls = [b for b in resp.content if b.type == "tool_use"]
+        return calls if resp.stop_reason == "tool_use" else []
+
+    def run_tools(self, calls: list[Any]) -> list[AgentEvent]:
+        """Execute the calls, append their results; return the events to stream."""
+        step_res, tool_results, events = _execute_turn_calls(calls, self.ctx)
+        self.results.extend(step_res)
+        self.messages.append({"role": "user", "content": tool_results})
+        return events
+
+    @property
+    def transcript(self) -> list[dict[str, Any]]:
+        """What this run added to the conversation (stored for byte-exact replay)."""
+        return self.messages[self.start :]
+
+    def reply(self) -> GenerativeUIResponse:
+        """The final reply with usage (the transcript is attached by the caller)."""
+        return _assemble(self.final_text, self.results).model_copy(update={"usage": self.usage})
+
+
 class ClaudeAgentRunner:
     """Async streaming agent runner with Anthropic prompt caching and real-time events."""
 
@@ -224,44 +275,23 @@ class ClaudeAgentRunner:
             prior: The conversation replayed byte for byte from stored transcripts (ADR-023).
             compact_at: Input size that triggers server-side compaction.
         """
-        messages = (
-            with_question(prior, user_text, files)
-            if prior is not None
-            else messages_for(history, user_text, files)
+        loop = _AgentLoop(
+            Question(user_text, history, files, prior, compact_at), self.ctx, self.model
         )
-        start = len(messages)
-        usage: dict[str, int] = {}
-        results: list[ToolResult] = []
-        final_text = ""
-
         try:
             for _ in range(MAX_STEPS):
-                resp = await _call_client_create(
-                    self.client, **build_request(self.model, messages, compact_at)
-                )
-                add_usage(usage, resp)
-                final_text = "".join(b.text for b in resp.content if b.type == "text")
-                if final_text:
+                calls = loop.absorb(await _call_client_create(self.client, **loop.request()))
+                if loop.final_text:
                     yield AgentEvent(
-                        event_type=AgentEventType.TEXT_DELTA,
-                        payload={"text": final_text},
+                        event_type=AgentEventType.TEXT_DELTA, payload={"text": loop.final_text}
                     )
-                blocks = [d for b in resp.content if (d := block_to_dict(b)) is not None]
-                messages.append({"role": "assistant", "content": blocks})
-                calls = [b for b in resp.content if b.type == "tool_use"]
-                if resp.stop_reason != "tool_use" or not calls:
+                if not calls:
                     break
-
-                step_res, step_tool_res, step_events = _execute_turn_calls(calls, self.ctx)
-                results.extend(step_res)
-                for ev in step_events:
+                for ev in loop.run_tools(calls):
                     yield ev
-                messages.append({"role": "user", "content": step_tool_res})
-
-            assembled = _assemble(final_text, results).model_copy(update={"usage": usage})
             yield AgentEvent(
                 event_type=AgentEventType.DONE,
-                payload={"response": assembled.model_dump(), "transcript": messages[start:]},
+                payload={"response": loop.reply().model_dump(), "transcript": loop.transcript},
             )
 
         except Exception as exc:
@@ -338,35 +368,15 @@ def _run_agent_sync(
     fake_mode: bool = False,
 ) -> GenerativeUIResponse:
     """Direct synchronous runner for tests and sync execution contexts."""
-    ctx = ToolContext(conn=conn, fake_mode=fake_mode)
-    files, compact_at = question.files, question.compact_at
-    messages = (
-        with_question(question.prior, question.text, files)
-        if question.prior is not None
-        else messages_for(question.history, question.text, files)
-    )
-    start = len(messages)
-    usage: dict[str, int] = {}
-    results: list[ToolResult] = []
-    final_text = ""
+    loop = _AgentLoop(question, ToolContext(conn=conn, fake_mode=fake_mode), model)
     try:
         for _ in range(MAX_STEPS):
-            resp = messages_api(client).create(**build_request(model, messages, compact_at))
-            add_usage(usage, resp)
-            final_text = "".join(b.text for b in resp.content if b.type == "text")
-            content_blocks = [d for b in resp.content if (d := block_to_dict(b)) is not None]
-            messages.append({"role": "assistant", "content": content_blocks})
-            calls = [b for b in resp.content if b.type == "tool_use"]
-            if resp.stop_reason != "tool_use" or not calls:
+            calls = loop.absorb(messages_api(client).create(**loop.request()))
+            if not calls:
                 break
-            step_res, step_tool_res, _ = _execute_turn_calls(calls, ctx)
-            results.extend(step_res)
-            messages.append({"role": "user", "content": step_tool_res})
+            loop.run_tools(calls)
     except Exception as exc:
         if fake_mode:
             raise AgentUnavailableError(str(exc)) from exc
         return build_diagnostic_error_tiles(str(exc))
-
-    return _assemble(final_text, results).model_copy(
-        update={"usage": usage, "transcript": messages[start:]}
-    )
+    return loop.reply().model_copy(update={"transcript": loop.transcript})
