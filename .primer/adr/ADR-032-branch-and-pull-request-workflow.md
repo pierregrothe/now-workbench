@@ -41,17 +41,22 @@ and already apply.
   (2026-11-07), so the first release turns 0.1.0 into 2026.11.0. Each PR adds one changelog
   line per user-visible change.
 - **No GitHub Action gates a push or a PR.** The local hooks are the enforcement, as on srv02.
+- **Server-side guard (2026-11-07, owner request):** a repository ruleset on the default
+  branch, "main: pull requests only (ADR-032)", requires a pull request (no approvals, since
+  the owner works alone, and squash merges only). It also forbids force pushes and deletion and
+  keeps history linear. Nobody bypasses it, the owner included. A personal repository cannot
+  name the GitHub Actions app as a bypass actor, so the release bot lands its bump the same way:
+  it opens `release/vX` as a PR, squash-merges it, and tags the merge commit. That needs the
+  repository's Actions setting "Allow GitHub Actions to create and approve pull requests".
 
 ## Consequences
 
 - A PR costs one full gate run (`check`) instead of one per push.
 - A stamp lives in the local `.git`, so it proves only what ran on this machine.
-- Repository settings (branch protection) stay the owner's call. The local guards do not
-  stop a push made with `--no-verify`. They also see only the first ref of a push:
-  pre-commit hands its pre-push hooks the first branch with new commits. So `git push --all`
-  or `git push origin feature/x main` would get `main` past `guard-push` and the stamp skip.
-  Push one branch at a time (`git push -u origin <branch>`). Branch protection on GitHub is
-  the only complete guard.
+- The local guards see only the first ref of a push (pre-commit hands its pre-push hooks the
+  first branch with new commits) and do not stop `--no-verify`. The ruleset closes both for
+  `main`: GitHub refuses any direct push to it. Push one branch at a time anyway
+  (`git push -u origin <branch>`), so the stamp skip judges the branch it is meant to.
 - The review record must name a commit of the branch itself (an ancestor of the head that is
   not on `origin/main`). Commits made after that reviewed head are still accepted by `land`,
   while the global `pre-pr-check.sh` demands the exact reviewed head at `gh pr create`.
@@ -59,5 +64,6 @@ and already apply.
   `main` is not re-tested.
 - The release workflow is serialized (`concurrency`, no cancel-in-progress). GitHub keeps only
   one pending run, so in a burst of three merges the middle run is dropped. A release merge
-  caught that way needs its run re-started by hand. The bump commit and the tag are pushed
-  atomically.
+  caught that way needs its run re-started by hand. The bump PR step is re-entrant (it
+  force-updates a stale `release/vX` and reuses its open PR). A rerun after the bump already
+  merged stops at a guard instead of cutting a second version; tag or publish that one by hand.

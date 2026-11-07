@@ -18,8 +18,9 @@ on:
 
 permissions:
   contents: write
+  pull-requests: write
 
-# Serialize: two merges in a row must not race to push their bump commits.
+# Serialize: two merges in a row must not race to land their bump PRs.
 concurrency:
   group: release-main
   cancel-in-progress: false
@@ -53,6 +54,18 @@ jobs:
         with:
           version: '0.13.7'
 
+      # A rerun after this merge's bump already landed must not cut a second version.
+      - name: Refuse a second release for the same merge
+        if: steps.gate.outputs.release == 'true'
+        env:
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          # The bump's subject (and so its squash subject) names the PR: "chore(release): vX for PR #N".
+          if git log --format=%s origin/main | grep -Eq "^chore\(release\): v[0-9.]+ for PR #$PR( |$)"; then
+            echo "PR #$PR already has its release commit on main; tag or publish it by hand." >&2
+            exit 1
+          fi
+
       - name: Bump the version and roll the changelog
         if: steps.gate.outputs.release == 'true'
         id: bump
@@ -60,22 +73,50 @@ jobs:
           VERSION="$(python scripts/dev-tools/release_gate.py bump)"
           uv lock
           python scripts/dev-tools/primer_changelog.py roll "$VERSION" --allow-empty
+          # Notes come from this tree, before gh switches branches during the merge.
+          awk -v v="$VERSION" '$0 ~ "^## \\[" v "\\]" {on=1; next} /^## \[/ {on=0} on' CHANGELOG.md > "$RUNNER_TEMP/notes.md"
+          test -s "$RUNNER_TEMP/notes.md"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
-      - name: Commit, tag and push
+      # main is protected (ruleset: pull requests only, no bypass), so the bump lands as its own
+      # PR, merged here. A PR opened with GITHUB_TOKEN triggers no workflow, so this cannot loop.
+      # Needs the repository setting "Allow GitHub Actions to create and approve pull requests".
+      - name: Land the bump through a pull request and tag it
         if: steps.gate.outputs.release == 'true'
         env:
+          GH_TOKEN: ${{ github.token }}
           VERSION: ${{ steps.bump.outputs.version }}
           PR: ${{ github.event.pull_request.number }}
           REASON: ${{ steps.gate.outputs.reason }}
         run: |
+          BRANCH="release/v$VERSION"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          git switch -c "$BRANCH"
           git add pyproject.toml uv.lock web/package.json web/package-lock.json CHANGELOG.md
-          git commit -m "chore(release): v$VERSION" -m "Release after PR #$PR ($REASON)."
-          git tag "v$VERSION"
-          # Atomic: main and the tag move together or not at all (a moved main rejects both).
-          git push --atomic origin main "v$VERSION"
+          git commit -m "chore(release): v$VERSION for PR #$PR" -m "Release after PR #$PR ($REASON)."
+          # Re-entrant: a failed earlier run may have left this branch and its PR behind.
+          git push --force origin "$BRANCH"
+          if [ "$(gh pr view "$BRANCH" --json state --jq .state 2>/dev/null)" != "OPEN" ]; then
+            gh pr create --base main --head "$BRANCH" --title "chore(release): v$VERSION for PR #$PR" \
+              --body "Release after PR #$PR ($REASON). Opened and merged by the release workflow."
+          fi
+          # GitHub computes mergeability asynchronously; retry briefly.
+          for attempt in 1 2 3 4 5 6; do
+            gh pr merge "$BRANCH" --squash --delete-branch && break
+            [ "$attempt" = 6 ] && exit 1
+            sleep 10
+          done
+          SHA=""
+          for attempt in 1 2 3 4 5 6; do
+            SHA="$(gh pr view "$BRANCH" --json mergeCommit --jq '.mergeCommit.oid // empty' || true)"
+            [ -n "$SHA" ] && break
+            sleep 5
+          done
+          test -n "$SHA"
+          git fetch --quiet origin main
+          git tag "v$VERSION" "$SHA"
+          git push origin "v$VERSION"
 
       - name: Publish the GitHub release
         if: steps.gate.outputs.release == 'true'
@@ -83,5 +124,4 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ steps.bump.outputs.version }}
         run: |
-          awk -v v="$VERSION" '$0 ~ "^## \\[" v "\\]" {on=1; next} /^## \[/ {on=0} on' CHANGELOG.md > notes.md
-          gh release create "v$VERSION" --title "v$VERSION" --notes-file notes.md
+          gh release create "v$VERSION" --title "v$VERSION" --notes-file "$RUNNER_TEMP/notes.md"
