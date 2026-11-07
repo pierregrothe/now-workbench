@@ -18,9 +18,10 @@ how rare a word is in the field (a name match counts double). Fast, free, and bl
 
 SEMANTIC (``--semantic``): one TypeSafe Jev request asks, for each candidate, the probability
 that it already provides the need; results are ranked, never thresholded (alphaseeker measured
-true hits from 0.32 to 0.87 with a wrong one at 0.48). It needs ``TYPESAFE_API_KEY`` and costs a
-fraction of a cent per query. With no key, or when any request fails, it prints
-``[SEMANTIC] not run -- <reason>`` and makes no claim; it never fills in a partial answer.
+true hits from 0.32 to 0.87 with a wrong one at 0.48). It needs ``TYPESAFE_API_KEY``; one query
+over this field is one request (alphaseeker measured about $0.025 for a much larger field). With
+no key, or when any request fails, it prints ``[SEMANTIC] not run -- <reason>`` and makes no
+claim; it never fills in a partial answer.
 """
 
 import argparse
@@ -50,6 +51,7 @@ SRC = ROOT / "src" / "now_workbench"
 ENDPOINT = "https://api.typesafe.ai/v1/systemone"
 DEFAULT_MODEL = "jev-1.13.0"  # pinned: "jev-latest" moves; override with TYPESAFE_MODEL
 CHUNK = 700  # candidates per request
+ATTEMPTS = 4
 MIN_SUMMARY = 15  # a candidate needs a summary this long for Jev to judge it
 _RETRY_STATUS = frozenset({429, 500, 502, 503, 504})
 _RULES = (
@@ -59,7 +61,7 @@ _RULES = (
     "one that does the inverse or a neighbouring operation."
 )
 _STOP = frozenset(
-    "a an and are as at be by for from get in into is it of on or set the this to with".split()
+    "a an and are as at be by for from in into is it of on or the this to with".split()
 )
 
 
@@ -89,21 +91,31 @@ def words(text: str) -> list[str]:
             continue
         if len(word) > 4 and word.endswith("ies"):
             word = word[:-3] + "y"
+        elif len(word) > 4 and word.endswith(("sses", "xes", "ches", "shes")):
+            word = word[:-2]
         elif len(word) > 3 and word.endswith("s") and not word.endswith("ss"):
             word = word[:-1]
         out.append(word)
     return out
 
 
-def _exports(src: Path) -> set[str]:
-    names: set[str] = set()
+def _exports(src: Path) -> set[tuple[str, str]]:
+    """``(domain, name)`` for each name in a domain package's ``__all__``."""
+    pairs: set[tuple[str, str]] = set()
     for init in (src / "domains").glob("*/__init__.py"):
         for node in ast.walk(ast.parse(init.read_text(encoding="utf-8"))):
-            if isinstance(node, ast.Assign) and any(
-                isinstance(t, ast.Name) and t.id == "__all__" for t in node.targets
-            ):
-                names |= {e.value for e in ast.walk(node.value) if isinstance(e, ast.Constant)}
-    return names
+            match node:
+                case (
+                    ast.Assign(targets=[ast.Name(id="__all__")], value=value)
+                    | ast.AnnAssign(target=ast.Name(id="__all__"), value=value)
+                    | ast.AugAssign(target=ast.Name(id="__all__"), value=value)
+                ) if value is not None:
+                    pairs |= {
+                        (init.parent.name, e.value)
+                        for e in ast.walk(value)
+                        if isinstance(e, ast.Constant) and isinstance(e.value, str)
+                    }
+    return pairs
 
 
 def index(src: Path = SRC) -> list[Capability]:
@@ -120,13 +132,15 @@ def index(src: Path = SRC) -> list[Capability]:
     for path in sorted(src.rglob("*.py")):
         tree = ast.parse(path.read_text(encoding="utf-8"))
         rel = path.relative_to(src.parents[1]).as_posix()
+        parts = path.relative_to(src).parts
+        domain = parts[1] if len(parts) > 2 and parts[0] == "domains" else None
         for node in tree.body:
             if not isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef):
                 continue
             if node.name.startswith("_"):
                 continue
             doc = (ast.get_docstring(node) or "").strip().splitlines()
-            tier = "export" if node.name in exported else "public"
+            tier = "export" if (domain, node.name) in exported else "public"
             found.append(Capability(node.name, tier, f"{rel}:{node.lineno}", doc[0] if doc else ""))
     return found
 
@@ -163,6 +177,17 @@ def lexical_search(
     return scored[:limit]
 
 
+def _parse(response: httpx.Response, questions: dict[str, object]) -> dict[str, float] | None:
+    """Read the probabilities, or None for any reply that is not exactly one per question."""
+    try:
+        answers = {str(k): float(v["noul"]) for k, v in response.json()["answers"].items()}
+    except ValueError, KeyError, TypeError, AttributeError:
+        return None
+    if set(answers) != set(questions) or not all(0.0 <= v <= 1.0 for v in answers.values()):
+        return None  # a short, padded or out-of-range reply is no answer (NaN fails the range)
+    return answers
+
+
 def _ask(
     client: httpx.Client, key: str, state: str, questions: dict[str, object]
 ) -> dict[str, float] | None:
@@ -171,18 +196,19 @@ def _ask(
         "state": state,
         "questions": questions,
     }
-    for attempt in range(4):
+    for attempt in range(ATTEMPTS):
+        if attempt:
+            time.sleep(1.5 * attempt)
         try:
             response = client.post(ENDPOINT, json=body, headers={"Authorization": f"Bearer {key}"})
         except httpx.TransportError:
-            time.sleep(1.5 * (attempt + 1))
-            continue
+            continue  # timeouts and connection errors are worth another try
+        except httpx.RequestError:
+            return None
         if response.status_code == 200:
-            answers = {k: float(v["noul"]) for k, v in response.json()["answers"].items()}
-            return answers if set(answers) == set(questions) else None  # a short reply is no answer
+            return _parse(response, questions)
         if response.status_code not in _RETRY_STATUS:
             return None
-        time.sleep(1.5 * (attempt + 1))
     return None
 
 
@@ -261,7 +287,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--semantic", action="store_true", help="also ask TypeSafe Jev (costs a little)"
     )
-    parser.add_argument("--limit", type=int, default=10)
+    parser.add_argument("--limit", type=int, default=10, choices=range(1, 101), metavar="1-100")
     args = parser.parse_args(argv)
     query = " ".join(args.query)
     field = index()
