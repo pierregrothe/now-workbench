@@ -7,6 +7,7 @@
 import asyncio
 from collections.abc import Iterator
 from dataclasses import dataclass, field
+from types import SimpleNamespace
 from typing import Any
 
 import anthropic
@@ -641,6 +642,9 @@ class _Stream:
         for c in self.chunks:
             yield c
 
+    async def get_final_message(self) -> Any:
+        return SimpleNamespace(usage=SimpleNamespace(input_tokens=7, output_tokens=3))
+
 
 class _StreamMessages:
     def __init__(self, stream: _Stream) -> None:
@@ -690,7 +694,9 @@ async def test_otto_stream_chat_streams_with_cache_markers_and_reports_errors() 
         {"role": "assistant", "content": "two"},
         {"role": "user", "content": "three"},
     ]
-    assert await _collect(otto, msgs, context={"page": "x"}) == "Hello"
+    finals: list[Any] = []
+    assert await _collect(otto, msgs, context={"page": "x"}, on_usage=finals.append) == "Hello"
+    assert finals[0].usage.input_tokens == 7
     sent = stream_client.messages.kwargs
     assert sent["messages"][1]["content"][0]["cache_control"] == {"type": "ephemeral"}
     assert sent["messages"][0]["content"] == "one"

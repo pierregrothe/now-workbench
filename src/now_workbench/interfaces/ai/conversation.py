@@ -83,9 +83,12 @@ Rules:
 - Chart numbers when their shape matters: a 'chart' tile draws a line or area (change over
   time), a bar (compare categories), a pie or donut (parts of one whole) or a meter
   (progress against a limit), and a kpi can carry a 'trend'. Chart only figures you got
-  from a tool; for history, 'usage_history' and 'seed_activity' return ready-made charts.
-- Your final reply must be 1-2 plain sentences that summarize what happened. No markdown,
-  no lists, no repeating tile data.
+  from a tool. Ready-made charts: 'usage_history' (your questions and tokens), 'action_history'
+  (actions run), 'seed_activity' (seed runs), 'team_usage' (administrators: the whole team),
+  'instance_record_counts' and 'instance_records_over_time' (live figures from an instance).
+- Your final reply must be 1-2 sentences that summarize what happened, with no repeating of
+  tile data. Text is rendered as formatted HTML: you may use **bold**, *italics*, `code` and
+  [links](https://...); keep headings and lists for text and callout tiles, not the reply.
 """
 
 
@@ -176,9 +179,14 @@ def _usage_counts(resp: Any) -> dict[str, int]:
     }
 
 
-def add_usage(total: dict[str, int], resp: Any) -> None:
-    """Accumulate a response's token usage and the billable total (weights as billed)."""
-    for key, value in _usage_counts(resp).items():
+def add_usage(total: dict[str, int], resp: Any) -> dict[str, int]:
+    """Accumulate a response's token usage and the billable total (weights as billed).
+
+    Returns:
+        This response's own counts (empty when it carries no usage), for telemetry.
+    """
+    counts = _usage_counts(resp)
+    for key, value in counts.items():
         total[key] = total.get(key, 0) + value
     total["billable"] = round(
         total.get("input", 0)
@@ -186,6 +194,7 @@ def add_usage(total: dict[str, int], resp: Any) -> None:
         + _CACHE_WRITE_WEIGHT * total.get("cache_write", 0)
         + _CACHE_READ_WEIGHT * total.get("cache_read", 0)
     )
+    return counts
 
 
 def replay_conversation(

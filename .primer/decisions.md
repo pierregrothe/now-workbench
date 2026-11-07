@@ -419,3 +419,11 @@ hand under the same rules. Details: `.primer/adr/ADR-026-conversational-control-
 plain SVG with no chart library, on the validated categorical palette, with a data table view.
 `usage_history` and `seed_activity` chart the person's own stored activity. The tool registry
 now refuses duplicate names. Details: `.primer/adr/ADR-027-chart-tiles-and-history-tools.md`.
+
+### 2026-11-07 -- ADR-028: Telemetry, live instance charts and rendered text
+
+Every action run (`execute_tool`) and every Claude call (`_AgentLoop.absorb`, recorded stream)
+is stored per person with the real actor; architecture tests fail the build on any bypass.
+New charts: tokens per day, action history, team usage (administrators), live instance counts
+from the Aggregate API. Otto's markdown renders through a safe Lit renderer, never raw HTML.
+Charts stay plain SVG (owner's choice). Details: `.primer/adr/ADR-028-telemetry-and-live-instance-charts.md`.

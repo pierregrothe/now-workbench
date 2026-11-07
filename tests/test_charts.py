@@ -149,7 +149,7 @@ def test_seed_activity_stacks_runs_by_outcome(client: TestClient) -> None:
     assert [s["name"] for s in spec["series"]] == ["Completed", "Failed", "Paused"]
     assert res.data["runs_by_status"] == {"Completed": 2, "Failed": 1, "Paused": 1}
     assert len(res.data["days"]) == 3
-    assert res.data["runs_per_day"] == {
+    assert res.data["per_day"] == {
         "Completed": [0, 0, 2],
         "Failed": [0, 0, 1],
         "Paused": [0, 0, 1],

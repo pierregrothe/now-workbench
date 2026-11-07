@@ -3,7 +3,7 @@
 import functools
 import inspect
 import sqlite3
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from enum import StrEnum
 from typing import Any
 
@@ -11,6 +11,7 @@ import anthropic
 from pydantic import BaseModel, ConfigDict
 
 from now_workbench.domains.identity import AuthUser, NoActorError
+from now_workbench.domains.telemetry import record_usage
 from now_workbench.interfaces.ai.audience import audience_for
 from now_workbench.interfaces.ai.conversation import (
     Question,
@@ -30,6 +31,7 @@ from now_workbench.interfaces.ai.tiles import (
 )
 from now_workbench.interfaces.ai.tools import execute_tool
 from now_workbench.interfaces.ai.tools.base import ToolContext, ToolResult, text_tile
+from now_workbench.platform.db.session import db_session
 
 __all__ = [
     "AgentEvent",
@@ -42,6 +44,7 @@ __all__ = [
     "MAX_STEPS",
     "MAX_TILES",
     "run_agent",
+    "stream_usage_recorder",
 ]
 
 # Room to detect a problem, fix it and verify the fix within one request.
@@ -207,6 +210,26 @@ def _actor_or_none(ctx: ToolContext) -> AuthUser | None:
         return None
 
 
+def stream_usage_recorder(model: str, thread_id: str = "") -> Callable[[Any], None]:
+    """Return a recorder for a Claude stream that runs outside the agent loop (ADR-028).
+
+    Args:
+        model: Model that answers.
+        thread_id: The conversation, if any.
+
+    Returns:
+        A callback taking the stream's final message and recording its tokens.
+    """
+
+    def record(final: Any) -> None:
+        counts = add_usage({}, final)
+        if counts:
+            with db_session() as conn:
+                record_usage(conn, None, model, counts, thread_id)
+
+    return record
+
+
 class _AgentLoop:
     """State of one question's tool loop, shared by the async runner and the sync path.
 
@@ -236,7 +259,12 @@ class _AgentLoop:
 
     def absorb(self, resp: Any) -> list[Any]:
         """Record one response; return the tool calls to run (empty when Otto is done)."""
-        add_usage(self.usage, resp)
+        counts = add_usage(self.usage, resp)
+        if counts:
+            # Every Claude call Otto makes passes here: its tokens are recorded (ADR-028).
+            record_usage(
+                self.ctx.conn, _actor_or_none(self.ctx), self.model, counts, self.ctx.thread_id
+            )
         self.final_text = "".join(b.text for b in resp.content if b.type == "text")
         blocks = [d for b in resp.content if (d := block_to_dict(b)) is not None]
         self.messages.append({"role": "assistant", "content": blocks})

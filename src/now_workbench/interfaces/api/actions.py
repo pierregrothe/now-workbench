@@ -84,6 +84,9 @@ def run_action(name: str, req: ActionRun, user: AuthUser = Depends(current_user)
     with db_session() as conn:
         fake = PreferencesRepository(conn).get_workbench_preferences().sdk_fake_mode
         result = execute_tool(
-            ToolContext(conn=conn, fake_mode=fake, user=user), name, req.args, req.confirmed
+            ToolContext(conn=conn, fake_mode=fake, user=user, source="actions"),
+            name,
+            req.args,
+            req.confirmed,
         )
     return result.model_dump(include={"ok", "summary", "pending", "tiles", "layout"})

@@ -4,15 +4,18 @@ import asyncio
 import concurrent.futures
 import contextvars
 import json
+import logging
 import sqlite3
+import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from now_workbench.domains.identity import AuthUser, current_actor
 from now_workbench.domains.instances import InstanceRecord, InstanceRepository
+from now_workbench.domains.telemetry import ActionOutcome, record_action
 from now_workbench.interfaces.ai.tiles import TileLayout, UITileSpec
 
 # JSON schema of the bundle id argument most tools take.
@@ -51,6 +54,8 @@ class ToolContext:
     user: AuthUser | None = None
     # The conversation Otto is answering in, so tools can act on "this conversation".
     thread_id: str = ""
+    # Who started the run, for telemetry: Otto, or the person on the Actions screen (ADR-028).
+    source: Literal["otto", "actions"] = "otto"
 
     def actor(self) -> AuthUser:
         """The person Otto acts for: the explicit user, else the request's (ADR-025)."""
@@ -91,6 +96,7 @@ class ToolSpec:
 
 
 REGISTRY: dict[str, ToolSpec] = {}
+_log = logging.getLogger(__name__)
 
 
 def register(spec: ToolSpec) -> ToolSpec:
@@ -236,10 +242,34 @@ def execute_tool(
     args: dict[str, Any],
     confirmed: bool = False,
 ) -> ToolResult:
-    """Execute a registered tool; destructive tools require prior confirmation."""
+    """Execute a registered tool and record the run; destructive tools need confirmation.
+
+    Every action, by Otto or by hand, passes here, so this is where telemetry is recorded
+    (ADR-028): nothing that runs a tool can skip it.
+    """
     spec = REGISTRY.get(name)
     if spec is None:
         return ToolResult(summary=f"Unknown tool '{name}'.", ok=False)
+    started = time.monotonic()
+    result = _run(spec, ctx, args, confirmed)
+    outcome: ActionOutcome = "pending" if result.pending else "ok" if result.ok else "failed"
+    try:
+        record_action(
+            ctx.conn,
+            ctx.user,
+            name,
+            ctx.source,
+            outcome,
+            int((time.monotonic() - started) * 1000),
+        )
+    except sqlite3.Error:
+        # The action already ran; losing its record must not undo or hide that.
+        _log.exception("Could not record the run of '%s' in telemetry.", name)
+    return result
+
+
+def _run(spec: ToolSpec, ctx: ToolContext, args: dict[str, Any], confirmed: bool) -> ToolResult:
+    name = spec.name
     if spec.destructive and not confirmed:
         try:
             return _confirmation_result(spec, ctx, args)

@@ -10,18 +10,37 @@ at most eight series (categorical colors are never cycled), one value axis, and 
 donut is one series of at most eight non-negative slices (the rest fold into "Other").
 """
 
-from typing import Literal, Self
+from datetime import UTC, date, datetime, timedelta
+from typing import Any, Literal, Self
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from now_workbench.interfaces.ai.tiles import UITileSpec
 
-__all__ = ["chart_tile", "fold_slices", "ChartSeries", "ChartSpec"]
+__all__ = [
+    "chart_tile",
+    "day_label",
+    "daily_series",
+    "fold_slices",
+    "history_days",
+    "ChartSeries",
+    "ChartSpec",
+    "DAYS_ARG",
+    "MAX_POINTS",
+    "MAX_SERIES",
+]
 
 ChartForm = Literal["line", "area", "bar", "pie", "donut", "meter"]
 MAX_SERIES = 8
 MAX_POINTS = 60
 _ROUND = ("pie", "donut")
+# JSON schema of the `days` argument every history tool takes.
+DAYS_ARG: dict[str, Any] = {
+    "type": "integer",
+    "minimum": 1,
+    "maximum": MAX_POINTS,
+    "description": f"Days of history, ending today (default 30, at most {MAX_POINTS}).",
+}
 
 
 class ChartSeries(BaseModel):
@@ -91,6 +110,47 @@ def chart_tile(tile_id: str, title: str, spec: ChartSpec, span: int | None = Non
     Returns:
         A `chart` tile.
     """
-    return UITileSpec(
-        id=tile_id, type="chart", title=title, props=spec.model_dump(mode="json"), span=span
-    )
+    return UITileSpec(id=tile_id, type="chart", title=title, props=spec.model_dump(), span=span)
+
+
+def history_days(args: dict[str, Any]) -> list[date]:
+    """Return the UTC days a history covers, oldest first (`days` argument, default 30).
+
+    Args:
+        args: Tool arguments; `days` is clamped to 1..MAX_POINTS.
+
+    Returns:
+        The days, ending today.
+    """
+    n = min(max(int(args.get("days") or 30), 1), MAX_POINTS)
+    today = datetime.now(UTC).date()
+    return [today - timedelta(days=i) for i in range(n - 1, -1, -1)]
+
+
+def day_label(day: date) -> str:
+    """Return the axis label of a day ('Nov 07')."""
+    return day.strftime("%b %d")
+
+
+def daily_series(
+    days: list[date], counts: dict[tuple[str, str], int], keys: dict[str, str]
+) -> list[ChartSeries]:
+    """Return one series per key that occurs, with a value (zero included) for every day.
+
+    Args:
+        days: The days of the chart, oldest first.
+        counts: Counts keyed by (day YYYY-MM-DD, key).
+        keys: Key -> series name, in the fixed order that keeps each key's color.
+
+    Returns:
+        Series for the known keys that occur, then any unknown keys, sorted.
+    """
+    present = [k for k in keys if any(c[1] == k for c in counts)]
+    present += sorted({c[1] for c in counts} - set(present))
+    return [
+        ChartSeries(
+            name=keys.get(k, k.replace("_", " ").capitalize()),
+            values=[float(counts.get((d.isoformat(), k), 0)) for d in days],
+        )
+        for k in present
+    ]

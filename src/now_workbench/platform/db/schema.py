@@ -360,7 +360,55 @@ UPDATE app_settings SET payload = json_remove(payload, '$.max_turns')
 WHERE key = 'conversation_limits';
 """
 
-MIGRATIONS: tuple[str, ...] = (_V1, _V2, _V3, _V4, _V5, _V6, _V7, _V8, _V9, _V10, _V11, _V12)
+# v13 (ADR-028): telemetry. Every Claude call Otto makes and every action run (by Otto or by
+# hand) is recorded where all of them pass, so usage and outcomes can be charted over time.
+_V13 = f"""
+CREATE TABLE usage_events (
+    id            INTEGER PRIMARY KEY,
+    owner_email   TEXT NOT NULL,
+    actor_email   TEXT NOT NULL,
+    thread_id     TEXT NOT NULL DEFAULT '',
+    model         TEXT NOT NULL,
+    input_tokens  INTEGER NOT NULL CHECK (input_tokens >= 0),
+    output_tokens INTEGER NOT NULL CHECK (output_tokens >= 0),
+    cache_write   INTEGER NOT NULL CHECK (cache_write >= 0),
+    cache_read    INTEGER NOT NULL CHECK (cache_read >= 0),
+    created_at    TEXT NOT NULL DEFAULT {_NOW}
+) STRICT;
+
+CREATE INDEX ix_usage_events_owner ON usage_events (owner_email, created_at);
+CREATE INDEX ix_usage_events_created ON usage_events (created_at);
+
+CREATE TABLE action_events (
+    id            INTEGER PRIMARY KEY,
+    owner_email   TEXT NOT NULL,
+    actor_email   TEXT NOT NULL,
+    name          TEXT NOT NULL,
+    source        TEXT NOT NULL CHECK (source IN ('otto', 'actions')),
+    outcome       TEXT NOT NULL CHECK (outcome IN ('ok', 'failed', 'pending')),
+    duration_ms   INTEGER NOT NULL CHECK (duration_ms >= 0),
+    created_at    TEXT NOT NULL DEFAULT {_NOW}
+) STRICT;
+
+CREATE INDEX ix_action_events_owner ON action_events (owner_email, created_at);
+CREATE INDEX ix_action_events_created ON action_events (created_at);
+"""
+
+MIGRATIONS: tuple[str, ...] = (
+    _V1,
+    _V2,
+    _V3,
+    _V4,
+    _V5,
+    _V6,
+    _V7,
+    _V8,
+    _V9,
+    _V10,
+    _V11,
+    _V12,
+    _V13,
+)
 SCHEMA_VERSION = len(MIGRATIONS)
 
 

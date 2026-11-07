@@ -161,3 +161,11 @@ protected_modules =
     now_workbench.domains.templates.*
 allowed_importers =
     now_workbench.domains.templates
+
+[importlinter:contract:root-telemetry]
+name = Public root: other packages import domains.telemetry only through its __init__
+type = protected
+protected_modules =
+    now_workbench.domains.telemetry.*
+allowed_importers =
+    now_workbench.domains.telemetry

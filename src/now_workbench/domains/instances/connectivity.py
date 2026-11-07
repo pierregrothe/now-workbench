@@ -9,7 +9,7 @@ from now_workbench.domains.instances.profile import collect_instance_profile
 from now_workbench.domains.instances.repository import InstanceRepository
 from now_workbench.platform.config.settings import settings
 
-__all__ = ["check_and_record_instance", "verify_instance_authentication"]
+__all__ = ["check_and_record_instance", "is_simulated", "verify_instance_authentication"]
 
 
 def verify_instance_authentication(
@@ -19,7 +19,7 @@ def verify_instance_authentication(
     fake_mode: bool = False,
 ) -> tuple[str, str, int]:
     """Test instance credentials against the ServiceNow Table API."""
-    if _is_simulated(inst, fake_mode):
+    if is_simulated(inst, fake_mode):
         if "auth-failed" in inst.url:
             return ("auth_failed", "Authentication failed (HTTP 401)", 401)
         if "unreachable" in inst.url:
@@ -54,7 +54,7 @@ def verify_instance_authentication(
         return ("unreachable", f"Connection error: {exc}", 0)
 
 
-def _is_simulated(inst: InstanceRecord, fake_mode: bool) -> bool:
+def is_simulated(inst: InstanceRecord, fake_mode: bool) -> bool:
     """Return True when the instance must not be contacted over the network."""
     return (
         fake_mode
@@ -99,7 +99,7 @@ def check_and_record_instance(
         inst, timeout=timeout, client=client(), fake_mode=fake_mode
     )
     instance_repo.update_instance_status(inst.id, status)
-    if status == "authenticated" and not _is_simulated(inst, fake_mode):
+    if status == "authenticated" and not is_simulated(inst, fake_mode):
         profile = collect_instance_profile(inst, client=client(), timeout=timeout)
         if profile is not None:
             instance_repo.save_instance_profile(profile)

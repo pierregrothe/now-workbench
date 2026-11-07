@@ -33,7 +33,12 @@ from now_workbench.domains.instances import InstanceCreate, InstanceRepository
 from now_workbench.domains.settings import PreferencesRepository
 from now_workbench.domains.sharing import resolve_bundle, sync_registry
 from now_workbench.domains.templates import TemplateRecord, TemplateRepository
-from now_workbench.interfaces.ai.agent import AgentEventType, ClaudeAgentRunner, make_async_client
+from now_workbench.interfaces.ai.agent import (
+    AgentEventType,
+    ClaudeAgentRunner,
+    make_async_client,
+    stream_usage_recorder,
+)
 from now_workbench.interfaces.ai.client import OttoClient
 from now_workbench.interfaces.ai.conversation import Question
 from now_workbench.interfaces.ai.tile_routing import resolve_query_to_tiles
@@ -481,8 +486,9 @@ async def _handle_ws_otto_message(websocket: WebSocket, data: dict[str, Any]) ->
                 await _stream_agent_to_ws(websocket, runner, str(prompt), thread_id, conn)
     else:
         live_client = OttoClient(api_key=active_key, model=model)
+        record = stream_usage_recorder(model, str(thread_id or ""))
         try:
-            async for chunk in live_client.stream_chat(messages, context=context):
+            async for chunk in live_client.stream_chat(messages, context=context, on_usage=record):
                 await websocket.send_json({"type": "chunk", "text": chunk})
         finally:
             await live_client.aclose()

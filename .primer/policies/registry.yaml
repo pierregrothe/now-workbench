@@ -186,3 +186,14 @@ policies:
     justifying_adrs: [ADR-006, ADR-012, ADR-014]
     checks: []
     status: unguarded
+
+  - slug: telemetry-recording
+    name: Every action run and Claude call is recorded (architecture tests)
+    category: architecture
+    constitutional: false
+    justifying_adrs: [ADR-028]
+    checks:
+      - kind: pre-commit-hook
+        id: pytest-pre-push
+        stage: push
+    status: enforced

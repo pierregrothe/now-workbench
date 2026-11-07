@@ -17,9 +17,12 @@ from now_workbench.domains.instances.models import (
     InstanceUpdate,
 )
 from now_workbench.domains.instances.repository import InstanceRepository
+from now_workbench.domains.instances.stats import count_records, daily_created
 
 __all__ = [
     "check_and_record_instance",
+    "count_records",
+    "daily_created",
     "INSTANCE_PURPOSES",
     "InstanceCreate",
     "InstanceNode",

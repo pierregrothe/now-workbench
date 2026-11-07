@@ -1,7 +1,7 @@
 """Otto AI Copilot client leveraging the Anthropic Claude API."""
 
 import json
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from typing import Any
 
 import anthropic
@@ -104,8 +104,16 @@ class OttoClient:
         self,
         messages: list[dict[str, Any]],
         context: dict[str, Any] | None = None,
+        on_usage: Callable[[Any], None] | None = None,
     ) -> AsyncIterator[str]:
-        """Stream an Otto response for a multi-turn conversation with workspace context."""
+        """Stream an Otto response for a multi-turn conversation with workspace context.
+
+        Args:
+            messages: The conversation so far.
+            context: Workspace context added to the system prompt.
+            on_usage: Called with the final message of a real Claude stream, so its tokens
+                are recorded (ADR-028).
+        """
         context_str = ""
         if context:
             context_str = f"\n\n[Active Workspace Context]\n{json.dumps(context, indent=2)}\n"
@@ -152,6 +160,8 @@ class OttoClient:
             ) as stream:
                 async for text in stream.text_stream:
                     yield text
+                if on_usage is not None:
+                    on_usage(await stream.get_final_message())
         except Exception as e:
             yield f"\n[Otto error contacting Claude API: {e}]"
 
