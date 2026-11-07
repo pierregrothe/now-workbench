@@ -7,7 +7,7 @@ Python Version: `3.14.10`
 
 ## Current Focus
 
-EPIC-020 (domain cards and capability search) stories 01-02 in progress on `feature/domain-card-checks`; EPIC-018 waits.
+EPIC-020 story 03 (19 domain cards) in progress on `feature/domain-cards`; stories 01-02 landed (PR #3).
 
 `main` -- deployed and live at https://workbench.grothe.ca (srv01chambly, Cloudflare Access).
 Per-user data, groups and approved sharing, impersonation, attachments and limits, and an
