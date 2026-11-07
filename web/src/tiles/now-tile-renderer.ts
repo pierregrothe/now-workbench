@@ -14,6 +14,7 @@ import { tileRendererStyles } from './now-tile-renderer-styles.js';
 import { SERIES_COLORS, smoothPath } from './now-chart-geometry.js';
 import type { ChartProps } from './now-chart-geometry.js';
 import './now-chart-tile.js';
+import '../components/now-markdown.js';
 import './now-media-tile.js';
 import '../components/now-instance-hero.js';
 import '../components/now-diagnostics-card.js';
@@ -226,7 +227,7 @@ export class NowTileRenderer extends LitElement {
         return html`
           <div class="gen-tile callout ${p.tone || 'info'}" role=${p.tone === 'danger' || p.tone === 'warning' ? 'alert' : 'note'}>
             ${t.title ? html`<h4 class="gen-rich-title">${t.title}</h4>` : ''}
-            <div class="gen-rich-body">${p.body || ''}</div>
+            <now-markdown class="gen-rich-body" .text=${String(p.body || '')}></now-markdown>
             ${this.renderActions(p)}
           </div>
         `;
@@ -326,7 +327,7 @@ export class NowTileRenderer extends LitElement {
         return html`
           <div class="gen-tile rich">
             <h4 class="gen-rich-title">${t.title || 'Summary'}</h4>
-            <div class="gen-rich-body">${p.body || ''}</div>
+            <now-markdown class="gen-rich-body" .text=${String(p.body || '')}></now-markdown>
             ${this.renderActions(p)}
           </div>
         `;

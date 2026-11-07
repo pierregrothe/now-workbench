@@ -16,6 +16,7 @@ import type { ChatMessage } from '../controllers/thread-controller.js';
 import { workspaceStyles } from '../styles/workspace-styles.js';
 import { chatViewStyles } from './chat-view-styles.js';
 import '../tiles/now-tile-renderer.js';
+import '../components/now-markdown.js';
 import type { UITileSpec } from '../tiles/now-tile-renderer.js';
 import { StoreController } from '../controllers/store-controller.js';
 import './now-workspace-bar.js';
@@ -304,7 +305,7 @@ export class NowChatView extends LitElement {
     return html`<div class="message-bubble agent">
       <div class="agent-head">${SPARKLE}<span>Otto</span><span class="when">${msg.timestamp}</span></div>
       ${steps}
-      <div style="white-space: pre-wrap;">${msg.text}</div>
+      <now-markdown .text=${msg.text}></now-markdown>
       ${tiles}
     </div>`;
   }
