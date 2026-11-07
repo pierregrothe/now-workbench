@@ -32,6 +32,7 @@ from now_workbench.interfaces.api.attachments import attachments_router, limits_
 from now_workbench.interfaces.api.captures import router as captures_router
 from now_workbench.interfaces.api.demos import router as demos_router
 from now_workbench.interfaces.api.errors import install_error_handlers
+from now_workbench.interfaces.api.feedback import router as feedback_router
 from now_workbench.interfaces.api.guard import AccessMiddleware, assert_safe_binding
 from now_workbench.interfaces.api.impersonation import router as impersonation_router
 from now_workbench.interfaces.api.instances import router as instances_router
@@ -218,6 +219,7 @@ def create_app(
     app.include_router(captures_router)
     app.include_router(properties_router)
     app.include_router(threads_router)
+    app.include_router(feedback_router)
     app.include_router(usage_router)
     app.include_router(settings_router)
     app.include_router(profile_router)

@@ -5,7 +5,7 @@
 """Conversation models."""
 
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -17,8 +17,15 @@ __all__ = [
     "ChatThreadRecord",
     "ChatThreadUpdate",
     "ConversationLimits",
+    "FeedbackCreate",
+    "MAX_FEEDBACK_COMMENT",
     "MAX_THREAD_CONTEXT_MESSAGES",
+    "MessageFeedback",
+    "Rating",
 ]
+
+Rating = Literal["up", "down"]
+MAX_FEEDBACK_COMMENT = 1000  # the schema's CHECK on message_feedback.comment (v15)
 
 
 class ConversationLimits(BaseModel):
@@ -125,3 +132,40 @@ class ChatMessageRecord(BaseModel):
     widget_type: str | None = None
     widget_data: dict[str, Any] | None = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    # The owner's thumbs up or down on an Otto reply (schema v15); None when not rated.
+    rating: Rating | None = None
+
+
+class FeedbackCreate(BaseModel):
+    """A thumbs up or down on one of Otto's replies, with an optional comment."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    rating: Rating
+    comment: str = Field(default="", max_length=MAX_FEEDBACK_COMMENT)
+
+
+class MessageFeedback(BaseModel):
+    """A stored rating of one of Otto's replies, with the reply it is about.
+
+    Attributes:
+        message_id: The rated assistant message.
+        thread_id: Its conversation.
+        owner_email: The person who rated it (the conversation's owner).
+        rating: "up" or "down".
+        comment: Optional words from the person ("" when none).
+        reply: The text of the rated reply.
+        created_at: When the reply was first rated (UTC ISO-8601).
+        updated_at: When the rating last changed (UTC ISO-8601).
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    message_id: str
+    thread_id: str
+    owner_email: str
+    rating: Rating
+    comment: str
+    reply: str
+    created_at: str
+    updated_at: str

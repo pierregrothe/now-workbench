@@ -7,6 +7,9 @@ internal chores, docs, tests and CI are omitted, and the long-form entries are i
 
 ## [Unreleased]
 
+### Added
+- otto: Thumbs up/down with an optional comment and Get help under Otto's replies; ratings kept per reply, listed in Settings (admins see all)
+
 ## [2026.11.1] - 2026-11-07
 
 ### Added
