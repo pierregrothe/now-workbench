@@ -102,6 +102,24 @@ async def test_prepare_project_generates_renames_and_builds_once(
     assert calls == ["npm-ran"]
 
 
+async def test_prepare_project_relinks_a_removed_toolchain(
+    tmp_path: Path, tools: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A project linked to a toolchain that was deleted is relinked to the current one."""
+    bundle = tmp_path / "bundle"
+    shutil.copytree(REPO / "bundles" / "sample-ai-assistant", bundle)
+    workspace = tmp_path / "ws"
+    project = await prepare_project(bundle, "sample-ai-assistant", "Demo", "snc", workspace)
+    shutil.rmtree(workspace / "sdk-toolchain")
+    image_modules = tmp_path / "global"
+    for pkg in ("@servicenow/sdk", "@servicenow/glide"):
+        (image_modules / pkg).mkdir(parents=True)
+        (image_modules / pkg / "package.json").write_text("{}", encoding="utf-8")
+    monkeypatch.setenv("WORKBENCH_SDK_NODE_MODULES", str(image_modules))
+    await prepare_project(bundle, "sample-ai-assistant", "Demo", "snc", workspace)
+    assert (project.path / "node_modules").readlink() == image_modules
+
+
 async def test_prepare_project_without_sources_or_failing_build_raises(
     tmp_path: Path, tools: Path
 ) -> None:

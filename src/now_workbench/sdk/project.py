@@ -189,7 +189,9 @@ async def prepare_project(
 
     modules = await _ensure_toolchain(workspace, project / "package.json")
     link = project / "node_modules"
-    if not link.exists():
+    if link.is_symlink() and link.readlink() != modules:
+        link.unlink()  # points at a toolchain that moved or was removed
+    if not link.is_symlink():
         link.symlink_to(modules, target_is_directory=True)
     await _run([now_sdk, "build"], project)
     return SdkProject(path=project, scope=scope, table_map=table_map)
