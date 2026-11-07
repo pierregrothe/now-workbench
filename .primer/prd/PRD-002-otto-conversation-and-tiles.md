@@ -48,6 +48,9 @@ Solution Consultants and developers using Otto inside now-workbench.
 - Tiles share one card chrome (title, open-arrow, status chip, progress) and keep the
   Lux tokens in `web/src/styles/lux-theme.css`.
 - Every tile button either works or is not rendered.
+- The other workbench screens follow the ADR-019 measurements. Restyled: Synthesizer and
+  Media Capture (story 2026.11b.02, 2026-11-07). Still to do: Fluent Explorer and the Artifact
+  library cards.
 
 ## Out of Scope (anti-creep fence)
 - We will NOT copy ServiceNow's text, logos, artwork or product screenshots; we align

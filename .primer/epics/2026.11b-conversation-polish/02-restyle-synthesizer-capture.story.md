@@ -92,7 +92,9 @@ Media Capture only:
 ### What changed
 
 - CSS moved to `now-synthesizer-view-styles.ts` and `now-capture-studio-styles.ts` and
-  restyled to the points above; inline `style=` attributes became classes. No markup structure,
+  restyled to the points above. The rules both forms share (labels, fields, segmented chips
+  `.seg`/`.seg-item`, the `.btn-primary` pill) live in `web/src/styles/form-styles.ts`
+  (ADR-024 rule 1); Settings keeps its own, since its fields and button padding differ; inline `style=` attributes became classes. No markup structure,
   text, accessible name, event handler or API call changed.
 - `web/e2e/mobile.spec.ts`: one phone test asserts the synthesizer and capture buttons are at
   least 40px tall and the objective field is 16px.

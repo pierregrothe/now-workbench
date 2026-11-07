@@ -20,69 +20,15 @@ export const captureStudioStyles = css`
         }
       }
 
-      .form-group {
-        margin-bottom: 18px;
-      }
-
-      .form-label {
-        display: block;
-        font-size: 12.5px;
-        font-weight: 600;
-        color: var(--now-text-primary, #0f172a);
-        margin-bottom: 6px;
-      }
-
-      .text-input, .select-input {
-        width: 100%;
-        box-sizing: border-box;
-        padding: 9px 12px;
-        border-radius: var(--now-radius-md, 10px);
-        border: 1px solid var(--now-border-subtle, #e2e8f0);
-        background: var(--now-bg-surface-0, #ffffff);
-        color: var(--now-text-primary, #0f172a);
-        font-size: 13.5px;
-        font-family: inherit;
-        outline: none;
-      }
-
-      .text-input:focus, .select-input:focus {
-        border-color: var(--now-color-brand-green, #23a17e);
-      }
-
-      /* Capture mode: Otto's warm segmented chips, the chosen one dark (as the settings menu). */
-      .mode-toggle {
-        display: flex;
-        gap: 4px;
-        padding: 4px;
-        border-radius: 12px;
-        background: #f4f3f0;
-      }
-
+      /* Capture mode: the shared segmented chips (form-styles.ts), two equal halves. */
       .mode-btn {
         flex: 1;
         min-width: 0;
         padding: 7px 10px;
-        border-radius: var(--now-radius-md, 10px);
-        border: none;
-        background: transparent;
-        color: var(--now-text-primary, #0f172a);
-        font: inherit;
-        font-size: 13px;
-        font-weight: 500;
-        cursor: pointer;
         display: flex;
         align-items: center;
         justify-content: center;
         gap: 6px;
-      }
-
-      .mode-btn:hover {
-        background: var(--otto-canvas-active, #e3dfd8);
-      }
-
-      .mode-btn.active {
-        background: #1a1a1a;
-        color: #ffffff;
       }
 
       .capture-action {
@@ -91,29 +37,6 @@ export const captureStudioStyles = css`
 
       .capture-btn {
         width: 100%;
-        min-height: 36px;
-        padding: 8px 18px;
-        border-radius: var(--now-radius-pill, 9999px);
-        border: 1px solid var(--now-color-brand-green, #23a17e);
-        background: var(--now-color-brand-green, #23a17e);
-        color: #032d42;
-        font: inherit;
-        font-size: 13px;
-        font-weight: 600;
-        cursor: pointer;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        transition: background 0.15s ease;
-      }
-
-      .capture-btn:hover:not(:disabled) {
-        background: var(--now-color-brand-green-hover, #1b8567);
-      }
-
-      .capture-btn:disabled {
-        opacity: 0.5;
-        cursor: not-allowed;
       }
 
       .capture-status {
@@ -275,8 +198,6 @@ export const captureStudioStyles = css`
 
       /* Phones (ADR-030): 40px touch targets. */
       @media (max-width: 768px), (max-height: 500px) {
-        .mode-btn,
-        .capture-btn,
         .small-btn {
           min-height: 40px;
         }

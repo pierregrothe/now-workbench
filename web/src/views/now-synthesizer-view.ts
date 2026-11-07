@@ -8,6 +8,7 @@ import { customElement, property, state } from 'lit/decorators.js';
 import { DemoPipelineController } from '../controllers/demo-pipeline-controller.js';
 import { workbenchStore } from '../context/workbench-context.js';
 import { workspaceStyles } from '../styles/workspace-styles.js';
+import { formStyles } from '../styles/form-styles.js';
 import { synthesizerViewStyles } from './now-synthesizer-view-styles.js';
 import { StoreController } from '../controllers/store-controller.js';
 import './now-workspace-bar.js';
@@ -31,7 +32,7 @@ export class NowSynthesizerView extends LitElement {
     }
   }
 
-  static styles = [workspaceStyles, synthesizerViewStyles];
+  static styles = [workspaceStyles, formStyles, synthesizerViewStyles];
 
   connectedCallback(): void {
     super.connectedCallback();
@@ -115,7 +116,7 @@ export class NowSynthesizerView extends LitElement {
 
               <div class="action-row">
                 <button
-                  class="primary-action-btn"
+                  class="btn-primary"
                   ?disabled=${this.pipeline.isSynthesizing}
                   @click=${this.handleSynthesize}
                 >
@@ -136,7 +137,7 @@ export class NowSynthesizerView extends LitElement {
                         <span class="badge info">${res.fluent_table_name}</span>
                       </div>
                       <button
-                        class="primary-action-btn"
+                        class="btn-primary"
                         ?disabled=${this.pipeline.isSeeding}
                         @click=${this.handleSeed}
                       >
@@ -148,21 +149,21 @@ export class NowSynthesizerView extends LitElement {
                       ? html`<div class="badge seed-status ${this.pipeline.seedFailed ? 'error' : this.pipeline.isSeeding ? 'info' : 'success'}">${this.pipeline.seedStatusMessage}</div>`
                       : ''}
 
-                    <div class="tabs-bar">
+                    <div class="seg tabs-bar">
                       <button
-                        class="tab-item ${this.pipeline.activeResultTab === 'narrative' ? 'active' : ''}"
+                        class="seg-item ${this.pipeline.activeResultTab === 'narrative' ? 'active' : ''}"
                         @click=${() => this.pipeline.setResultTab('narrative')}
                       >
                         Narrative & Story
                       </button>
                       <button
-                        class="tab-item ${this.pipeline.activeResultTab === 'datasets' ? 'active' : ''}"
+                        class="seg-item ${this.pipeline.activeResultTab === 'datasets' ? 'active' : ''}"
                         @click=${() => this.pipeline.setResultTab('datasets')}
                       >
                         Seed Records (${res.seed_records?.length ?? 0})
                       </button>
                       <button
-                        class="tab-item ${this.pipeline.activeResultTab === 'customizations' ? 'active' : ''}"
+                        class="seg-item ${this.pipeline.activeResultTab === 'customizations' ? 'active' : ''}"
                         @click=${() => this.pipeline.setResultTab('customizations')}
                       >
                         Fluent Code

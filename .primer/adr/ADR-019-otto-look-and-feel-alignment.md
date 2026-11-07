@@ -45,5 +45,6 @@ requirements; this ADR records the presentation decisions so later work does not
 
 - Visual changes are checked against the live instance before they ship. When EmployeeWorks
   changes, this ADR is amended, not silently overridden.
-- Screens not yet restyled (Synthesizer, Media Capture, Fluent Explorer, the Artifact library
-  cards) are tracked in PRD-002 until they follow the same measurements.
+- Screens not yet restyled (Fluent Explorer, the Artifact library cards) are tracked in PRD-002
+  until they follow the same measurements. The Synthesizer and Media Capture were restyled on
+  2026-11-07 (story 2026.11b.02): pill buttons, 10px fields, warm segmented chips, 16px cards.

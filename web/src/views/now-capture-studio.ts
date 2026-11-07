@@ -9,6 +9,7 @@ import { CaptureGalleryController } from '../controllers/capture-gallery-control
 import type { CaptureArtifact } from '../controllers/capture-gallery-controller.js';
 import { workbenchStore } from '../context/workbench-context.js';
 import { workspaceStyles } from '../styles/workspace-styles.js';
+import { formStyles } from '../styles/form-styles.js';
 import { captureStudioStyles } from './now-capture-studio-styles.js';
 import '../modals/now-media-lightbox.js';
 import { StoreController } from '../controllers/store-controller.js';
@@ -32,7 +33,7 @@ export class NowCaptureStudio extends LitElement {
     }
   }
 
-  static styles = [workspaceStyles, captureStudioStyles];
+  static styles = [workspaceStyles, formStyles, captureStudioStyles];
 
   connectedCallback(): void {
     super.connectedCallback();
@@ -98,15 +99,15 @@ export class NowCaptureStudio extends LitElement {
             <div class="card">
               <div class="form-group">
                 <label class="form-label">Capture Mode</label>
-                <div class="mode-toggle">
+                <div class="seg mode-toggle">
                   <button
-                    class="mode-btn ${this.captureMode === 'screenshot' ? 'active' : ''}"
+                    class="seg-item mode-btn ${this.captureMode === 'screenshot' ? 'active' : ''}"
                     @click=${() => (this.captureMode = 'screenshot')}
                   >
                     Screenshot Proof
                   </button>
                   <button
-                    class="mode-btn ${this.captureMode === 'video' ? 'active' : ''}"
+                    class="seg-item mode-btn ${this.captureMode === 'video' ? 'active' : ''}"
                     @click=${() => (this.captureMode = 'video')}
                   >
                     Video Walkthrough
@@ -147,7 +148,7 @@ export class NowCaptureStudio extends LitElement {
 
               <div class="capture-action">
                 <button
-                  class="capture-btn"
+                  class="btn-primary capture-btn"
                   ?disabled=${this.gallery.isCapturing}
                   @click=${this.handleTriggerCapture}
                 >
