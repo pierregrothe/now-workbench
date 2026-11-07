@@ -3,7 +3,7 @@
 # Author: Pierre Grothe
 # Date: 2026-11-07
 #
-# A release marks a delivered epic (ADR-032): a merge that flips an epic.md to complete, or a PR
+# A release marks a shipped PRD (ADR-032): a merge that flips a PRD to `status: shipped`, or a PR
 # labelled `release`, cuts the next CalVer version (YYYY.MM.N); every other merge ends after the
 # decision.
 # This workflow never gates a push or a PR -- the local hooks do that. `pr_gate.py land` waits
@@ -60,8 +60,9 @@ jobs:
         env:
           PR: ${{ github.event.pull_request.number }}
         run: |
-          # The bump's subject (and so its squash subject) names the PR: "chore(release): vX for PR #N".
-          if git log --format=%s origin/main | grep -Eq "^chore\(release\): v[0-9.]+ for PR #$PR( |$)"; then
+          # The bump's subject (and so its squash subject) names the PR: "chore(version): bump to vX for PR #N".
+          # "chore(version): bump to" is the prefix the global PR gate exempts from primer staleness.
+          if git log --format=%s origin/main | grep -Eq "^chore\(version\): bump to v[0-9.]+ for PR #$PR( |$)"; then
             echo "PR #$PR already has its release commit on main; tag or publish it by hand." >&2
             exit 1
           fi
@@ -94,11 +95,11 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git switch -c "$BRANCH"
           git add pyproject.toml uv.lock web/package.json web/package-lock.json CHANGELOG.md
-          git commit -m "chore(release): v$VERSION for PR #$PR" -m "Release after PR #$PR ($REASON)."
+          git commit -m "chore(version): bump to v$VERSION for PR #$PR" -m "Release after PR #$PR ($REASON)."
           # Re-entrant: a failed earlier run may have left this branch and its PR behind.
           git push --force origin "$BRANCH"
           if [ "$(gh pr view "$BRANCH" --json state --jq .state 2>/dev/null)" != "OPEN" ]; then
-            gh pr create --base main --head "$BRANCH" --title "chore(release): v$VERSION for PR #$PR" \
+            gh pr create --base main --head "$BRANCH" --title "chore(version): bump to v$VERSION for PR #$PR" \
               --body "Release after PR #$PR ($REASON). Opened and merged by the release workflow."
           fi
           # GitHub computes mergeability asynchronously; retry briefly.

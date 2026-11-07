@@ -439,7 +439,7 @@
     {
       "id": "EPIC-018",
       "title": "Conversation Polish and Housekeeping",
-      "status": "backlog",
+      "status": "in-progress",
       "stories": [
         {
           "id": "STORY-061",
@@ -449,7 +449,7 @@
         {
           "id": "STORY-062",
           "title": "Synthesizer and Media Capture in the Otto look",
-          "status": "backlog"
+          "status": "done"
         },
         {
           "id": "STORY-063",
@@ -509,6 +509,60 @@
           "id": "STORY-071",
           "title": "Capability search, lexical and Jev-backed",
           "status": "done"
+        }
+      ]
+    },
+    {
+      "id": "EPIC-021",
+      "title": "Demo Correctness Fixes",
+      "status": "in-progress",
+      "stories": [
+        {
+          "id": "STORY-072",
+          "title": "One simulated-instance rule; no real deploy from fake mode",
+          "status": "done"
+        },
+        {
+          "id": "STORY-073",
+          "title": "Property snapshots keep the originals; restore reports failure",
+          "status": "backlog"
+        },
+        {
+          "id": "STORY-074",
+          "title": "Capture uses the detected release",
+          "status": "backlog"
+        },
+        {
+          "id": "STORY-075",
+          "title": "Plugin queries off the event loop",
+          "status": "backlog"
+        },
+        {
+          "id": "STORY-076",
+          "title": "Sharing and group rules hold",
+          "status": "backlog"
+        }
+      ]
+    },
+    {
+      "id": "EPIC-022",
+      "title": "Otto Memory per Person",
+      "status": "backlog",
+      "stories": [
+        {
+          "id": "STORY-077",
+          "title": "Memory store, API and Profile > Memory",
+          "status": "backlog"
+        },
+        {
+          "id": "STORY-078",
+          "title": "Background extraction",
+          "status": "backlog"
+        },
+        {
+          "id": "STORY-079",
+          "title": "Recall, computed areas and Otto's memory tools",
+          "status": "backlog"
         }
       ]
     }

@@ -90,8 +90,9 @@ python scripts/dev-tools/pr_gate.py land <pr>         # refuses an unstamped or 
 ```
 
 Write the review record (an adversarial review of the branch) and sync primer BEFORE `check`,
-so the stamped commit is the one the PR shows. A release is cut by the bot when a merge closes
-an epic or carries the `release` label; never hand-bump the version. Versions are CalVer
+so the stamped commit is the one the PR shows. A release is cut by the bot when a merge ships
+a PRD (`/primer prd ship` sets its `status: shipped`) or carries the `release` label; never
+hand-bump the version. Versions are CalVer
 (`YYYY.MM.N`, overriding the global SemVer default), matching the primer changelog engine.
 Add one line per user-visible change: `python scripts/dev-tools/primer_changelog.py add --section Added --scope <area> --message "..." --pr <n>`.
 

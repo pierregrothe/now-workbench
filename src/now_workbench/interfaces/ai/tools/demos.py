@@ -10,6 +10,7 @@ from typing import Any
 
 from now_workbench.domains.capture import CaptureRequest, PlaywrightCaptureEngine
 from now_workbench.domains.demos import DemoPipelineEngine
+from now_workbench.domains.instances import is_simulated
 from now_workbench.domains.settings import PreferencesRepository
 from now_workbench.interfaces.ai.tools.base import (
     BUNDLE_ARG,
@@ -47,7 +48,7 @@ def _capture(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
         label=str(args.get("label") or "Instance State Capture"),
         viewport_width=prefs.capture_viewport_width,
         viewport_height=prefs.capture_viewport_height,
-        fake_mode=prefs.capture_fake_mode or ctx.fake_mode,
+        fake_mode=is_simulated(inst, prefs.capture_fake_mode or ctx.fake_mode),
     )
     art = run_async(
         PlaywrightCaptureEngine(bundles_dir=settings.get_bundles_dir()).capture(

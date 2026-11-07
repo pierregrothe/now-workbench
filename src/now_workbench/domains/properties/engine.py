@@ -7,7 +7,7 @@ from typing import Any
 
 import httpx
 
-from now_workbench.domains.instances import InstanceRecord
+from now_workbench.domains.instances import InstanceRecord, is_simulated
 from now_workbench.domains.properties.models import PropertyApplyResult, PropertySnapshot
 from now_workbench.platform.config.settings import settings
 
@@ -151,11 +151,7 @@ class PropertyEngine:
                 details=["No system properties configured for this bundle."],
             )
 
-        if (
-            fake_mode
-            or instance.url.startswith("fake://")
-            or instance.url.startswith("http://fake")
-        ):
+        if is_simulated(instance, fake_mode):
             simulated_snapshot = PropertySnapshot(
                 bundle_id=bundle_id,
                 instance_id=instance.id,
@@ -226,11 +222,7 @@ class PropertyEngine:
                 details=["No active property snapshot found for this bundle and instance."],
             )
 
-        if (
-            fake_mode
-            or instance.url.startswith("fake://")
-            or instance.url.startswith("http://fake")
-        ):
+        if is_simulated(instance, fake_mode):
             self.delete_snapshot(bundle_id, instance.id)
             count = len(snapshot.original_values)
             return PropertyApplyResult(

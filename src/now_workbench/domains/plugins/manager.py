@@ -4,7 +4,7 @@ import sqlite3
 
 import httpx
 
-from now_workbench.domains.instances import InstanceRecord
+from now_workbench.domains.instances import InstanceRecord, is_simulated
 from now_workbench.domains.plugins.models import PluginEvaluationResult, PluginRecord
 from now_workbench.domains.plugins.repository import PluginRepository
 
@@ -64,9 +64,9 @@ class PluginManager:
         """Evaluate which required plugins are active on the instance and which are missing.
 
         A real instance is asked (read-only); what is found active is remembered. A simulated
-        instance (fake mode, ``fake://``) answers from what the workbench recorded.
+        instance (``is_simulated``) answers from what the workbench recorded.
         """
-        simulated = fake_mode or instance.url.startswith("fake://")
+        simulated = is_simulated(instance, fake_mode)
         recorded = {p.plugin_id for p in self.plugins.list_instance_plugins(instance.id)}
 
         installed: list[str] = []
@@ -110,7 +110,7 @@ class PluginManager:
         clean_id = plugin_id.strip()
         name = plugin_name or KNOWN_PLUGIN_NAMES.get(clean_id, f"Plugin {clean_id}")
 
-        simulated = fake_mode or instance.url.startswith("fake://")
+        simulated = is_simulated(instance, fake_mode)
         if not simulated:
             active, reason = self._query_plugin_active(instance, clean_id)
             if not active:

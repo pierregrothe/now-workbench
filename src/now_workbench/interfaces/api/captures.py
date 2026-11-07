@@ -16,7 +16,7 @@ from now_workbench.domains.capture import (
     CaptureRequest,
     PlaywrightCaptureEngine,
 )
-from now_workbench.domains.instances import InstanceRepository
+from now_workbench.domains.instances import InstanceRepository, is_simulated
 from now_workbench.domains.settings import PreferencesRepository
 from now_workbench.interfaces.api.demo_support import require_bundle
 from now_workbench.platform.config.paths import safe_child
@@ -75,7 +75,7 @@ async def create_demo_capture(bundle_id: str, req: CaptureRequest) -> CaptureArt
         label=req.label,
         viewport_width=req.viewport_width,
         viewport_height=req.viewport_height,
-        fake_mode=req.fake_mode or prefs.capture_fake_mode,
+        fake_mode=is_simulated(inst, req.fake_mode or prefs.capture_fake_mode),
     )
     try:
         return await engine.capture(

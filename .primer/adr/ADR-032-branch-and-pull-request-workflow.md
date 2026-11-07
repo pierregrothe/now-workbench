@@ -10,7 +10,7 @@
 Until now every commit went straight onto a local `main`, and 110 commits waited for one push.
 The owner's other project (alphaseeker, on srv02chambly) lands every story through a pull
 request: a branch per story, a once-per-PR gate that stamps the commit it proved, an adversarial
-review record, a squash merge, and a release cut by a bot when a merge closes an epic. The
+review record, a squash merge, and a release cut by a bot when a merge ships a PRD. The
 owner asked for the same workflow here (2026-11-07). The global Claude hooks it relies on
 (`pre-pr-check.sh`, `pre-push-guard.sh`, `branch-anchor.sh`) come from the dotfiles repository
 and already apply.
@@ -34,8 +34,9 @@ and already apply.
   switches to `main` and fast-forwards it.
 - **Merge subjects:** a prepare-commit-msg hook rewrites git's `Merge ...` subject to
   `chore(merge): Merge ...` so local merges pass the strict commit-msg gate.
-- **Releases (story 02):** a merge that flips an `epic.md` to complete, or that carries the
-  `release` label, bumps the version, rolls `CHANGELOG.md`, tags and publishes a release from
+- **Releases (story 02; trigger revised 2026-11-07):** a merge that flips a PRD to
+  `status: shipped` (`/primer prd ship`), or that carries the `release` label,
+  bumps the version, rolls `CHANGELOG.md`, tags and publishes a release from
   GitHub Actions. Versions are CalVer `YYYY.MM.N` (N counts a UTC month's releases from 0),
   the primer changelog engine's scheme and alphaseeker's; the owner chose it over SemVer
   (2026-11-07), so the first release turns 0.1.0 into 2026.11.0. Each PR adds one changelog
@@ -79,3 +80,12 @@ Applied on the owner's request "prevent anyone from making any changes except fo
   contributor's PR need approval; Actions may open and merge pull requests (the release bot).
 - Secret scanning with push protection, Dependabot alerts and security updates, and private
   vulnerability reporting are on.
+
+## Revision (2026-11-07): releases follow PRDs
+
+The owner moved the release trigger from "an epic closes" to "a PRD ships". An epic is one slice
+of delivery, while a PRD is the product commitment a version delivers. Closing an epic no longer
+releases. The bump commit's subject became `chore(version): bump to vX for PR #N`, the prefix
+the global PR gate (`pre-pr-check.sh`) exempts from primer staleness. The earlier
+`chore(release): ...` subject left a commit on `main` that blocked every new PR until a primer
+commit landed.

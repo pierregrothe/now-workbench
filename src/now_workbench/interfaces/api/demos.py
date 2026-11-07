@@ -197,10 +197,12 @@ async def seed_demo_records(
 
     body = payload or {}
     instance_id = body.get("instance_id")
-    fake_mode = bool(body.get("fake_mode", False))
+    requested = bool(body.get("fake_mode", False))
 
     with db_session() as conn:
-        engine = SeedEngine(conn=conn, fake_mode=fake_mode)
+        # SeedEngine itself simulates a simulated instance (is_simulated); this adds the flags.
+        prefs = PreferencesRepository(conn).get_workbench_preferences()
+        engine = SeedEngine(conn=conn, fake_mode=requested or prefs.sdk_fake_mode)
         try:
             return await engine.load_and_seed(bundle_id, bundle_path, instance_id=instance_id)
         except Exception as exc:
@@ -214,7 +216,8 @@ async def rollback_seed_records(
 ) -> dict[str, Any]:
     """Roll back (delete) all records created in a previous seed operation."""
     with db_session() as conn:
-        engine = SeedEngine(conn=conn, fake_mode=fake_mode)
+        prefs = PreferencesRepository(conn).get_workbench_preferences()
+        engine = SeedEngine(conn=conn, fake_mode=fake_mode or prefs.sdk_fake_mode)
         try:
             deleted_count, errors = await engine.rollback(operation_id)
             return {

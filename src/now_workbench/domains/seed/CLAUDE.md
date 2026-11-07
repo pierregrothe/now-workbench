@@ -30,8 +30,8 @@ restore system properties (`properties`), or own the instance registry (`instanc
   deliberately NO foreign key to instances, so history outlives a removed instance.
 - `SeedEngine` opens `InstanceRepository` and `SeedRepository` on the connection it is given
   (from `db_session()`, or the caller's unit of work); both share its transaction.
-- Imports `InstanceRecord`, `InstanceRepository` from `instances`; `current_owner` from
-  platform. No other domain import.
+- Imports `InstanceRecord`, `InstanceRepository`, `is_simulated` from `instances`;
+  `current_owner` from platform. No other domain import.
 - Callers: `demos` (`pipeline.py`: seeds after the optional Fluent deploy, passing its
   `table_map`, ADR-022), `interfaces/api/demos.py` (seed, rollback, list, reset),
   `interfaces/cli/bundles.py` and `interfaces/cli/properties.py`, and the Otto tools
@@ -57,10 +57,12 @@ restore system properties (`properties`), or own the instance registry (`instanc
 - `rollback` (and a non-fake `verify`) resolves the instance by the stored id through the
   owner-scoped registry: if the instance was deleted it raises `ValueError` even though the
   audit row remains.
-- `fake_mode` is decided by the CALLER and only by it: the engine never looks at
-  `settings`, the `sdk_fake_mode` preference or a `fake://` URL. Fake posts return
-  `fake_sys_...` ids, fake deletes succeed, fake `verify` reports "simulated". Seeding and
-  rollback still need a registered instance in fake mode.
+- Simulation is `is_simulated(instance, fake_mode)` (instances), applied by the engine to
+  each record call and to `verify`: a `fake://` or `http://fake` instance is never called,
+  whatever flag the caller passed. The flag itself is the caller's: the engine never reads
+  `settings` or preferences; the seed and rollback APIs OR the request flag with
+  `sdk_fake_mode`. Fake posts return `fake_sys_...` ids, fake deletes succeed, fake `verify`
+  reports "simulated". Seeding and rollback still need a registered instance in fake mode.
 - Date wizard: `{{TODAY}}` and `{{NOW}}` both mean the current UTC instant (TODAY is not
   midnight); units s, m, h, d, w; output `YYYY-MM-DD HH:MM:SS`, case-insensitive.
 - Non-basic auth sends no credentials (`httpx.USE_CLIENT_DEFAULT`).

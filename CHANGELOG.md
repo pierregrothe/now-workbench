@@ -2,7 +2,7 @@
 
 One line per change, newest first: `### Added`, `### Changed`, `### Fixed`, `### Removed`, `### Security`.
 The story behind a change is in its pull request (the number in brackets) and in `git log`.
-Releases are cut when an epic closes. Months below were condensed from pull-request titles:
+Releases are cut when a PRD ships. Months below were condensed from pull-request titles:
 internal chores, docs, tests and CI are omitted, and the long-form entries are in git history at 947a337.
 
 ## [Unreleased]
@@ -11,7 +11,12 @@ internal chores, docs, tests and CI are omitted, and the long-form entries are i
 - otto: Thumbs up/down with an optional comment and Get help under Otto's replies; ratings kept per reply, listed in Settings (admins see all)
 
 ### Changed
+- web: Synthesizer and Media Capture follow the Otto look (ADR-019): pill buttons, rounded fields, warm chips, 40px phone touch targets
+- governance: a release is cut when a merge ships a PRD, not when an epic closes; the bump commit says chore(version): bump to (ADR-032)
 - api: POST /api/threads/{id}/messages takes questions only (role user); a client can no longer write a message as Otto or the system (422)
+
+### Fixed
+- demos: one is_simulated rule everywhere; a simulated instance never gets a real deploy, seed call or capture; seed and deploy honour sdk_fake_mode
 
 ## [2026.11.1] - 2026-11-07
 
