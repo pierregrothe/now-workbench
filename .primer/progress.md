@@ -6,13 +6,13 @@ Last updated: 2026-11-06
 
 ### Computed Numbers (2026-11-06)
 
-- Tests: 732 collected (`pytest --collect-only`); 61 Playwright e2e tests in 15 specs; coverage 100%
+- Tests: 739 collected (`pytest --collect-only`); 65 Playwright e2e tests in 16 specs; coverage 100%
 - Architecture: platform / domains / interfaces layers, 18 domain public roots, 20 import-linter
   contracts (ADR-015)
 - Enforcement: 11 blocking pre-commit/pre-push gates + 7 baseline-tracked ratchets (governance.md)
 - Ratchet baseline store: 2 entries in `.ratchet/baselines.json`
 - Domains with `protocols.py`/`factory.py`: 0
-- ADRs: 26 (`.primer/adr/`) | PRDs: 3 (`.primer/prd/`)
+- ADRs: 27 (`.primer/adr/`) | PRDs: 3 (`.primer/prd/`)
 
 ### Capability Inventory
 
@@ -56,6 +56,9 @@ EPIC-001 to EPIC-016 are done; their story list is in `archive/progress-history.
 - Demo pipeline end to end on a live instance: modules, properties, Fluent app generated
   into the vendor scope and installed, seed, runbook test, video proof (ADR-022).
 - Otto look and feel matched to EmployeeWorks; light only; resizable sidebar (ADR-019).
+- Chart tiles (line, area, bar, pie, donut, meter, KPI sparklines) in plain SVG with smooth
+  monotone curves and a data table view; `usage_history` and `seed_activity` chart the
+  person's own activity (ADR-027).
 
 ## Known Issues
 
