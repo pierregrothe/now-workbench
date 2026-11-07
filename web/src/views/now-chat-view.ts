@@ -20,6 +20,7 @@ import '../components/now-markdown.js';
 import type { UITileSpec } from '../tiles/now-tile-renderer.js';
 import { StoreController } from '../controllers/store-controller.js';
 import './now-workspace-bar.js';
+import { replyExcerpt } from './now-reply-feedback.js';
 
 /** Time-of-day greeting, like the Otto home screen. */
 const greeting = (): string => {
@@ -310,6 +311,9 @@ export class NowChatView extends LitElement {
       ${steps}
       <now-markdown .text=${msg.text}></now-markdown>
       ${tiles}
+      ${msg.id
+        ? html`<now-reply-feedback .messageId=${msg.id} .feedback=${msg.feedback ?? null} .excerpt=${replyExcerpt(msg.text)}></now-reply-feedback>`
+        : ''}
     </div>`;
   }
 

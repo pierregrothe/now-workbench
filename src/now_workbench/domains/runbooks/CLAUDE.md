@@ -56,7 +56,7 @@ scope (`demos` applies the ADR-022 table map before testing), or store anything.
 - Verification fails OPEN on content: HTTP 200 passes the stage even with zero rows ("table
   accessible"). It proves the table exists and is readable, not that seed data is there.
   Non-200 or any exception fails the stage, never raises.
-- Simulation passes every stage: `fake_mode`, a `fake://` URL or an `http://fake` URL. A stage
+- Simulation (`is_simulated` from instances) passes every stage. A stage
   without a target table passes with no call.
 - `test_runbook` reports `all_passed=False` for a guide with no stages; `demos` short-circuits
   that case to True itself.

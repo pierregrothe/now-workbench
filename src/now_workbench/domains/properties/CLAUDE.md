@@ -46,7 +46,7 @@ records (`seed`), or orchestrate the full demo run (`demos`).
 - Bundle file: `properties/sys_properties.json`, else `sys_properties.json` at the bundle
   root. Values are coerced to strings. `BundleManager.inspect_bundle` only reads the first
   location, so a root-level file applies but does not show in bundle info.
-- Fake mode is `fake_mode=True` OR an instance URL starting `fake://` or `http://fake`: no
+- Fake mode is `is_simulated(instance, fake_mode)` (instances domain): no
   HTTP, a simulated snapshot of `old_<name>` values is saved, and restore just deletes it.
 - Auth: basic auth only when `auth_type` is `basic`; any other type sends no credentials.
 - Fail-soft: apply and restore never raise for HTTP trouble; they return

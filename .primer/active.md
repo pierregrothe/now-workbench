@@ -7,7 +7,7 @@ Python Version: `3.14.10`
 
 ## Current Focus
 
-EPIC-018 story 02 (Synthesizer and Media Capture restyle) landing; fake-mode safety (EPIC-021/01) and the feedback row (EPIC-018/01) next; PRD-004 accepted, EPIC-022 queued.
+EPIC-018 story 01 (feedback row, schema v15) landing; EPIC-018/03 restyle in review; EPIC-021/02-03 in progress; EPIC-022 (Otto memory, schema v16) next.
 
 `main` -- deployed and live at https://workbench.grothe.ca (srv01chambly, Cloudflare Access).
 Per-user data, groups and approved sharing, impersonation, attachments and limits, and an

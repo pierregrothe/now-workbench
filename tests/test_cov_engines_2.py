@@ -110,16 +110,22 @@ async def test_deploy_and_seed_deploys_when_project_present(
 ) -> None:
     (bundles / SAMPLE / "package.json").write_text("{}", encoding="utf-8")
     monkeypatch.setattr(pipeline_mod, "NowSdkRunner", _OkRunner)
+
+    async def fake_post(self: SeedEngine, client: object, i: object, t: str, f: object) -> str:
+        return "sys1"
+
+    monkeypatch.setattr(SeedEngine, "_post_record", fake_post)
     with db_session() as conn:
-        inst = InstanceRepository(conn).get_default_instance()
-        assert inst is not None
+        inst = InstanceRepository(conn).add_instance(
+            InstanceCreate(id="r", name="Real", url="https://real.service-now.com", password="p")
+        )
         engine = DemoPipelineEngine(bundles_dir=bundles, conn=conn)
-        seed, note, _renames = await engine.deploy_and_seed(SAMPLE, inst, fake_mode=True)
+        seed, note, _renames = await engine.deploy_and_seed(SAMPLE, inst)
         assert note == "Fluent app deployed."
         assert seed.status == "completed"
         monkeypatch.setattr(pipeline_mod, "NowSdkRunner", _BadRunner)
         with pytest.raises(PipelineStepError, match="exit code 2.*boom"):
-            await engine.deploy_and_seed(SAMPLE, inst, fake_mode=True)
+            await engine.deploy_and_seed(SAMPLE, inst)
 
 
 async def test_full_pipeline_with_fake_video_succeeds(bundles: Path) -> None:
@@ -409,8 +415,14 @@ def test_synthesize_and_capture_cli(bundles: Path, monkeypatch: pytest.MonkeyPat
     unknown = runner.invoke(app, ["demo", "capture", "syn-1", "--instance", "nope", "--fake"])
     assert unknown.exit_code == 1
     assert "Instance 'nope' not found" in unknown.stdout
+    with db_session() as conn:  # a real instance: a simulated one only gets a placeholder
+        InstanceRepository(conn).add_instance(
+            InstanceCreate(id="r", name="Real", url="https://real.service-now.com", password="p")
+        )
     monkeypatch.setenv("PATH", "/nonexistent-bin")
-    failed = runner.invoke(app, ["demo", "capture", "syn-1", "--type", "screenshot"])
+    failed = runner.invoke(
+        app, ["demo", "capture", "syn-1", "--instance", "r", "--type", "screenshot"]
+    )
     assert failed.exit_code == 1
     assert "Capture failed" in failed.stdout
 
@@ -853,12 +865,6 @@ async def test_full_pipeline_property_and_deploy_failures(
         summary = await engine.run_full_pipeline(SAMPLE, inst, fake_mode=True, record_video=False)
         assert summary.status == "failed"
         assert "x failed" in summary.message
-        monkeypatch.undo()
-        (bundles / SAMPLE / "package.json").write_text("{}", encoding="utf-8")
-        monkeypatch.setattr(pipeline_mod, "NowSdkRunner", _BadRunner)
-        deploy = await engine.run_full_pipeline(SAMPLE, inst, fake_mode=True, record_video=False)
-        assert deploy.status == "failed"
-        assert "SDK deploy failed" in deploy.message
 
 
 async def test_execute_video_playbook_fake_mode_writes_media(tmp_path: Path) -> None:

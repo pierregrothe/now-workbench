@@ -11,7 +11,7 @@ from now_workbench.domains.capture import (
     CaptureRequest,
     PlaywrightCaptureEngine,
 )
-from now_workbench.domains.instances import InstanceRepository
+from now_workbench.domains.instances import InstanceRepository, is_simulated
 from now_workbench.domains.synthesizer import (
     NoReleaseError,
     UseCaseSynthesisRequest,
@@ -98,7 +98,7 @@ def capture_demo_cmd(
                     target_path=target_path,
                     media_type=media_type,
                     label=label,
-                    fake_mode=fake,
+                    fake_mode=is_simulated(inst, fake),
                 ),
                 instance_url=inst.url,
                 username=inst.username,

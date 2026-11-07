@@ -551,8 +551,8 @@ def test_api_threads_and_messages_endpoints(tmp_path: Path) -> None:
             "/api/threads/default-thread/messages",
             json={"content": "System note", "role": "system"},
         )
-        assert r_sys.status_code == 200
-        assert r_sys.json()[-1]["role"] == "system"
+        # Only questions come in over the API: a client cannot write other roles.
+        assert r_sys.status_code == 422
 
         # 6. Archive, unarchive, get, and delete conversation thread + context limit
         new_t = client.post(

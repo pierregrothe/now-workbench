@@ -72,3 +72,11 @@ export const searchIcon = (size = 18): TemplateResult => html`
     <path d="m15.5 15.5 4.5 4.5" />
   </svg>
 `;
+
+/** Thumb outline; `down` flips it for a thumbs down. Filled when the choice is made. */
+export const thumbIcon = (down: boolean, filled = false, size = 16): TemplateResult => html`
+  <svg viewBox="0 0 24 24" width=${size} height=${size} aria-hidden="true" fill=${filled ? 'currentColor' : 'none'} stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style=${down ? 'transform: rotate(180deg);' : ''}>
+    <path d="M7 10v11H4a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1z" />
+    <path d="M7 10l4-7a2 2 0 0 1 2.9 2.2L13 9h5.6a2 2 0 0 1 2 2.4l-1.6 7.8a2 2 0 0 1-2 1.8H7" />
+  </svg>
+`;
