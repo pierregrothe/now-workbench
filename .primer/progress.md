@@ -6,13 +6,14 @@ Last updated: 2026-11-06
 
 ### Computed Numbers (2026-11-06)
 
-- Tests: 739 collected (`pytest --collect-only`); 65 Playwright e2e tests in 16 specs; coverage 100%
+- Tests: 775 collected (`pytest --collect-only`); 68 Playwright e2e tests in 17 specs; coverage 100%;
+  new ADR-027/028 modules mutation-tested (mutmut, 967/967 killed; on demand, not a gate)
 - Architecture: platform / domains / interfaces layers, 18 domain public roots, 20 import-linter
   contracts (ADR-015)
 - Enforcement: 11 blocking pre-commit/pre-push gates + 7 baseline-tracked ratchets (governance.md)
 - Ratchet baseline store: 2 entries in `.ratchet/baselines.json`
 - Domains with `protocols.py`/`factory.py`: 0
-- ADRs: 27 (`.primer/adr/`) | PRDs: 3 (`.primer/prd/`)
+- ADRs: 28 (`.primer/adr/`) | PRDs: 3 (`.primer/prd/`)
 
 ### Capability Inventory
 
@@ -59,6 +60,9 @@ EPIC-001 to EPIC-016 are done; their story list is in `archive/progress-history.
 - Chart tiles (line, area, bar, pie, donut, meter, KPI sparklines) in plain SVG with smooth
   monotone curves and a data table view; `usage_history` and `seed_activity` chart the
   person's own activity (ADR-027).
+- Telemetry: every action run and Claude call recorded per person (real actor under view-as),
+  enforced by architecture tests; charts of tokens per day, action history, team usage
+  (administrators) and live instance counts; Otto's text rendered as safe HTML (ADR-028).
 
 ## Known Issues
 
