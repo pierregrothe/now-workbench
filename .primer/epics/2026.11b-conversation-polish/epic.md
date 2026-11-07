@@ -4,7 +4,7 @@ Phase: 2026.11b
 Date: 2026-11-07
 Source: owner backlog review 2026-11-07 (.primer/active.md Next Steps and Known Issues)
 Board: EPIC-018
-Progress: 1/5 stories done
+Progress: 3/5 stories done
 
 ## Goal
 
@@ -34,9 +34,9 @@ Finish PRD-002 (feedback row, Otto look on four screens), make demo-app removal 
 
 | Requirement | Story | Status |
 |-------------|-------|--------|
-| FR1 | 01-chat-feedback-row | backlog |
+| FR1 | 01-chat-feedback-row | done |
 | FR2 | 02-restyle-synthesizer-capture | done |
-| FR3 | 03-restyle-fluent-artifacts | backlog |
+| FR3 | 03-restyle-fluent-artifacts | done |
 | FR4 | 04-remove-deployed-demo-app | backlog |
 | FR5 | 05-tests-mirror-layout | backlog |
 
@@ -44,9 +44,9 @@ Finish PRD-002 (feedback row, Otto look on four screens), make demo-app removal 
 
 | # | Title | Dependencies | Status |
 |---|-------|--------------|--------|
-| 01 | Thumbs up/down and Get help under Otto's replies | none | backlog |
+| 01 | Thumbs up/down and Get help under Otto's replies | none | done |
 | 02 | Synthesizer and Media Capture in the Otto look | none | done |
-| 03 | Fluent Explorer and Artifact library cards in the Otto look | none | backlog |
+| 03 | Fluent Explorer and Artifact library cards in the Otto look | none | done |
 | 04 | Remove a deployed demo app from an instance | none | backlog |
 | 05 | Tests mirror the platform / domains / interfaces layout | none | backlog |
 

@@ -10,6 +10,7 @@ from now_workbench.domains.conversations.models import (
     ChatThreadCreate,
     ChatThreadRecord,
     ChatThreadUpdate,
+    ReplyRating,
 )
 from now_workbench.platform.db.repository import Repository
 from now_workbench.platform.owner import current_owner
@@ -141,8 +142,9 @@ class ThreadRepository(Repository):
         cursor = self.conn.execute(
             """
             SELECT m.id, m.thread_id, m.role, m.content, m.widget_type, m.widget_data,
-                   m.created_at
+                   m.created_at, f.rating, f.comment
             FROM chat_messages m JOIN chat_threads t ON t.id = m.thread_id
+            LEFT JOIN message_feedback f ON f.message_id = m.id
             WHERE m.thread_id = ? AND t.owner_email = ? ORDER BY m.created_at ASC;
             """,
             (thread_id, current_owner()),
@@ -159,6 +161,11 @@ class ThreadRepository(Repository):
                     widget_type=row["widget_type"],
                     widget_data=w_data,
                     created_at=datetime.fromisoformat(row["created_at"]),
+                    feedback=(
+                        ReplyRating(rating=row["rating"], comment=row["comment"])
+                        if row["rating"]
+                        else None
+                    ),
                 )
             )
         return messages

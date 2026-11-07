@@ -1,78 +1,97 @@
 // web/src/components/now-demo-catalog-styles.ts
-// Styles of <now-demo-catalog> (ADR-024: CSS lives beside its component).
+// Styles of <now-demo-catalog> in the Otto look (ADR-019; ADR-024: CSS beside its component).
+// The shared form rules (form-styles.ts) come first: the .btn-primary pill is the import
+// button here and the primary action of the deploy and clone dialogs that reuse this sheet.
+// The modal rules (those dialogs and the media proofs viewer) are in now-demo-catalog-modal-styles.ts.
 // Author: Pierre Grothe
 // Date: 2026-11-07
 
 import { css } from 'lit';
+import { formStyles } from '../styles/form-styles.js';
+import { demoCatalogModalStyles } from './now-demo-catalog-modal-styles.js';
 
-export const demoCatalogStyles = css`
+export const demoCatalogStyles = [formStyles, css`
     :host {
       display: block;
-      padding: 24px 32px;
+      padding: 24px 36px;
       overflow-y: auto;
       height: 100%;
-      background-color: var(--now-bg-canvas);
+      background-color: var(--otto-canvas, #efece7);
     }
 
     .header-row {
       display: flex;
       justify-content: space-between;
       align-items: center;
+      gap: 16px;
       margin-bottom: 24px;
     }
 
     .title-block h1 {
-      font-size: 20px;
-      font-weight: 700;
-      color: var(--now-text-primary);
+      margin: 0;
+      font-size: 24px;
+      font-weight: 500;
+      color: var(--now-text-primary, #0f172a);
     }
 
     .title-block p {
       font-size: 13px;
-      color: var(--now-text-secondary);
-      margin-top: 4px;
+      color: var(--now-text-secondary, #475467);
+      margin: 4px 0 0;
     }
 
-    .btn-primary {
-      background-color: var(--now-color-brand-green);
-      color: #ffffff;
-      font-weight: 600;
-      font-size: 13px;
-      padding: 8px 16px;
-      border-radius: var(--now-radius-sm);
-      border: none;
-      cursor: pointer;
+    .catalog-notice {
       display: flex;
+      justify-content: space-between;
       align-items: center;
-      gap: 8px;
-      transition: background-color 0.15s ease;
+      gap: 12px;
+      margin-bottom: 16px;
+      padding: 10px 16px;
+      background: var(--now-bg-surface-0, #ffffff);
+      border: 1px solid rgba(0, 0, 0, 0.05);
+      border-radius: var(--now-radius-md, 10px);
+      font-size: 13px;
+      overflow-wrap: anywhere;
     }
 
-    .btn-primary:hover {
-      background-color: var(--now-color-brand-green-hover);
+    .notice-close {
+      flex-shrink: 0;
+      min-width: 32px;
+      min-height: 32px;
+      background: none;
+      border: none;
+      border-radius: var(--now-radius-pill, 9999px);
+      cursor: pointer;
+      font-weight: 700;
+      font-size: 14px;
+      color: var(--now-text-secondary, #475467);
+    }
+
+    .notice-close:hover {
+      background: #f4f3f0;
     }
 
     .cards-grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(min(100%, 360px), 1fr));
-      gap: 20px;
+      gap: 16px;
     }
 
     .demo-card {
+      min-width: 0;
       background-color: var(--now-bg-surface-0, #ffffff);
       border: 1px solid rgba(0, 0, 0, 0.05);
-      border-radius: 16px;
+      border-radius: var(--now-radius-lg, 16px);
       padding: 24px;
       display: flex;
       flex-direction: column;
-      box-shadow: 0 1px 2px 0 rgba(15, 23, 42, 0.03);
-      transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
       position: relative;
     }
 
     .demo-card:hover {
-      border-color: rgba(0, 0, 0, 0.12);
-      box-shadow: 0 8px 16px -2px rgba(15, 23, 42, 0.08);
+      box-shadow: var(--now-shadow-soft, 0 4px 18px rgba(0, 0, 0, 0.05));
       transform: translateY(-2px);
     }
 
@@ -80,42 +99,45 @@ export const demoCatalogStyles = css`
       display: flex;
       justify-content: space-between;
       align-items: flex-start;
+      gap: 10px;
       margin-bottom: 10px;
     }
 
     .demo-title {
       font-size: 16px;
       font-weight: 700;
-      color: var(--now-text-primary);
+      color: var(--now-text-primary, #0f172a);
+      overflow-wrap: anywhere;
     }
 
     .release-badge {
-      font-size: 11px;
+      flex-shrink: 0;
+      font-size: 11.5px;
       font-weight: 600;
       padding: 2px 8px;
-      border-radius: var(--now-radius-pill);
-      background-color: #f0fdf4;
-      color: #16a34a;
-      border: 1px solid #bbf7d0;
+      border-radius: var(--now-radius-pill, 9999px);
+      background-color: #ecfdf5;
+      color: #047857;
     }
 
     .demo-desc {
       font-size: 13px;
-      color: var(--now-text-secondary);
+      color: var(--now-text-secondary, #475467);
       flex: 1;
-      margin-bottom: 16px;
+      margin: 0 0 16px;
       line-height: 1.5;
     }
 
     .metadata-bar {
       display: flex;
-      gap: 16px;
+      flex-wrap: wrap;
+      gap: 8px 16px;
       padding: 10px 0;
-      border-top: 1px solid var(--now-border-subtle);
-      border-bottom: 1px solid var(--now-border-subtle);
+      border-top: 1px solid #f4f3f0;
+      border-bottom: 1px solid #f4f3f0;
       margin-bottom: 16px;
       font-size: 12px;
-      color: var(--now-text-muted);
+      color: var(--now-text-muted, #64748b);
     }
 
     .meta-item {
@@ -125,7 +147,7 @@ export const demoCatalogStyles = css`
     }
 
     .meta-val {
-      color: var(--now-text-primary);
+      color: var(--now-text-primary, #0f172a);
       font-weight: 600;
     }
 
@@ -137,17 +159,17 @@ export const demoCatalogStyles = css`
     }
 
     .tag-pill {
-      font-size: 11px;
+      font-size: 11.5px;
       font-weight: 500;
-      background-color: var(--now-bg-surface-1);
-      color: var(--now-text-secondary);
-      padding: 2px 8px;
-      border-radius: var(--now-radius-pill);
-      border: 1px solid var(--now-border-subtle);
+      background-color: #f4f3f0;
+      color: var(--now-text-secondary, #475467);
+      padding: 2px 10px;
+      border-radius: var(--now-radius-pill, 9999px);
     }
 
     .card-actions {
       display: flex;
+      flex-wrap: wrap;
       gap: 8px;
     }
 
@@ -212,6 +234,7 @@ export const demoCatalogStyles = css`
       border-radius: 999px;
       background: #efece7;
       color: #3f4148;
+      overflow-wrap: anywhere;
     }
 
     .own-chip.shared {
@@ -237,128 +260,59 @@ export const demoCatalogStyles = css`
       fill: currentColor;
     }
 
-    .modal-overlay {
-      position: fixed;
-      inset: 0;
-      background: rgba(15, 23, 42, 0.5);
-      backdrop-filter: blur(4px);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      z-index: 1000;
+    /* The library's own icon buttons are round, as the Otto toolbar buttons. */
+    .header-row .icon-btn,
+    .card-actions .icon-btn {
+      border-radius: var(--now-radius-pill, 9999px);
     }
 
-    .modal-card {
-      background: var(--now-bg-surface-0, #ffffff);
-      border-radius: var(--now-radius-md, 8px);
-      border: 1px solid var(--now-border-subtle, #e2e8f0);
-      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
-      width: 480px;
-      max-width: 90vw;
-      padding: 24px;
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
+    .card-actions .btn-secondary:not(.btn-danger) {
+      border-color: var(--now-border-subtle, #e2e8f0);
     }
 
-    .modal-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-    }
-
-    .modal-header h2 {
-      font-size: 17px;
-      font-weight: 700;
-      color: var(--now-text-primary, #0f172a);
-      margin: 0;
-    }
-
-    .modal-body {
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-    }
-
-    .modal-input-field {
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-    }
-
-    .modal-input-field label {
-      font-size: 12px;
-      font-weight: 600;
-      color: var(--now-text-primary, #334155);
-    }
-
-    .modal-input-field input {
-      font-size: 13px;
-      padding: 8px 12px;
-      border-radius: 6px;
-      border: 1px solid var(--now-border-medium, #cbd5e1);
-      background: var(--now-bg-surface-1, #fafaf9);
-      color: var(--now-text-primary, #111827);
-      outline: none;
-    }
-
-    .modal-input-field input:focus {
-      border-color: var(--now-color-brand-green, #23a17e);
-    }
-
-    .modal-error {
-      font-size: 12px;
-      color: #dc2626;
-      background: #fef2f2;
-      border: 1px solid #fecaca;
-      padding: 6px 10px;
-      border-radius: 6px;
-    }
-
-    .modal-footer {
-      display: flex;
-      align-items: center;
-      justify-content: flex-end;
-      gap: 10px;
-      margin-top: 8px;
+    .card-actions .btn-secondary:hover {
+      background-color: #f4f3f0;
     }
 
     .card-date-badge {
       display: inline-flex;
       align-items: center;
       gap: 5px;
-      font-size: 11px;
-      color: var(--now-text-secondary, #64748b);
+      font-size: 11.5px;
+      color: var(--now-text-secondary, #475467);
       margin-bottom: 8px;
     }
 
     .media-proofs-bar {
       display: flex;
+      flex-wrap: wrap;
       align-items: center;
       justify-content: space-between;
-      padding: 8px 10px;
-      background: var(--now-bg-surface-1, #f8fafc);
-      border: 1px solid var(--now-border-subtle, #e2e8f0);
-      border-radius: var(--now-radius-sm, 6px);
+      gap: 8px;
+      padding: 8px 12px;
+      background: #f4f3f0;
+      border-radius: var(--now-radius-md, 10px);
       margin-bottom: 14px;
-      font-size: 11.5px;
+      font-size: 12px;
     }
 
     .media-proofs-summary {
       display: flex;
       align-items: center;
       gap: 6px;
-      color: var(--now-text-secondary, #475569);
+      min-width: 0;
+      color: var(--now-text-secondary, #475467);
     }
 
     .btn-proofs {
       background: #eff6ff;
       border: 1px solid #bfdbfe;
       color: #1d4ed8;
-      font-size: 11px;
+      font: inherit;
+      font-size: 11.5px;
       font-weight: 600;
-      padding: 3px 8px;
-      border-radius: 4px;
+      padding: 3px 10px;
+      border-radius: var(--now-radius-pill, 9999px);
       cursor: pointer;
     }
 
@@ -366,41 +320,31 @@ export const demoCatalogStyles = css`
       background: #dbeafe;
     }
 
-    .proof-item {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      padding: 12px;
-      border: 1px solid var(--now-border-subtle, #e2e8f0);
-      border-radius: 8px;
-      background: var(--now-bg-surface-1, #f8fafc);
-    }
-
-    .proof-media-wrapper {
-      max-height: 220px;
-      border-radius: 6px;
-      overflow: hidden;
-      background: #032d42;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    .proof-media-wrapper img,
-    .proof-media-wrapper video {
-      max-width: 100%;
-      max-height: 220px;
-      object-fit: contain;
-    }
-  
-    /* Phones (ADR-030): tighter gutters. */
+    /* Phones (ADR-030): 12px gutters and 40px touch targets. */
     @media (max-width: 768px), (max-height: 500px) {
       :host {
         padding: 16px 12px;
       }
 
+      .title-block h1 {
+        font-size: 20px;
+      }
+
       .demo-card {
         padding: 16px;
       }
+
+      .header-row .icon-btn,
+      .card-actions .icon-btn {
+        width: 40px;
+        height: 40px;
+        flex-basis: 40px;
+      }
+
+      .notice-close,
+      .btn-proofs {
+        min-width: 40px;
+        min-height: 40px;
+      }
     }
-`;
+`, demoCatalogModalStyles];

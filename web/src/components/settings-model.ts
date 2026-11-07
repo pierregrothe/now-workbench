@@ -58,6 +58,7 @@ export type SettingsSection =
   | 'impersonate'
   | 'claude'
   | 'limits'
+  | 'feedback'
   | 'capture'
   | 'synthesis'
   | 'workspace'
@@ -71,6 +72,7 @@ export const SECTIONS: { id: SettingsSection; label: string; adminOnly?: boolean
   { id: 'impersonate', label: 'View as someone' },
   { id: 'claude', label: 'Claude and Otto', adminOnly: true },
   { id: 'limits', label: 'Conversation limits', adminOnly: true },
+  { id: 'feedback', label: 'Reply feedback' },
   { id: 'capture', label: 'Media capture' },
   { id: 'synthesis', label: 'Synthesis defaults' },
   { id: 'workspace', label: 'Workspace' },

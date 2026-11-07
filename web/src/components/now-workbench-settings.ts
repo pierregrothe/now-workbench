@@ -6,6 +6,7 @@ import '../views/now-impersonation.js';
 import '../views/now-limits-settings.js';
 import '../views/now-usage-allowances.js';
 import '../views/now-usage-card.js';
+import '../views/now-feedback-list.js';
 import { LitElement, html, type PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import './now-admin-panel.js';
@@ -260,6 +261,8 @@ export class NowWorkbenchSettings extends LitElement {
         ? html`<div class="scroll-body"><div class="settings-container"><now-impersonation-settings></now-impersonation-settings></div></div>`
         : this.activeSection === 'limits'
         ? html`<div class="scroll-body"><div class="settings-container"><now-limits-settings></now-limits-settings></div></div>`
+        : this.activeSection === 'feedback'
+        ? html`<div class="scroll-body"><div class="settings-container"><now-feedback-list .admin=${isAdmin(this.store.state.profile)}></now-feedback-list></div></div>`
         : this.activeSection === 'instances'
         ? html`
             <now-admin-panel

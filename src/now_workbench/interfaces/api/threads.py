@@ -187,7 +187,7 @@ def _sent_files(attachments: list[Attachment]) -> dict[str, list[dict[str, Any]]
 
 @router.post("/{thread_id}/messages", response_model=list[ChatMessageRecord])
 def post_thread_message(thread_id: str, req: ChatMessageCreate) -> StreamingResponse:
-    """Append a user message to a thread and generate a contextual assistant reply.
+    """Append a question to a thread and generate a contextual assistant reply.
 
     Checks (thread, limits, attachments) answer at once with their status codes. The reply
     can take minutes (a full demo pipeline), longer than Cloudflare waits for a response to
@@ -206,7 +206,7 @@ def post_thread_message(thread_id: str, req: ChatMessageCreate) -> StreamingResp
         existing_msgs = thread_repo.list_messages(thread_id)
         # Confirming an action Otto already proposed is not a new question.
         note = ""
-        if req.role == "user" and req.widget_type != "tool_confirm":
+        if req.widget_type != "tool_confirm":
             try:
                 check_can_ask(thread, chat_repo.get_conversation_limits())
             except LimitReachedError as exc:
@@ -216,8 +216,7 @@ def post_thread_message(thread_id: str, req: ChatMessageCreate) -> StreamingResp
             except AllowanceExhaustedError as exc:
                 raise HTTPException(status_code=429, detail=str(exc)) from exc
         _require_unsent(chat_repo.list_attachments(thread_id), req.attachment_ids)
-        if req.role == "user":
-            _auto_title(conn, thread, req.content)
+        _auto_title(conn, thread, req.content)
 
     worker = _ReplyWorker(thread_id, req, existing_msgs)
     contextvars.copy_context().run(worker.start)
@@ -270,7 +269,7 @@ def _save_turn(
     req: ChatMessageCreate,
     existing_msgs: list[ChatMessageRecord],
 ) -> list[ChatMessageRecord]:
-    """Persist the message, produce Otto's reply for a user turn, and return the history."""
+    """Persist the question, produce Otto's reply, and return the history."""
     chat_repo = ChatRepository(conn)
     thread_repo = ThreadRepository(conn)
     attachments = chat_repo.list_attachments(thread_id)
@@ -285,41 +284,38 @@ def _save_turn(
     thread_repo.add_message(user_msg)
     chat_repo.attach_to_message(req.attachment_ids, user_msg.id)
 
-    if req.role == "user":
-        context_window = existing_msgs[-MAX_THREAD_CONTEXT_MESSAGES:]
-        if req.widget_type == "tool_confirm":
-            reply = confirmed_tool_reply(req, conn, context_window, thread_id)
-        else:
-            by_id = {a.id: a for a in attachments}
-            files = ConversationFiles(
-                by_message={}, current=claude_blocks([by_id[a] for a in req.attachment_ids])
-            )
-            prior = replay_conversation(
-                existing_msgs, thread_repo.list_transcripts(thread_id), _sent_files(attachments)
-            )
-            reply = build_contextual_reply(
-                req.content, conn, context_window, files, prior, thread_id
-            )
-        thread_repo.add_message(
-            ChatMessageRecord(
-                id=f"msg-{uuid.uuid4().hex[:8]}",
-                thread_id=thread_id,
-                role="assistant",
-                content=reply.text,
-                widget_type=reply.widget_type,
-                widget_data=reply.widget_data,
-            ),
-            transcript=reply.transcript,
+    context_window = existing_msgs[-MAX_THREAD_CONTEXT_MESSAGES:]
+    if req.widget_type == "tool_confirm":
+        reply = confirmed_tool_reply(req, conn, context_window, thread_id)
+    else:
+        by_id = {a.id: a for a in attachments}
+        files = ConversationFiles(
+            by_message={}, current=claude_blocks([by_id[a] for a in req.attachment_ids])
         )
-        thread_repo.add_thread_tokens(thread_id, reply.tokens)
-        usage = reply.widget_data.get("usage") or {}
-        if usage:
-            logging.getLogger("uvicorn.error").info(
-                "Otto usage thread=%s input=%s cache_read=%s cache_write=%s output=%s "
-                "compactions=%s billable=%s",
-                thread_id,
-                *(usage.get(k, 0) for k in ("input", "cache_read", "cache_write", "output")),
-                usage.get("compactions", 0),
-                usage.get("billable", 0),
-            )
+        prior = replay_conversation(
+            existing_msgs, thread_repo.list_transcripts(thread_id), _sent_files(attachments)
+        )
+        reply = build_contextual_reply(req.content, conn, context_window, files, prior, thread_id)
+    thread_repo.add_message(
+        ChatMessageRecord(
+            id=f"msg-{uuid.uuid4().hex[:8]}",
+            thread_id=thread_id,
+            role="assistant",
+            content=reply.text,
+            widget_type=reply.widget_type,
+            widget_data=reply.widget_data,
+        ),
+        transcript=reply.transcript,
+    )
+    thread_repo.add_thread_tokens(thread_id, reply.tokens)
+    usage = reply.widget_data.get("usage") or {}
+    if usage:
+        logging.getLogger("uvicorn.error").info(
+            "Otto usage thread=%s input=%s cache_read=%s cache_write=%s output=%s "
+            "compactions=%s billable=%s",
+            thread_id,
+            *(usage.get(k, 0) for k in ("input", "cache_read", "cache_write", "output")),
+            usage.get("compactions", 0),
+            usage.get("billable", 0),
+        )
     return thread_repo.list_messages(thread_id)
