@@ -10,18 +10,18 @@ Python Version: `3.14.10`
 `main` -- deployed and live at https://workbench.grothe.ca (srv01chambly, Cloudflare Access).
 Per-user data, groups and approved sharing, impersonation, attachments and limits, and an
 autonomous Otto are all verified end to end against a real instance (Alectri, Australia).
-ADR-015, ADR-024 and ADR-025 are done (Otto: 59 tools incl. sharing and admin, a `show` tile catalog): platform / domains / interfaces layers, per-domain repositories, 20
+ADR-015, ADR-024, ADR-025 and ADR-026 are done (Otto: 70 tools, a `show` tile catalog, drives the UI and confirms in words; an Actions screen runs every capability by hand): platform / domains / interfaces layers, per-domain repositories, 20
 import-linter contracts, 500-line modules. The pre-push gate passes (100% coverage, 53 e2e);
 nothing has been pushed yet.
 
 ## Recent Changes
 
 (no merge commits; last 5 commits on `main`)
+- 60cc611 fix(otto): the agent runner takes the whole question, so tools know the conversation
+- a32543a feat(otto): conversational control of the whole app, and an Actions screen (ADR-026)
+- 078086a feat(otto): tiles span one, two or three columns (ADR-025)
+- 46fd091 chore(primer): sync project context
 - 1399d16 feat(web): render Otto's catalog tiles with the app's own elements (ADR-025)
-- 95bb2cb feat(otto): sharing and admin tools, and a show tool for visual tiles (ADR-025)
-- 7f3b433 refactor(domains): sharing, group and team rules move into domain services (ADR-025)
-- b3bda0e chore(primer): sync project context
-- b1dfc53 refactor(web): one InstanceData type; PrefsSection base for preference sections
 
 ## Open Blockers
 

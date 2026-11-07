@@ -6,7 +6,7 @@ Last updated: 2026-11-06
 
 ### Computed Numbers (2026-11-06)
 
-- Tests: 719 collected (`pytest --collect-only`); 55 Playwright e2e tests in 14 specs; coverage 100%
+- Tests: 732 collected (`pytest --collect-only`); 61 Playwright e2e tests in 15 specs; coverage 100%
 - Architecture: platform / domains / interfaces layers, 18 domain public roots, 20 import-linter
   contracts (ADR-015)
 - Enforcement: 11 blocking pre-commit/pre-push gates + 7 baseline-tracked ratchets (governance.md)
