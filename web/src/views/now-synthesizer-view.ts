@@ -3,11 +3,12 @@
 // Author: Pierre Grothe
 // Date: 2026-10-31
 
-import { LitElement, html, css } from 'lit';
+import { LitElement, html } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { DemoPipelineController } from '../controllers/demo-pipeline-controller.js';
 import { workbenchStore } from '../context/workbench-context.js';
 import { workspaceStyles } from '../styles/workspace-styles.js';
+import { synthesizerViewStyles } from './now-synthesizer-view-styles.js';
 import { StoreController } from '../controllers/store-controller.js';
 import './now-workspace-bar.js';
 
@@ -30,124 +31,7 @@ export class NowSynthesizerView extends LitElement {
     }
   }
 
-  static styles = [
-    workspaceStyles,
-    css`
-      .synth-grid {
-        display: grid;
-        grid-template-columns: 420px 1fr;
-        gap: 24px;
-        align-items: start;
-      }
-
-      /* Narrow screens (ADR-030): the form above its result. */
-      @media (max-width: 900px) {
-        .synth-grid {
-          grid-template-columns: minmax(0, 1fr);
-          gap: 16px;
-        }
-      }
-
-      .form-group {
-        margin-bottom: 16px;
-      }
-
-      .form-label {
-        display: block;
-        font-size: 12px;
-        font-weight: 600;
-        color: var(--now-text-secondary, #4b5563);
-        margin-bottom: 6px;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-      }
-
-      .text-input, .select-input, .textarea-input {
-        width: 100%;
-        box-sizing: border-box;
-        padding: 8px 12px;
-        border-radius: 6px;
-        border: 1px solid var(--now-border-subtle, #d1d5db);
-        background: var(--now-bg-surface-0, #ffffff);
-        color: var(--now-text-primary, #111827);
-        font-size: 13px;
-        font-family: inherit;
-      }
-
-      .textarea-input {
-        min-height: 110px;
-        resize: vertical;
-        line-height: 1.45;
-      }
-
-      .action-row {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        margin-top: 20px;
-      }
-
-      .primary-action-btn {
-        padding: 10px 20px;
-        background: var(--now-color-primary, #032d42);
-        color: #ffffff;
-        font-weight: 700;
-        font-size: 13px;
-        border: none;
-        border-radius: 6px;
-        cursor: pointer;
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        transition: background 0.15s ease;
-      }
-
-      .primary-action-btn:disabled {
-        opacity: 0.5;
-        cursor: not-allowed;
-      }
-
-      .tabs-bar {
-        display: flex;
-        gap: 4px;
-        border-bottom: 1px solid var(--now-border-subtle, #e5e7eb);
-        margin-bottom: 16px;
-      }
-
-      .tab-item {
-        padding: 8px 16px;
-        font-size: 13px;
-        font-weight: 600;
-        color: var(--now-text-secondary, #6b7280);
-        background: transparent;
-        border: none;
-        border-bottom: 2px solid transparent;
-        cursor: pointer;
-      }
-
-      .tab-item.active {
-        color: var(--now-color-primary, #032d42);
-        border-bottom-color: var(--now-color-primary, #032d42);
-      }
-
-      .code-preview {
-        background: #0f172a;
-        color: #f8fafc;
-        border-radius: 8px;
-        padding: 16px;
-        font-family: monospace;
-        font-size: 12px;
-        overflow-x: auto;
-        white-space: pre-wrap;
-      }
-
-      .empty-state {
-        text-align: center;
-        padding: 60px 20px;
-        color: var(--now-text-secondary, #6b7280);
-      }
-    `,
-  ];
+  static styles = [workspaceStyles, synthesizerViewStyles];
 
   connectedCallback(): void {
     super.connectedCallback();
@@ -239,16 +123,16 @@ export class NowSynthesizerView extends LitElement {
                 </button>
               </div>
               ${this.pipeline.error
-                ? html`<div class="badge error" role="alert" style="margin-top:12px; display:block;">${this.pipeline.error}</div>`
+                ? html`<div class="badge error form-alert" role="alert">${this.pipeline.error}</div>`
                 : ''}
             </div>
 
             <div class="card">
               ${res
                 ? html`
-                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                    <div class="result-head">
                       <div>
-                        <h3 style="margin:0 0 4px 0; font-size:16px;">${res.title || res.customer_name}</h3>
+                        <h3 class="result-title">${res.title || res.customer_name}</h3>
                         <span class="badge info">${res.fluent_table_name}</span>
                       </div>
                       <button
@@ -261,7 +145,7 @@ export class NowSynthesizerView extends LitElement {
                     </div>
 
                     ${this.pipeline.seedStatusMessage
-                      ? html`<div class="badge ${this.pipeline.seedFailed ? 'error' : this.pipeline.isSeeding ? 'info' : 'success'}" style="margin-bottom:12px; display:block;">${this.pipeline.seedStatusMessage}</div>`
+                      ? html`<div class="badge seed-status ${this.pipeline.seedFailed ? 'error' : this.pipeline.isSeeding ? 'info' : 'success'}">${this.pipeline.seedStatusMessage}</div>`
                       : ''}
 
                     <div class="tabs-bar">
@@ -286,7 +170,7 @@ export class NowSynthesizerView extends LitElement {
                     </div>
 
                     ${this.pipeline.activeResultTab === 'narrative'
-                      ? html`<div style="font-size:13px; line-height:1.6; white-space:pre-wrap;">${res.narrative_markdown}</div>`
+                      ? html`<div class="narrative">${res.narrative_markdown}</div>`
                       : ''}
                     ${this.pipeline.activeResultTab === 'datasets'
                       ? html`<pre class="code-preview">${JSON.stringify(res.seed_records, null, 2)}</pre>`
@@ -297,8 +181,8 @@ export class NowSynthesizerView extends LitElement {
                   `
                 : html`
                     <div class="empty-state">
-                      <p style="font-size: 15px; font-weight: 600; margin-bottom: 8px;">No Synthesized Bundle Yet</p>
-                      <p style="font-size: 13px;">Configure your use-case objective on the left and synthesize a full declarative bundle.</p>
+                      <p class="empty-title">No Synthesized Bundle Yet</p>
+                      <p class="empty-hint">Configure your use-case objective on the left and synthesize a full declarative bundle.</p>
                     </div>
                   `}
             </div>

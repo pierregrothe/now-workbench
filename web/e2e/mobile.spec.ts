@@ -96,6 +96,20 @@ test.describe('phone portrait (iPhone size)', () => {
     expect(size).toBeGreaterThanOrEqual(16);
   });
 
+  test('synthesizer and capture buttons are touch-sized and fields are 16px', async ({ page }) => {
+    const height = async (name: string) =>
+      (await page.getByRole('button', { name, exact: true }).boundingBox())?.height ?? 0;
+    await page.goto('/#synthesizer');
+    expect(await height('Synthesize Demo Bundle')).toBeGreaterThanOrEqual(40);
+    const size = await page
+      .locator('now-synthesizer-view textarea')
+      .evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
+    expect(size).toBeGreaterThanOrEqual(16);
+    await page.goto('/#capture');
+    expect(await height('Video Walkthrough')).toBeGreaterThanOrEqual(40);
+    expect(await height('Capture Screenshot')).toBeGreaterThanOrEqual(40);
+  });
+
   test('the top bar opens the command palette and a command navigates', async ({ page }) => {
     await page.goto('/#home');
     await page.locator('now-mobile-bar').getByRole('button', { name: 'Open command palette' }).tap();

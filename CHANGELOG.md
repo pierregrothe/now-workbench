@@ -7,6 +7,9 @@ internal chores, docs, tests and CI are omitted, and the long-form entries are i
 
 ## [Unreleased]
 
+### Changed
+- web: Synthesizer and Media Capture follow the Otto look (ADR-019): pill buttons, rounded fields, warm chips, 40px phone touch targets
+
 ## [2026.11.1] - 2026-11-07
 
 ### Added
