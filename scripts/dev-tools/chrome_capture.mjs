@@ -8,6 +8,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import puppeteer from "../../web/node_modules/puppeteer-core/lib/puppeteer/puppeteer-core.js";
+import { describeLoadError } from "./tls_errors.mjs";
 
 // CHROME_PATH comes from the environment in the container (Chromium); macOS Chrome otherwise.
 const CHROME_PATH =
@@ -524,7 +525,6 @@ async function main() {
       "--disable-dev-shm-usage",
       `--window-size=${opts.width},${opts.height}`,
       "--disable-web-security",
-      "--ignore-certificate-errors",
     ],
   });
 
@@ -548,7 +548,7 @@ async function main() {
         try {
           await page.goto(`${baseUrl}/login.do`, { waitUntil: "domcontentloaded", timeout: 30000 });
         } catch (err) {
-          console.error(`The instance could not be reached: ${err.message}`);
+          console.error(`The instance could not be reached: ${describeLoadError(err)}`);
           process.exit(1);
         }
         const form = await page.waitForSelector("#user_name", { timeout: 15000 }).catch(() => null);
@@ -578,7 +578,7 @@ async function main() {
           process.exit(1);
         }
       } catch (err) {
-        console.error(`The page could not be loaded: ${err.message}`);
+        console.error(`The page could not be loaded: ${describeLoadError(err)}`);
         process.exit(1);
       }
       // Let the page render its data (ServiceNow lists load after the document).

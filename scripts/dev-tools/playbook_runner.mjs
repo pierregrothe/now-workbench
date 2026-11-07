@@ -8,6 +8,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import puppeteer from "../../web/node_modules/puppeteer-core/lib/puppeteer/puppeteer-core.js";
+import { describeLoadError } from "./tls_errors.mjs";
 
 // CHROME_PATH comes from the environment in the container (Chromium); macOS Chrome otherwise.
 const CHROME_PATH =
@@ -533,7 +534,6 @@ async function main() {
       "--disable-dev-shm-usage",
       `--window-size=${opts.width},${opts.height}`,
       "--disable-web-security",
-      "--ignore-certificate-errors",
     ],
   });
 
@@ -600,7 +600,7 @@ async function main() {
           process.exit(1);
         }
       } catch (err) {
-        console.error(`[PlaybookRunner] Live target unreachable: ${err.message}`);
+        console.error(`[PlaybookRunner] Live target unreachable: ${describeLoadError(err)}`);
         process.exit(1);
       }
 

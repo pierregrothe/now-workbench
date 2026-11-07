@@ -45,7 +45,8 @@ COPY --from=frontend-builder /app/web/dist ./web/dist
 # through puppeteer-core, which they import from web/node_modules.
 COPY web/package.json web/package-lock.json ./web/
 RUN cd web && npm ci --omit=dev --ignore-scripts --no-audit --no-fund && npm cache clean --force
-COPY scripts/dev-tools/chrome_capture.mjs scripts/dev-tools/playbook_runner.mjs ./scripts/dev-tools/
+COPY scripts/dev-tools/chrome_capture.mjs scripts/dev-tools/playbook_runner.mjs \
+    scripts/dev-tools/tls_errors.mjs ./scripts/dev-tools/
 
 # Default demonstration bundles & workspace storage
 COPY bundles/ ./bundles/

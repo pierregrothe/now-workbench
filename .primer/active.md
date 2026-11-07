@@ -7,7 +7,7 @@ Python Version: `3.14.10`
 
 ## Current Focus
 
-Story in progress: `.primer/epics/2026.11a-tester-safeguards/03-cli-bundle-id-guard.story.md` (EPIC-017, STORY-056).
+Story in progress: `.primer/epics/2026.11a-tester-safeguards/04-capture-tls-verified.story.md` (EPIC-017, STORY-057).
 
 `main` -- deployed and live at https://workbench.grothe.ca (srv01chambly, Cloudflare Access).
 Per-user data, groups and approved sharing, impersonation, attachments and limits, and an

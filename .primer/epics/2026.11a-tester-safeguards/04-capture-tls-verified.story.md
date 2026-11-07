@@ -1,6 +1,8 @@
 # Story 2026.11a.04: Capture verifies instance TLS certificates
 
-Status: backlog
+Status: done
+Done: 2026-11-07
+Started: 2026-11-07
 Spec-Clarity: high
 Depends-On: none
 Board: STORY-057
@@ -35,18 +37,18 @@ AC3:
 
 ## Tasks / Subtasks
 
-- [ ] Remove the flag from chrome_capture.mjs and playbook_runner.mjs (AC: 1)
-- [ ] Map Chromium's certificate error to a clear capture failure (AC: 2)
-- [ ] Guard test: no `ignore-certificate-errors` anywhere in scripts/ or src/ (AC: 1)
-- [ ] Test the failure path with a fake driver result (AC: 2)
+- [x] Remove the flag from chrome_capture.mjs and playbook_runner.mjs (AC: 1)
+- [x] Map Chromium's certificate error to a clear capture failure (AC: 2)
+- [x] Guard test: no `ignore-certificate-errors` anywhere in scripts/ or src/ (AC: 1)
+- [x] Test the failure path: helper messages under Node, plus a manual run of the real driver against a self-signed HTTPS server (refused, no file) and example.com (captured) (AC: 2, 3)
 
 ## Definition of Done
 
-- [ ] All acceptance criteria verified
-- [ ] Tests added or updated and passing (pytest 100% coverage; Playwright where UI changes)
-- [ ] Ruff clean (zero violations), mypy strict, tsc clean
-- [ ] No changes outside the story's stated scope
-- [ ] References section links verified
+- [x] All acceptance criteria verified
+- [x] Tests added or updated and passing (pytest 100% coverage; Playwright where UI changes)
+- [x] Ruff clean (zero violations), mypy strict, tsc clean
+- [x] No changes outside the story's stated scope
+- [x] References section links verified
 
 ## Existing Code
 

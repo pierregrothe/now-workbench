@@ -417,7 +417,7 @@
         {
           "id": "STORY-057",
           "title": "Capture verifies instance TLS certificates",
-          "status": "backlog"
+          "status": "done"
         },
         {
           "id": "STORY-058",
