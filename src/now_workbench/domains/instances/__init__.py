@@ -5,7 +5,7 @@
 """Instances domain (ADR-015)."""
 
 from now_workbench.domains.instances.bootstrap import seed_default_instance_if_empty
-from now_workbench.domains.instances.connectivity import check_and_record_instance
+from now_workbench.domains.instances.connectivity import check_and_record_instance, is_simulated
 from now_workbench.domains.instances.models import (
     INSTANCE_PURPOSES,
     InstanceCreate,
@@ -32,5 +32,6 @@ __all__ = [
     "InstanceRecord",
     "InstanceRepository",
     "InstanceUpdate",
+    "is_simulated",
     "seed_default_instance_if_empty",
 ]

@@ -7,7 +7,6 @@ import httpx
 from now_workbench.domains.instances.models import InstanceRecord
 from now_workbench.domains.instances.profile import collect_instance_profile
 from now_workbench.domains.instances.repository import InstanceRepository
-from now_workbench.platform.config.settings import settings
 
 __all__ = ["check_and_record_instance", "is_simulated", "verify_instance_authentication"]
 
@@ -56,12 +55,7 @@ def verify_instance_authentication(
 
 def is_simulated(inst: InstanceRecord, fake_mode: bool) -> bool:
     """Return True when the instance must not be contacted over the network."""
-    return (
-        fake_mode
-        or getattr(settings, "fake_mode", False)
-        or inst.url.startswith("fake://")
-        or inst.url.startswith("http://fake")
-    )
+    return fake_mode or inst.url.startswith("fake://") or inst.url.startswith("http://fake")
 
 
 def check_and_record_instance(

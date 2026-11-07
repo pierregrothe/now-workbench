@@ -2,7 +2,7 @@
 
 from typing import Any
 
-from now_workbench.domains.instances import InstanceRecord, InstanceRepository
+from now_workbench.domains.instances import is_simulated
 from now_workbench.domains.properties import PropertyEngine
 from now_workbench.domains.runbooks import RunbookEngine
 from now_workbench.domains.seed import SeedEngine, SeedRepository
@@ -22,14 +22,10 @@ from now_workbench.interfaces.ai.tools.bundles import bundle_path
 _INST = {"type": "string", "description": "Instance id/name; defaults to the default instance"}
 
 
-def _is_fake(ctx: ToolContext, inst: InstanceRecord) -> bool:
-    return ctx.fake_mode or inst.url.startswith("fake://")
-
-
 def _seed(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
     bundle_id = str(args["bundle_id"])
     inst = resolve_instance(ctx.conn, args.get("instance"))
-    engine = SeedEngine(conn=ctx.conn, fake_mode=_is_fake(ctx, inst))
+    engine = SeedEngine(conn=ctx.conn, fake_mode=ctx.fake_mode)
     path = bundle_path(ctx.conn, bundle_id)
     op = run_async(engine.load_and_seed(bundle_id, path, instance_id=inst.id))
     return ToolResult(
@@ -58,12 +54,7 @@ def _plan_rollback(ctx: ToolContext, args: dict[str, Any]) -> str:
 
 def _rollback(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
     op_id = str(args["operation_id"])
-    op = SeedRepository(ctx.conn).get_seed_operation(op_id)
-    fake = ctx.fake_mode
-    if op:
-        target = InstanceRepository(ctx.conn).get_instance(op.instance_id)
-        fake = fake or bool(target and target.url.startswith("fake://"))
-    engine = SeedEngine(conn=ctx.conn, fake_mode=fake)
+    engine = SeedEngine(conn=ctx.conn, fake_mode=ctx.fake_mode)
     deleted, errors = run_async(engine.rollback(op_id))
     return ToolResult(
         summary=f"Rolled back {op_id}: {deleted} record(s) deleted, {len(errors)} error(s).",
@@ -96,12 +87,7 @@ def _seed_history(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
 
 def _verify_seed(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
     op_id = str(args["operation_id"])
-    op = SeedRepository(ctx.conn).get_seed_operation(op_id)
-    fake = ctx.fake_mode
-    if op:
-        target = InstanceRepository(ctx.conn).get_instance(op.instance_id)
-        fake = fake or bool(target and target.url.startswith("fake://"))
-    checks = run_async(SeedEngine(conn=ctx.conn, fake_mode=fake).verify(op_id))
+    checks = run_async(SeedEngine(conn=ctx.conn, fake_mode=ctx.fake_mode).verify(op_id))
     present = sum(1 for _item, ok, _d in checks if ok)
     rows = [[i.table, i.sys_id, "present" if ok else "MISSING", d] for i, ok, d in checks]
     tile = table_tile(
@@ -126,8 +112,7 @@ def _reset(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
     bundle_id = str(args["bundle_id"])
     bundle_path(ctx.conn, bundle_id)
     inst = resolve_instance(ctx.conn, args.get("instance"))
-    fake = _is_fake(ctx, inst)
-    seed_engine = SeedEngine(conn=ctx.conn, fake_mode=fake)
+    seed_engine = SeedEngine(conn=ctx.conn, fake_mode=ctx.fake_mode)
     ops = [
         o
         for o in SeedRepository(ctx.conn).list_seed_operations(limit=100)
@@ -138,7 +123,9 @@ def _reset(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
         count, _ = run_async(seed_engine.rollback(o.id))
         rolled += count
     prop = run_async(
-        PropertyEngine().restore_properties(bundle_id=bundle_id, instance=inst, fake_mode=fake)
+        PropertyEngine().restore_properties(
+            bundle_id=bundle_id, instance=inst, fake_mode=ctx.fake_mode
+        )
     )
     return ToolResult(
         summary=f"Reset '{bundle_id}' on '{inst.name}': {rolled} record(s) rolled back, "
@@ -164,7 +151,7 @@ def _verify_stage(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
     if not stage:
         return ToolResult(summary=f"Stage {step} not found in '{bundle_id}'.", ok=False)
     inst = resolve_instance(ctx.conn, args.get("instance"))
-    ok, msg = run_async(RunbookEngine().verify_stage(stage, inst, fake_mode=_is_fake(ctx, inst)))
+    ok, msg = run_async(RunbookEngine().verify_stage(stage, inst, fake_mode=ctx.fake_mode))
     return ToolResult(
         summary=f"Stage {step} '{stage.title}': {'PASS' if ok else 'FAIL'} - {msg}",
         ok=ok,
@@ -180,7 +167,7 @@ def _get_properties(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
     snap = engine.load_snapshot(bundle_id, inst.id)
     live: dict[str, str | None] = {}
     note = "live values not read (simulated instance)"
-    if not _is_fake(ctx, inst):
+    if not is_simulated(inst, ctx.fake_mode):
         live = run_async(engine.read_live_values(list(props), inst))
         note = "live values read from the instance"
     rows = [[k, v, _live_label(live, k)] for k, v in props.items()]
@@ -213,7 +200,7 @@ def _apply_properties(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
             bundle_id=bundle_id,
             bundle_path=bundle_path(ctx.conn, bundle_id),
             instance=inst,
-            fake_mode=_is_fake(ctx, inst),
+            fake_mode=ctx.fake_mode,
         )
     )
     return ToolResult(
@@ -235,7 +222,7 @@ def _restore_properties(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
     inst = resolve_instance(ctx.conn, args.get("instance"))
     res = run_async(
         PropertyEngine().restore_properties(
-            bundle_id=bundle_id, instance=inst, fake_mode=_is_fake(ctx, inst)
+            bundle_id=bundle_id, instance=inst, fake_mode=ctx.fake_mode
         )
     )
     return ToolResult(

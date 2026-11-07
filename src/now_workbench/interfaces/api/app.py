@@ -21,7 +21,8 @@ from now_workbench.domains.identity import (
     effective_user,
     operator_owner,
 )
-from now_workbench.domains.instances import InstanceCreate, InstanceRepository
+from now_workbench.domains.instances import InstanceCreate, InstanceRepository, is_simulated
+from now_workbench.domains.settings import PreferencesRepository
 from now_workbench.domains.sharing import resolve_bundle, sync_registry
 from now_workbench.domains.templates import TemplateRecord, TemplateRepository
 from now_workbench.interfaces.ai.tile_routing import resolve_query_to_tiles
@@ -51,7 +52,7 @@ from now_workbench.platform.config.origins import is_origin_allowed
 from now_workbench.platform.config.settings import settings
 from now_workbench.platform.db.session import db_session
 from now_workbench.platform.owner import owner_scope
-from now_workbench.platform.sdk.runner import NowSdkRunner
+from now_workbench.platform.sdk.runner import NowSdkRunner, SdkExecutionResult
 
 
 async def _accept_if_origin_allowed(websocket: WebSocket) -> bool:
@@ -336,6 +337,7 @@ def _register_build_deploy(
 
         with db_session() as conn:
             target_inst = InstanceRepository(conn).resolve(req.instance_id)
+            sdk_fake_mode = PreferencesRepository(conn).get_workbench_preferences().sdk_fake_mode
         if target_inst is None:
             if req.instance_id:
                 raise HTTPException(status_code=404, detail="Instance not found")
@@ -347,13 +349,21 @@ def _register_build_deploy(
         await log_broadcaster.broadcast(
             f"[deploy:start] Deploying bundle '{bundle_id}' to target: {inst_url}..."
         )
-        res = await sdk_runner.deploy(
-            target,
-            instance_url=inst_url,
-            username=inst_user,
-            password=inst_pwd,
-            stream_callback=log_broadcaster.broadcast if req.stream_logs else None,
-        )
+        if is_simulated(target_inst, sdk_fake_mode):
+            res = SdkExecutionResult(
+                command="deploy",
+                exit_code=0,
+                output=f"Deploy simulated (fake mode or simulated instance '{target_inst.name}').",
+                success=True,
+            )
+        else:
+            res = await sdk_runner.deploy(
+                target,
+                instance_url=inst_url,
+                username=inst_user,
+                password=inst_pwd,
+                stream_callback=log_broadcaster.broadcast if req.stream_logs else None,
+            )
         await log_broadcaster.broadcast(
             f"[deploy:done] Finished deployment (success={res.success})"
         )

@@ -56,14 +56,12 @@ the Table API itself, or build SDK projects (`platform/sdk/project.py`).
   `PluginManager.install_plugin` only records a plugin it finds active (or any plugin when
   simulated). The summary goes "partial" if any are still missing.
 - A `CaptureFailedError` is kept as a note (`status` "partial"), not raised.
-- Deploy order (ADR-022): a bundle with `package.json` is installed as is; no
-  `fluent/*.now.ts` skips deploy; a simulated instance (`fake_mode` or a `fake://` URL)
-  skips; otherwise the vendor prefix "glide.appcreator.company.code" is read live and a
-  project is generated. The returned table map renames seed tables and runbook
-  `target_table`s.
-- The `package.json` branch passes only `fake_mode` to `NowSdkRunner`, not the `fake://`
-  check, so a `fake://` instance with an SDK-project bundle and `fake_mode` off tries a real
-  deploy.
+- Deploy order (ADR-022): no `package.json` and no `fluent/*.now.ts` skips deploy; a
+  simulated instance (`is_simulated`) never deploys, SDK project or not (`SeedEngine` then
+  seeds it in simulation); otherwise a bundle with `package.json` is installed as is, or the vendor prefix
+  "glide.appcreator.company.code" is read live and a project is generated. The returned
+  table map renames seed tables and runbook `target_table`s.
+- The video proof is a placeholder whenever the instance is simulated.
 - `evaluate_bundle` runs twice per pipeline (start and end) and, like
   `install_required_modules`, makes blocking `httpx.Client` plugin queries; inside the async
   pipeline they stall the event loop.

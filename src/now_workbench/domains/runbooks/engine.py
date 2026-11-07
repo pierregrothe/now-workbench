@@ -6,7 +6,7 @@ from typing import Any
 
 import httpx
 
-from now_workbench.domains.instances import InstanceRecord
+from now_workbench.domains.instances import InstanceRecord, is_simulated
 from now_workbench.domains.runbooks.models import (
     DemoPersona,
     RunbookGuide,
@@ -271,11 +271,7 @@ class RunbookEngine:
         fake_mode: bool = False,
     ) -> tuple[bool, str]:
         """Verify ServiceNow Table API state for a specific demonstration stage."""
-        if (
-            fake_mode
-            or instance.url.startswith("fake://")
-            or instance.url.startswith("http://fake")
-        ):
+        if is_simulated(instance, fake_mode):
             return (
                 True,
                 f"Stage {stage.step_number} verified: table state validated (simulation mode)",
