@@ -1,3 +1,7 @@
+# src/now_workbench/domains/capture/engine.py
+# Screenshots and walkthrough videos of an instance, filed in a demo bundle's media index.
+# Author: Pierre Grothe
+# Date: 2026-11-07
 """Async Playwright runner for capturing ServiceNow screenshots and videos."""
 
 import base64
@@ -16,10 +20,13 @@ from now_workbench.domains.capture.driver import (
     load_playbook,
 )
 from now_workbench.domains.capture.models import CaptureArtifact, CaptureRequest, SignIn, Viewport
+from now_workbench.domains.capture.playbook import DemoPlaybook
 from now_workbench.domains.instances import InstanceRecord
-from now_workbench.domains.releases import translate_workspace_url
+from now_workbench.domains.releases import is_release_detected, translate_workspace_url
 from now_workbench.platform.config.paths import dev_script, safe_child
 from now_workbench.platform.procs import ProcessTimeoutError, communicate_bounded, spawn
+
+__all__ = ["CaptureFailedError", "PlaywrightCaptureEngine"]
 
 # A screenshot signs in, loads a list and waits for it; anything slower is stuck.
 _CAPTURE_TIMEOUT_S = 240.0
@@ -101,9 +108,21 @@ async def _run_chrome_capture(
     media_type: str,
     viewport: Viewport,
     sign_in: SignIn | None = None,
-    duration: float = 3.0,
+    settle_ms: int = 1500,
 ) -> tuple[bool, str]:
-    """Take a live Chrome (Puppeteer) screenshot or video; return (ok, why it failed)."""
+    """Take a live Chrome (Puppeteer) screenshot or video.
+
+    Args:
+        full_url: Page to open.
+        output_file: Where the script writes the capture.
+        media_type: "screenshot" or "video".
+        viewport: Browser viewport.
+        sign_in: Credentials, sent on stdin.
+        settle_ms: How long the page settles after loading, before the shot.
+
+    Returns:
+        (ok, why it failed); the reason is empty on success.
+    """
     creds = sign_in or SignIn()
     script_path = dev_script("chrome_capture.mjs")
     if not script_path.exists():
@@ -124,8 +143,8 @@ async def _run_chrome_capture(
         str(viewport.width),
         "--height",
         str(viewport.height),
-        "--duration",
-        str(duration),
+        "--settle-ms",
+        str(settle_ms),
         "--credentials-stdin",
     ]
     try:
@@ -143,7 +162,38 @@ async def _run_chrome_capture(
     return False, (detail[-1] if detail else f"the browser exited with code {proc.returncode}")
 
 
-def _playbook_instance(instance_id: str | None, base_url: str, sign_in: SignIn) -> InstanceRecord:
+def _rooted(path: str) -> str:
+    """Return ``path`` with a leading slash."""
+    return path if path.startswith("/") else f"/{path}"
+
+
+def _translate(path: str, release: str) -> str:
+    """Translate a workspace path for ``release``; an undetected release leaves it as written.
+
+    Args:
+        path: Requested path, possibly with an ``@workspace/...`` token.
+        release: The instance's detected release.
+
+    Returns:
+        The release-specific path, or ``path`` unchanged when the release is not known
+        (it is never guessed, ADR-014).
+    """
+    return translate_workspace_url(path, release) if is_release_detected(release) else path
+
+
+def _translated_playbook(playbook: DemoPlaybook, release: str) -> DemoPlaybook:
+    """Return the playbook with its start path and step paths translated for ``release``."""
+    steps = [
+        step.model_copy(update={"path": _translate(step.path, release)}) if step.path else step
+        for step in playbook.steps
+    ]
+    start = _rooted(_translate(playbook.start_path, release))
+    return playbook.model_copy(update={"start_path": start, "steps": steps})
+
+
+def _playbook_instance(
+    instance_id: str | None, base_url: str, sign_in: SignIn, release: str
+) -> InstanceRecord:
     """The instance record a recorded walkthrough signs in to."""
     return InstanceRecord(
         id=instance_id or "default-instance",
@@ -152,7 +202,7 @@ def _playbook_instance(instance_id: str | None, base_url: str, sign_in: SignIn) 
         username=sign_in.username or "admin",
         password=sign_in.password,
         auth_type="basic",
-        release="Xanadu",
+        release=release,
         is_default=True,
         status="active",
     )
@@ -160,7 +210,7 @@ def _playbook_instance(instance_id: str | None, base_url: str, sign_in: SignIn) 
 
 async def _execute_video_playbook(
     req: CaptureRequest,
-    bundle_path: Path,
+    playbook: DemoPlaybook,
     instance: InstanceRecord,
     output_file: Path,
     thumb_file: Path,
@@ -168,7 +218,6 @@ async def _execute_video_playbook(
 ) -> tuple[bool, bool, list[dict[str, Any]]]:
     """Record the bundle's declarative walkthrough as the video proof."""
     driver = PlaywrightPlaybookDriver()
-    playbook = load_playbook(bundle_path, req.bundle_id)
     exec_res = await driver.execute_playbook(
         playbook,
         instance,
@@ -294,12 +343,37 @@ class PlaywrightCaptureEngine:
         self,
         req: CaptureRequest,
         instance_url: str,
+        *,
+        release: str,
         wait_timeout_ms: int = 1500,
         username: str = "",
         password: str = "",
-        release: str = "Xanadu",
     ) -> CaptureArtifact:
-        """Capture a screenshot or video of the target ServiceNow instance."""
+        """Capture a screenshot or video of the target ServiceNow instance.
+
+        A screenshot opens ``req.target_path``; a video replays the bundle's walkthrough and
+        records the playbook's start path. Paths are translated for ``release``.
+
+        Args:
+            req: What to capture and where to file it.
+            instance_url: Base URL of the instance.
+            release: The instance's detected release (``InstanceRecord.release``).
+            wait_timeout_ms: How long a screenshot's page settles before the shot.
+            username: Sign-in user, sent to the browser on stdin.
+            password: Sign-in password, sent to the browser on stdin.
+
+        Returns:
+            The saved index entry.
+
+        Raises:
+            CaptureFailedError: The live capture failed, or the release is unknown for a live
+                capture (paths are never translated for a guessed release, ADR-014).
+        """
+        if not req.fake_mode and not is_release_detected(release):
+            raise CaptureFailedError(
+                "The instance's release is unknown, so its workspace paths cannot be chosen; "
+                "run a connection test on the instance first (ADR-014)."
+            )
         capture_id = f"cap-{uuid.uuid4().hex[:8]}"
         ext = "webm" if req.media_type == "video" else "png"
         filename = f"{capture_id}.{ext}"
@@ -307,9 +381,13 @@ class PlaywrightCaptureEngine:
         output_file = media_dir / filename
 
         base_url = instance_url.rstrip("/")
-        raw_path = req.target_path if req.target_path.startswith("/") else f"/{req.target_path}"
-        path_part = translate_workspace_url(raw_path, release)
-        full_url = f"{base_url}{path_part}"
+        playbook: DemoPlaybook | None = None
+        if req.media_type == "video":
+            bundle_path = safe_child(self.bundles_dir, req.bundle_id)
+            playbook = _translated_playbook(load_playbook(bundle_path, req.bundle_id), release)
+            path_part = playbook.start_path
+        else:
+            path_part = _rooted(_translate(req.target_path, release))
 
         used_engine = "playwright-simulated"
         step_results: list[dict[str, Any]] = []
@@ -320,12 +398,12 @@ class PlaywrightCaptureEngine:
             output_file.write_bytes(
                 _PLACEHOLDER_WEBM if ext == "webm" else _generate_simulated_png()
             )
-        elif req.media_type == "video":
+        elif playbook is not None:
             ok, live_auth, step_results = await _execute_video_playbook(
                 req,
-                safe_child(self.bundles_dir, req.bundle_id),
+                playbook,
                 _playbook_instance(
-                    req.instance_id, base_url, SignIn(username=username, password=password)
+                    req.instance_id, base_url, SignIn(username=username, password=password), release
                 ),
                 output_file,
                 media_dir / f"{capture_id}.png",
@@ -342,11 +420,12 @@ class PlaywrightCaptureEngine:
             used_engine = "google-chrome-native"
         else:
             ok, reason = await _run_chrome_capture(
-                full_url,
+                f"{base_url}{path_part}",
                 output_file,
                 req.media_type,
                 Viewport(width=req.viewport_width, height=req.viewport_height),
                 SignIn(username=username, password=password),
+                settle_ms=wait_timeout_ms,
             )
             if not ok:
                 raise CaptureFailedError(f"The screenshot could not be taken: {reason}.")

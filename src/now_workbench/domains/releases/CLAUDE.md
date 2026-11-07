@@ -18,6 +18,7 @@ Names and ordering:
   map); an unlisted name comes back title-cased, not rejected.
 - `compare_releases` (a, b) -> -1, 0 or 1, chronological.
 - `is_release_compatible` (instance_release, min_release) -> bool.
+- `is_release_detected` (name) -> False for "" or "Unknown" (any case, padded).
 - `RELEASE_FAMILIES`: ordered tuple, Rome to Australia. `UNKNOWN_RELEASE`: the "Unknown"
   sentinel instances carry until a connection test reports a release.
 
@@ -44,7 +45,7 @@ their legacy forms.
   `profile.py`, the fallback when the glide.build.name property and the cluster build name
   are absent),
   synthesizer (`UNKNOWN_RELEASE` in `release.py`), demos (`evaluate_release_prerequisites`
-  in `pipeline.py`), capture (`translate_workspace_url` in `engine.py`).
+  in `pipeline.py`), capture (`translate_workspace_url` and `is_release_detected` in `engine.py`).
 
 ## Invariants and gotchas
 
@@ -55,7 +56,8 @@ their legacy forms.
 - Undetected ("" or "Unknown") ranks OLDEST (-1) and is never compatible: fail closed.
   `evaluate_release_prerequisites` gives it a "run a connection test" reason.
 - Because undetected ranks oldest, `resolve_workspace` and `translate_workspace_url` route an
-  undetected release to the legacy (pre-San Diego) workspace paths.
+  undetected release to the legacy (pre-San Diego) workspace paths. Capture checks
+  `is_release_detected` first and never translates for an undetected release.
 - Feature matching is a case-insensitive substring test of the full feature name inside each
   tag ("Fluent SDK" matches a tag "fluent sdk demo", not "fluent"). A feature unsupported on the
   instance makes the whole result incompatible even when the minimum release is met.

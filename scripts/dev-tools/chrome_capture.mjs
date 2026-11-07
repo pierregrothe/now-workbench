@@ -25,6 +25,7 @@ function parseArgs() {
     width: 1280,
     height: 720,
     duration: 15,
+    settleMs: 600,
     fake: false,
     credentialsStdin: false,
   };
@@ -39,6 +40,7 @@ function parseArgs() {
     else if (arg === "--width" && args[i + 1]) options.width = parseInt(args[++i], 10);
     else if (arg === "--height" && args[i + 1]) options.height = parseInt(args[++i], 10);
     else if (arg === "--duration" && args[i + 1]) options.duration = parseFloat(args[++i]);
+    else if (arg === "--settle-ms" && args[i + 1]) options.settleMs = parseInt(args[++i], 10);
   }
   return options;
 }
@@ -595,7 +597,8 @@ async function main() {
     }
 
     await injectCursorOverlay(page);
-    await new Promise((r) => setTimeout(r, 600));
+    // Page settle before the shot: the capture_wait_timeout_ms preference.
+    await new Promise((r) => setTimeout(r, opts.settleMs));
 
     // Ensure output directory exists
     const outDir = path.dirname(path.resolve(opts.output));
