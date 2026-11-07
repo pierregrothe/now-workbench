@@ -2,48 +2,9 @@ import { LitElement, html } from 'lit'
 import { customElement, property, state } from 'lit/decorators.js'
 import '../views/now-share-dialog.js'
 import { demoCatalogStyles } from './now-demo-catalog-styles.js'
-
-export interface DemoBundle {
-  manifest: {
-    id: string
-    name: string
-    version: string
-    description: string
-    sn_release: string
-    min_release?: string
-    required_plugins: string[]
-    tags: string[]
-    author?: string
-    created_at?: string
-    personas?: Array<{ name: string; role: string; email: string }>
-  }
-  bundle_path: string
-  owner_email?: string
-  access?: 'owner' | 'shared'
-  version?: number
-  fluent_files: string[]
-  seed_files: string[]
-  has_walkthrough: boolean
-  media_captures?: Array<{
-    id: string
-    bundle_id: string
-    instance_url: string
-    target_path: string
-    media_type: 'screenshot' | 'video'
-    label: string
-    filename: string
-    url: string
-    engine: string
-    created_at?: string
-  }>
-}
-
-interface CatalogInstance {
-  id: string
-  name: string
-  release: string
-  is_default: boolean
-}
+import type { DemoBundle } from './demo-catalog-model.js'
+import './now-clone-dialog.js'
+import './now-deploy-dialog.js'
 
 @customElement('now-demo-catalog')
 export class NowDemoCatalog extends LitElement {
@@ -51,19 +12,9 @@ export class NowDemoCatalog extends LitElement {
 
   @property({ type: Array }) demos: DemoBundle[] = []
   @state() private cloningBundle: DemoBundle | null = null
-  @state() private cloneName = ''
-  @state() private cloneSlug = ''
-  @state() private cloneError = ''
-  @state() private isCloning = false
 
   // Deployment state
   @state() private deployingBundle: DemoBundle | null = null
-  @state() private deployInstances: CatalogInstance[] = []
-  @state() private selectedDeployInstanceId = ''
-  @state() private isDeploying = false
-  @state() private deployError = ''
-  @state() private deploySuccess = ''
-  @state() private lastOperationId = ''
   @state() private catalogNotification = ''
   @state() private viewingMediaBundle: DemoBundle | null = null
   @state() private sharingBundle: DemoBundle | null = null
@@ -95,163 +46,33 @@ export class NowDemoCatalog extends LitElement {
   private async loadDemos(): Promise<void> {
     try {
       const res = await fetch('/api/demos')
-      if (res.ok) {
-        this.demos = await res.json()
+      if (!res.ok) {
+        this.catalogNotification = `Could not load demo bundles (HTTP ${res.status}).`
+        return
       }
-    } catch {
-      // Offline fallback
+      this.demos = await res.json()
+    } catch (e) {
+      // An unreachable backend is reported, never shown as an empty catalog (ADR-013).
+      this.catalogNotification = `Could not load demo bundles: ${e instanceof Error ? e.message : String(e)}`
     }
   }
 
   private startClone(demo: DemoBundle) {
     this.cloningBundle = demo
-    this.cloneName = `${demo.manifest.name} (Custom)`
-    this.cloneSlug = `${demo.manifest.id}-clone`
-    this.cloneError = ''
   }
 
-  private closeCloneModal() {
+  private readonly onCloned = async (): Promise<void> => {
     this.cloningBundle = null
-    this.cloneError = ''
-    this.isCloning = false
+    await this.loadDemos()
+    this.dispatchEvent(new CustomEvent('demos-changed', { bubbles: true, composed: true }))
   }
 
-  private async submitClone() {
-    if (!this.cloningBundle) return
-    const slug = this.cloneSlug.trim().toLowerCase()
-    if (!slug) {
-      this.cloneError = 'Please provide a unique target bundle slug.'
-      return
-    }
-    this.isCloning = true
-    this.cloneError = ''
-    try {
-      const res = await fetch(`/api/demos/${this.cloningBundle.manifest.id}/clone`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          target_bundle_id: slug,
-          target_name: this.cloneName.trim() || undefined,
-        }),
-      })
-      if (!res.ok) {
-        const err = await res.json()
-        this.cloneError = err.detail || 'Failed to clone demonstration bundle.'
-        this.isCloning = false
-        return
-      }
-      this.closeCloneModal()
-      await this.loadDemos()
-      this.dispatchEvent(new CustomEvent('demos-changed', { bubbles: true, composed: true }))
-    } catch (e) {
-      this.cloneError = `Network error: ${e}`
-      this.isCloning = false
-    }
-  }
-
-  private async loadInstancesForDeploy(): Promise<void> {
-    this.deployInstances = []
-    this.selectedDeployInstanceId = ''
-    try {
-      const res = await fetch('/api/instances')
-      if (!res.ok) {
-        this.deployError = `Could not load instances: HTTP ${res.status}`
-        return
-      }
-      const list = (await res.json()) as CatalogInstance[]
-      if (!list || list.length === 0) {
-        this.deployError = 'No ServiceNow instances registered'
-        return
-      }
-      this.deployInstances = list
-      const def = list.find((i) => i.is_default) ?? list[0]
-      this.selectedDeployInstanceId = def.id
-    } catch (e) {
-      this.deployError = `Could not load instances: ${e instanceof Error ? e.message : String(e)}`
-    }
-  }
-
-  private async startDeploy(demo: DemoBundle) {
+  private startDeploy(demo: DemoBundle) {
     this.deployingBundle = demo
-    this.deployError = ''
-    this.deploySuccess = ''
-    this.lastOperationId = ''
-    await this.loadInstancesForDeploy()
-  }
-
-  private closeDeployModal() {
-    this.deployingBundle = null
-    this.deployError = ''
-    this.deploySuccess = ''
-    this.isDeploying = false
-  }
-
-  private async submitDeploy() {
-    if (!this.deployingBundle) return
-    this.isDeploying = true
-    this.deployError = ''
-    this.deploySuccess = ''
-    try {
-      const res = await fetch(`/api/demos/${this.deployingBundle.manifest.id}/seed`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          instance_id: this.selectedDeployInstanceId || undefined,
-        }),
-      })
-      if (!res.ok) {
-        const err = await res.json()
-        this.deployError = err.detail || 'Failed to deploy demonstration.'
-        this.isDeploying = false
-        return
-      }
-      const data = await res.json()
-      const targetInst = this.deployInstances.find((i) => i.id === this.selectedDeployInstanceId)
-      const count = data.created_records ? data.created_records.length : 0
-      this.lastOperationId = data.id || ''
-      this.deploySuccess = `Successfully seeded ${count} records into ${targetInst?.name || 'target instance'}!`
-      this.isDeploying = false
-      this.dispatchEvent(new CustomEvent('demo-deploy', {
-        detail: { bundleId: this.deployingBundle.manifest.id, instanceId: this.selectedDeployInstanceId },
-        bubbles: true,
-        composed: true,
-      }))
-    } catch (e) {
-      this.deployError = `Deployment error: ${e}`
-      this.isDeploying = false
-    }
-  }
-
-  private async rollbackDeploy() {
-    if (!this.lastOperationId) return
-    this.isDeploying = true
-    try {
-      const res = await fetch(`/api/demos/seed/${this.lastOperationId}/rollback`, {
-        method: 'POST',
-      })
-      if (res.ok) {
-        const data = await res.json()
-        if (data.success === false) {
-          // Partial rollback: keep the operation id so the user can retry (deletes are idempotent).
-          const failures = Array.isArray(data.errors) ? data.errors.join('; ') : 'unknown error'
-          this.deployError = `Rollback incomplete (${data.deleted_count} removed): ${failures}`
-        } else {
-          this.deploySuccess = `Rolled back successfully (${data.deleted_count} records removed).`
-          this.lastOperationId = ''
-        }
-      } else {
-        const err = await res.json()
-        this.deployError = err.detail || 'Rollback failed.'
-      }
-    } catch (e) {
-      this.deployError = `Rollback error: ${e}`
-    } finally {
-      this.isDeploying = false
-    }
   }
 
   private handleDeploy(demo: DemoBundle) {
-    void this.startDeploy(demo)
+    this.startDeploy(demo)
   }
 
   private handleExport(demo: DemoBundle) {
@@ -486,130 +307,18 @@ export class NowDemoCatalog extends LitElement {
         : ''}
 
       ${this.cloningBundle
-        ? html`
-            <div class="modal-overlay" @click=${(e: Event) => {
-              if (e.target === e.currentTarget) this.closeCloneModal();
-            }}>
-              <div class="modal-card">
-                <div class="modal-header">
-                  <h2>Clone Demonstration Bundle</h2>
-                  <button class="btn-secondary icon-btn" style="flex: 0 0 32px; width: 32px; height: 32px;" title="Close" data-tooltip="Close" @click=${this.closeCloneModal}>
-                    <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
-                  </button>
-                </div>
-                <div class="modal-body">
-                  <p style="font-size: 13px; color: var(--now-text-secondary); margin: 0;">
-                    Duplicate baseline <strong>${this.cloningBundle.manifest.name}</strong> to create an isolated customer demo package without modifying baseline reference content.
-                  </p>
-
-                  <div class="modal-input-field">
-                    <label>Target Demonstration Name</label>
-                    <input
-                      type="text"
-                      .value=${this.cloneName}
-                      @input=${(e: Event) => {
-                        this.cloneName = (e.target as HTMLInputElement).value;
-                      }}
-                      placeholder="e.g. Novartis BioHealth Custom Demo"
-                    />
-                  </div>
-
-                  <div class="modal-input-field">
-                    <label>Unique Target Slug (Folder ID)</label>
-                    <input
-                      type="text"
-                      .value=${this.cloneSlug}
-                      @input=${(e: Event) => {
-                        this.cloneSlug = (e.target as HTMLInputElement).value;
-                      }}
-                      placeholder="e.g. novartis-biohealth-demo"
-                    />
-                  </div>
-
-                  ${this.cloneError ? html`<div class="modal-error">${this.cloneError}</div>` : ''}
-                </div>
-
-                <div class="modal-footer">
-                  <button class="btn-secondary icon-btn" ?disabled=${this.isCloning} title="Cancel" data-tooltip="Cancel" @click=${this.closeCloneModal}>
-                    <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
-                  </button>
-                  <button class="btn-primary icon-btn" ?disabled=${this.isCloning} title="Create Cloned Demo" data-tooltip="Create Clone" @click=${this.submitClone}>
-                    <svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
-                  </button>
-                </div>
-              </div>
-            </div>
-          `
+        ? html`<now-clone-dialog
+            .bundle=${this.cloningBundle}
+            @close=${() => (this.cloningBundle = null)}
+            @cloned=${this.onCloned}
+          ></now-clone-dialog>`
         : ''}
 
       ${this.deployingBundle
-        ? html`
-            <div class="modal-overlay" @click=${(e: Event) => {
-              if (e.target === e.currentTarget) this.closeDeployModal();
-            }}>
-              <div class="modal-card">
-                <div class="modal-header">
-                  <h2>Deploy & Seed Demonstration</h2>
-                  <button class="btn-secondary icon-btn" style="flex: 0 0 32px; width: 32px; height: 32px;" title="Close" data-tooltip="Close" @click=${this.closeDeployModal}>
-                    <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
-                  </button>
-                </div>
-                <div class="modal-body">
-                  <p style="font-size: 13px; color: var(--now-text-secondary); margin: 0;">
-                    Deploy Fluent metadata and transactionally seed records from <strong>${this.deployingBundle.manifest.name}</strong> into your ServiceNow environment.
-                  </p>
-
-                  <div class="modal-input-field">
-                    <label>Target ServiceNow Instance</label>
-                    <select
-                      style="font-size: 13px; padding: 8px 12px; border-radius: 6px; border: 1px solid var(--now-border-medium, #cbd5e1); outline: none;"
-                      .value=${this.selectedDeployInstanceId}
-                      @change=${(e: Event) => {
-                        this.selectedDeployInstanceId = (e.target as HTMLSelectElement).value;
-                      }}
-                    >
-                      ${this.deployInstances.map(
-                        (inst) => html`
-                          <option value=${inst.id} ?selected=${inst.id === this.selectedDeployInstanceId}>
-                            ${inst.name} (${inst.release})
-                          </option>
-                        `
-                      )}
-                    </select>
-                  </div>
-
-                  ${this.deploySuccess
-                    ? html`
-                        <div style="font-size: 13px; color: #166534; background: #f0fdf4; border: 1px solid #bbf7d0; padding: 10px 12px; border-radius: 6px;">
-                          ${this.deploySuccess}
-                        </div>
-                      `
-                    : ''}
-                  ${this.deployError ? html`<div class="modal-error" data-testid="deploy-error">${this.deployError}</div>` : ''}
-                </div>
-
-                <div class="modal-footer">
-                  ${this.lastOperationId
-                    ? html`
-                        <button class="btn-secondary icon-btn" ?disabled=${this.isDeploying} title="Rollback Seeded Records" data-tooltip="Rollback" @click=${this.rollbackDeploy} style="color: #b91c1c;">
-                          <svg viewBox="0 0 24 24"><path d="M12.5 8c-2.65 0-5.05.99-6.9 2.6L2 7v9h9l-3.62-3.62c1.39-1.16 3.16-1.88 5.12-1.88 3.54 0 6.55 2.31 7.6 5.5l2.37-.78C20.93 11.13 17.07 8 12.5 8z"/></svg>
-                        </button>
-                      `
-                    : ''}
-                  <button class="btn-secondary icon-btn" ?disabled=${this.isDeploying} title="Close" data-tooltip="Close" @click=${this.closeDeployModal}>
-                    <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
-                  </button>
-                  ${!this.deploySuccess
-                    ? html`
-                        <button class="btn-primary icon-btn" data-testid="deploy-submit" ?disabled=${this.isDeploying || !this.selectedDeployInstanceId} title="Deploy Demo Now" data-tooltip="Deploy Now" @click=${this.submitDeploy}>
-                          <svg viewBox="0 0 24 24"><path d="M12 2.5s-4.5 4.5-4.5 10c0 2.21 1.79 4 4 4s4-1.79 4-4c0-5.5-4.5-10-4.5-10zm0 11.5c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm-5.5-1.5c0-1.87.67-3.6 1.8-5-1.4.9-2.5 2.3-2.9 4 .4.4.8.7 1.1 1zm11 0c.3-.3.7-.6 1.1-1-.4-1.7-1.5-3.1-2.9-4 1.13 1.4 1.8 3.13 1.8 5zM7.5 19l-1.5 2.5h12L16.5 19z"/></svg>
-                        </button>
-                      `
-                    : ''}
-                </div>
-              </div>
-            </div>
-          `
+        ? html`<now-deploy-dialog
+            .bundle=${this.deployingBundle}
+            @close=${() => (this.deployingBundle = null)}
+          ></now-deploy-dialog>`
         : ''}
 
       ${this.viewingMediaBundle
