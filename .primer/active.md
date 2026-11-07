@@ -7,7 +7,7 @@ Python Version: `3.14.10`
 
 ## Current Focus
 
-Release rule now follows PRDs (a merge that ships a PRD releases); story branches landing in turn: restyle, fake-mode safety, feedback row.
+EPIC-018 story 02 (restyle) landed (PR #8); releases now follow PRDs (this branch); fake-mode safety (EPIC-021/01) and the feedback row (EPIC-018/01) next; PRD-004 accepted, EPIC-022 queued.
 
 `main` -- deployed and live at https://workbench.grothe.ca (srv01chambly, Cloudflare Access).
 Per-user data, groups and approved sharing, impersonation, attachments and limits, and an
