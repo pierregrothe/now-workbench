@@ -275,3 +275,19 @@ def test_run_action_runs_as_the_person_with_confirmation(team: TestClient) -> No
         headers=as_user(ADMIN),
     )
     assert done.json()["ok"] and "Deleted group" in done.json()["summary"]
+
+
+async def test_runner_passes_the_conversation_to_its_tools() -> None:
+    """The async runner (used by run_agent outside an event loop) keeps the conversation id."""
+    from now_workbench.interfaces.ai.agent import ClaudeAgentRunner
+
+    class _Messages:
+        async def create(self, **kw: Any) -> Any:
+            block = type("B", (), {"type": "text", "text": "Hi."})()
+            return type("R", (), {"content": [block], "stop_reason": "end_turn", "usage": None})()
+
+    client = type("C", (), {"messages": _Messages()})()
+    with db_session() as conn:
+        runner = ClaudeAgentRunner(client, "m", conn)
+        await runner.run(Question("hello", thread_id="t-9"))
+    assert runner.ctx.thread_id == "t-9"

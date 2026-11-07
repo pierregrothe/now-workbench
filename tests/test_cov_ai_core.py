@@ -441,7 +441,7 @@ async def test_runner_streams_events_and_assembles_response() -> None:
             ]
         )
         runner = ClaudeAgentRunner(client, "m", conn, fake_mode=True)
-        events = [e async for e in runner.stream_run("how many", [])]
+        events = [e async for e in runner.stream_run(Question("how many", []))]
         kinds = [e.event_type for e in events]
         assert kinds == [
             AgentEventType.TEXT_DELTA,
@@ -453,7 +453,7 @@ async def test_runner_streams_events_and_assembles_response() -> None:
         ]
         client2 = _AsyncClient([_tool_call("u1", "list_instances", {}), _text("Done now.")])
         resp = await ClaudeAgentRunner(client2, "m", conn, fake_mode=True).run(
-            "q", [], ConversationFiles(by_message={}, current=[])
+            Question("q", [], ConversationFiles(by_message={}, current=[]))
         )
         assert resp.summary == "Done now." and resp.steps[0].ok
 
@@ -461,15 +461,17 @@ async def test_runner_streams_events_and_assembles_response() -> None:
 async def test_runner_tool_without_tiles_emits_no_tile_event() -> None:
     with db_session() as conn:
         client = _AsyncClient([_tool_call("u1", "no_such_tool", {}), _text("ok")])
-        events = [e async for e in ClaudeAgentRunner(client, "m", conn).stream_run("q", [])]
+        events = [
+            e async for e in ClaudeAgentRunner(client, "m", conn).stream_run(Question("q", []))
+        ]
         assert AgentEventType.TILE_RENDER not in [e.event_type for e in events]
 
 
 async def test_runner_failure_fake_mode_raises_and_live_mode_yields_diagnostic() -> None:
     with db_session() as conn:
         with pytest.raises(AgentUnavailableError, match="api down"):
-            await ClaudeAgentRunner(_Boom(), "m", conn, fake_mode=True).run("q", [])
-        resp = await ClaudeAgentRunner(_Boom(), "m", conn).run("q", [])
+            await ClaudeAgentRunner(_Boom(), "m", conn, fake_mode=True).run(Question("q", []))
+        resp = await ClaudeAgentRunner(_Boom(), "m", conn).run(Question("q", []))
         assert resp.summary == "Diagnostic Warning: api down"
         assert resp.tiles[0].type == "security-alert"
 
@@ -481,7 +483,7 @@ async def test_runner_run_without_done_event_returns_placeholder() -> None:
                 yield None
 
     with db_session() as conn:
-        resp = await Silent(_Boom(), "m", conn).run("q", [])
+        resp = await Silent(_Boom(), "m", conn).run(Question("q", []))
         assert resp.summary == "No response received from agent."
 
 
@@ -518,7 +520,9 @@ def test_run_agent_sync_without_tools_skips_cache_marker(monkeypatch: pytest.Mon
 async def test_runner_without_tools_skips_cache_marker(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(conversation_mod, "tool_definitions", lambda admin=True: [])
     with db_session() as conn:
-        resp = await ClaudeAgentRunner(_AsyncClient([_text("none")]), "m", conn).run("q", [])
+        resp = await ClaudeAgentRunner(_AsyncClient([_text("none")]), "m", conn).run(
+            Question("q", [])
+        )
         assert resp.summary == "none"
 
 

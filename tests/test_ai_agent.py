@@ -184,7 +184,7 @@ async def test_claude_agent_runner_stream_events() -> None:
             ]
         )
         runner = ClaudeAgentRunner(client=client, model="claude-test", conn=conn, fake_mode=True)
-        events = [ev async for ev in runner.stream_run("show me bundles", [])]
+        events = [ev async for ev in runner.stream_run(Question("show me bundles", []))]
 
         types = [e.event_type for e in events]
         assert AgentEventType.TOOL_CALL_START in types
@@ -211,7 +211,7 @@ async def test_agent_live_mode_diagnostic_tile_on_error() -> None:
         runner = ClaudeAgentRunner(
             client=_ErrorClient(), model="claude-live", conn=conn, fake_mode=False
         )
-        resp = await runner.run("test instances", [])
+        resp = await runner.run(Question("test instances", []))
         assert "Diagnostic Warning" in resp.summary
         assert len(resp.tiles) == 1
         assert resp.tiles[0].type == "security-alert"

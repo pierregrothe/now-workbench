@@ -35,6 +35,7 @@ from now_workbench.domains.sharing import resolve_bundle, sync_registry
 from now_workbench.domains.templates import TemplateRecord, TemplateRepository
 from now_workbench.interfaces.ai.agent import AgentEventType, ClaudeAgentRunner, make_async_client
 from now_workbench.interfaces.ai.client import OttoClient
+from now_workbench.interfaces.ai.conversation import Question
 from now_workbench.interfaces.ai.tile_routing import resolve_query_to_tiles
 from now_workbench.interfaces.ai.tiles import GenerativeUIResponse
 from now_workbench.interfaces.api.access import AccessValidator
@@ -444,7 +445,7 @@ async def _stream_agent_to_ws(
             await websocket.send_json({"type": "error", "message": str(exc)})
             return
     final_resp: dict[str, Any] | None = None
-    async for event in runner.stream_run(str(prompt), history):
+    async for event in runner.stream_run(Question(str(prompt), history)):
         await websocket.send_json({"type": event.event_type.value, **event.payload})
         if event.event_type == AgentEventType.TEXT_DELTA:
             await websocket.send_json({"type": "chunk", "text": event.payload.get("text", "")})

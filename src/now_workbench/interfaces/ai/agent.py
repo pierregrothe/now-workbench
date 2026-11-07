@@ -10,12 +10,9 @@ from typing import Any
 import anthropic
 from pydantic import BaseModel, ConfigDict
 
-from now_workbench.domains.conversations import ChatMessageRecord
 from now_workbench.domains.identity import AuthUser, NoActorError
 from now_workbench.interfaces.ai.audience import audience_for
 from now_workbench.interfaces.ai.conversation import (
-    DEFAULT_COMPACT_AT,
-    ConversationFiles,
     Question,
     add_usage,
     block_to_dict,
@@ -279,26 +276,14 @@ class ClaudeAgentRunner:
         self.fake_mode = fake_mode
         self.ctx = ToolContext(conn=conn, fake_mode=fake_mode)
 
-    async def stream_run(
-        self,
-        user_text: str,
-        history: list[ChatMessageRecord],
-        files: ConversationFiles | None = None,
-        prior: list[dict[str, Any]] | None = None,
-        compact_at: int = DEFAULT_COMPACT_AT,
-    ) -> AsyncIterator[AgentEvent]:
+    async def stream_run(self, question: Question) -> AsyncIterator[AgentEvent]:
         """Stream granular lifecycle events through the Claude tool loop.
 
         Args:
-            user_text: The new question.
-            history: Earlier messages (used only when ``prior`` is not given).
-            files: Attachment blocks for the question (and earlier messages without ``prior``).
-            prior: The conversation replayed byte for byte from stored transcripts (ADR-023).
-            compact_at: Input size that triggers server-side compaction.
+            question: The question, its conversation (history or the byte-exact transcript,
+                ADR-023), attachments, compaction threshold and conversation id.
         """
-        loop = _AgentLoop(
-            Question(user_text, history, files, prior, compact_at), self.ctx, self.model
-        )
+        loop = _AgentLoop(question, self.ctx, self.model)
         try:
             for _ in range(MAX_STEPS):
                 calls = loop.absorb(await _call_client_create(self.client, **loop.request()))
@@ -325,17 +310,10 @@ class ClaudeAgentRunner:
                 payload={"response": err_diag.model_dump()},
             )
 
-    async def run(
-        self,
-        user_text: str,
-        history: list[ChatMessageRecord],
-        files: ConversationFiles | None = None,
-        prior: list[dict[str, Any]] | None = None,
-        compact_at: int = DEFAULT_COMPACT_AT,
-    ) -> GenerativeUIResponse:
+    async def run(self, question: Question) -> GenerativeUIResponse:
         """Execute the agent run and return the response, with its transcript attached."""
         final_resp: GenerativeUIResponse | None = None
-        async for event in self.stream_run(user_text, history, files, prior, compact_at):
+        async for event in self.stream_run(question):
             if event.event_type == AgentEventType.DONE:
                 raw_resp = event.payload.get("response", {})
                 final_resp = GenerativeUIResponse.model_validate(raw_resp).model_copy(
@@ -377,8 +355,7 @@ def run_agent(
 
     if in_running_loop:
         return _run_agent_sync(question, conn, client, model, fake_mode)
-    q = question
-    return asyncio.run(runner.run(q.text, q.history, q.files, q.prior, q.compact_at))
+    return asyncio.run(runner.run(question))
 
 
 def _run_agent_sync(
