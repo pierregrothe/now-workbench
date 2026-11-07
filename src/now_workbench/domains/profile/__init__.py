@@ -20,9 +20,11 @@ from now_workbench.domains.profile.models import (
     ProfileUpdate,
 )
 from now_workbench.domains.profile.repository import ProfileRepository
+from now_workbench.domains.profile.service import choose_preset_avatar, rename
 
 __all__ = [
     "AvatarPublic",
+    "choose_preset_avatar",
     "delete_avatar",
     "load_avatar",
     "MAX_AVATAR_BYTES",
@@ -32,6 +34,7 @@ __all__ = [
     "ProfileRecord",
     "ProfileRepository",
     "ProfileUpdate",
+    "rename",
     "save_avatar",
     "sniff_image",
 ]

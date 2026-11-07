@@ -16,7 +16,6 @@ from now_workbench.domains.conversations import (
     ThreadRepository,
     UnsupportedFileError,
     check_can_ask,
-    delete_files,
     read_bytes,
     store_attachment,
 )
@@ -103,14 +102,7 @@ def download_attachment(thread_id: str, attachment_id: str) -> Response:
 def remove_attachment(thread_id: str, attachment_id: str) -> dict[str, bool]:
     """Remove a file you have not sent yet."""
     with db_session() as conn:
-        chat_repo = ChatRepository(conn)
-        att = chat_repo.get_attachment(attachment_id)
-        if att is None or att.thread_id != thread_id:
-            raise HTTPException(status_code=404, detail="Attachment not found.")
-        if att.message_id is not None:
-            raise HTTPException(status_code=409, detail="This file was already sent to Otto.")
-        chat_repo.delete_attachment(attachment_id)
-    delete_files([att])
+        conversations.remove_attachment(conn, thread_id, attachment_id)
     return {"removed": True}
 
 

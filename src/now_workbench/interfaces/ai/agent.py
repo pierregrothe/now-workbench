@@ -11,6 +11,8 @@ import anthropic
 from pydantic import BaseModel, ConfigDict
 
 from now_workbench.domains.conversations import ChatMessageRecord
+from now_workbench.domains.identity import AuthUser, NoActorError
+from now_workbench.interfaces.ai.audience import audience_for
 from now_workbench.interfaces.ai.conversation import (
     DEFAULT_COMPACT_AT,
     ConversationFiles,
@@ -117,7 +119,8 @@ def _assemble(text: str, results: list[ToolResult]) -> GenerativeUIResponse:
     steps = [AgentStep(label=r.summary.strip().splitlines()[0][:120], ok=r.ok) for r in results]
     shown = [r for r in results if r.shown and r.ok]
     layout = shown[-1].layout if shown else _pick_layout(tiles)
-    return GenerativeUIResponse(summary=summary, layout=layout, tiles=tiles, steps=steps)
+    ui = [cmd for r in results if r.ok for cmd in r.ui]
+    return GenerativeUIResponse(summary=summary, layout=layout, tiles=tiles, steps=steps, ui=ui)
 
 
 def build_diagnostic_error_tiles(err_msg: str) -> GenerativeUIResponse:
@@ -199,6 +202,14 @@ def _execute_turn_calls(
     return results, tool_results, events
 
 
+def _actor_or_none(ctx: ToolContext) -> AuthUser | None:
+    """The person Otto helps, or None outside a signed-in request (tests, scripts)."""
+    try:
+        return ctx.actor()
+    except NoActorError:
+        return None
+
+
 class _AgentLoop:
     """State of one question's tool loop, shared by the async runner and the sync path.
 
@@ -219,10 +230,12 @@ class _AgentLoop:
         self.usage: dict[str, int] = {}
         self.results: list[ToolResult] = []
         self.final_text = ""
+        self.audience = audience_for(ctx.conn, _actor_or_none(ctx))
+        ctx.thread_id = question.thread_id or ctx.thread_id
 
     def request(self) -> dict[str, Any]:
         """Keyword arguments of the next Messages API call."""
-        return build_request(self.model, self.messages, self.compact_at)
+        return build_request(self.model, self.messages, self.compact_at, self.audience)
 
     def absorb(self, resp: Any) -> list[Any]:
         """Record one response; return the tool calls to run (empty when Otto is done)."""

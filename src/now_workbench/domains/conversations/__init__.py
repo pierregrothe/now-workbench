@@ -26,6 +26,11 @@ from now_workbench.domains.conversations.models import (
     ConversationLimits,
 )
 from now_workbench.domains.conversations.repository import ThreadRepository
+from now_workbench.domains.conversations.service import (
+    delete_conversation,
+    remove_attachment,
+    update_conversation,
+)
 
 __all__ = [
     "Attachment",
@@ -38,13 +43,16 @@ __all__ = [
     "check_can_ask",
     "claude_blocks",
     "ConversationLimits",
+    "delete_conversation",
     "delete_files",
     "get_limits",
     "LimitReachedError",
     "MAX_THREAD_CONTEXT_MESSAGES",
     "read_bytes",
+    "remove_attachment",
     "set_limits",
     "store_attachment",
     "ThreadRepository",
     "UnsupportedFileError",
+    "update_conversation",
 ]

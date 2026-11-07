@@ -286,6 +286,17 @@ export class NowNavRail extends LitElement {
             </span>
             ${!this.collapsed ? html`<span>Fluent SDK Explorer</span>` : ''}
           </button>
+
+          <button
+            class="nav-row ${this.activeTab === 'actions' ? 'active' : ''}"
+            title="Actions: everything the workbench can do"
+            @click=${() => this.selectTab('actions')}
+          >
+            <span class="nav-icon">
+              <svg viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+            </span>
+            ${!this.collapsed ? html`<span>Actions</span>` : ''}
+          </button>
         </div>
 
         ${!this.collapsed

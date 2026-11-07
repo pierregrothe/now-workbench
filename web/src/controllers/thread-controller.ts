@@ -13,6 +13,8 @@ export interface ChatMessage {
   tiles?: any[];
   /** How the reply lays its tiles out ('1-col', '2-col', '3-col' or 'auto'). */
   layout?: string;
+  /** Interface commands Otto sent with this reply (ADR-026); applied on arrival only. */
+  ui?: { type: string; [key: string]: unknown }[];
   /** Tool runs Otto performed for this reply (from the backend, never invented). */
   steps?: { label: string; ok: boolean }[];
   tokens_in?: number;
@@ -50,6 +52,7 @@ function mapThreadRecords(data: unknown): ChatMessage[] {
     }),
     tiles: m.widget_data?.tiles || [],
     layout: m.widget_data?.layout,
+    ui: m.widget_data?.ui || [],
     steps: m.widget_data?.steps || [],
   }));
 }

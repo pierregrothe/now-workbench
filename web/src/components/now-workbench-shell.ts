@@ -19,6 +19,7 @@ import { workbenchStore } from '../context/workbench-context.js';
 import { workbenchShellStyles } from './now-workbench-shell-styles.js';
 import { ThreadListController } from '../controllers/thread-list-controller.js';
 import { detectIntent } from '../utils/intent-router.js';
+import '../views/now-actions-view.js';
 
 const VALID_SHELL_TABS = new Set([
   'home',
@@ -27,11 +28,18 @@ const VALID_SHELL_TABS = new Set([
   'capture',
   'fluent',
   'admin',
+  'actions',
 ]);
+
+/** Split '#tab/sub' into its tab and its sub-location (a Settings section, an action). */
+function parseHash(): [string, string] {
+  const [tab = '', sub = ''] = window.location.hash.replace(/^#\/?/, '').trim().split('/');
+  return [tab, sub];
+}
 
 function resolveInitialTab(): string {
   if (typeof window !== 'undefined') {
-    const rawHash = window.location.hash.replace(/^#\/?/, '').trim();
+    const [rawHash] = parseHash();
     if (VALID_SHELL_TABS.has(rawHash)) {
       return rawHash;
     }
@@ -50,6 +58,8 @@ export class NowWorkbenchShell extends LitElement {
   static styles = workbenchShellStyles;
 
   @state() private activeTab = resolveInitialTab();
+  /** Where inside the tab: a Settings section or an action ('#admin/groups', '#actions/x'). */
+  @state() private activeSub = typeof window !== 'undefined' ? parseHash()[1] : '';
   @state() private activeThreadId = '';
   @state() private selectedBundleId = 'sample-ai-assistant';
   @state() private welcomeModalOpen =
@@ -59,13 +69,15 @@ export class NowWorkbenchShell extends LitElement {
   @state() private autoRouteIntent = true;
   @state() private railCollapsed = false;
 
-  private setActiveTab(tab: string): void {
+  private setActiveTab(tab: string, sub = ''): void {
     const target = VALID_SHELL_TABS.has(tab) ? tab : 'home';
     this.activeTab = target;
+    this.activeSub = sub;
     workbenchStore.setState({ activeTab: target });
     if (typeof window !== 'undefined') {
-      if (window.location.hash !== `#${target}`) {
-        window.location.hash = `#${target}`;
+      const hash = sub ? `#${target}/${sub}` : `#${target}`;
+      if (window.location.hash !== hash) {
+        window.location.hash = hash;
       }
       try {
         localStorage.setItem('now-workbench-active-tab', target);
@@ -74,7 +86,8 @@ export class NowWorkbenchShell extends LitElement {
   }
 
   private handleWindowHashChange = (): void => {
-    const rawHash = window.location.hash.replace(/^#\/?/, '').trim();
+    const [rawHash, sub] = parseHash();
+    this.activeSub = sub;
     if (VALID_SHELL_TABS.has(rawHash) && rawHash !== this.activeTab) {
       this.activeTab = rawHash;
       try {
@@ -159,13 +172,18 @@ export class NowWorkbenchShell extends LitElement {
     void this.handleIntentPrompt(text);
   }
 
-  private handleNavChange(e: CustomEvent<{ tab: string }>): void {
-    const tab = e.detail.tab;
-    if (tab === 'help') {
+  private handleNavChange(
+    e: CustomEvent<{ tab: string; section?: string; action?: string; args?: Record<string, unknown> }>
+  ): void {
+    const { tab, section, action, args } = e.detail;
+    if (tab === 'help' || tab === 'welcome') {
       this.welcomeModalOpen = true;
       return;
     }
-    this.setActiveTab(tab);
+    if (action) {
+      workbenchStore.setState({ pendingAction: { name: action, args: args ?? {} } });
+    }
+    this.setActiveTab(tab, section ?? action ?? '');
     if (tab === 'home') {
       this.activeThreadId = '';
       this.routedPrompt = '';
@@ -259,10 +277,13 @@ export class NowWorkbenchShell extends LitElement {
         `;
       case 'fluent':
         return html`<now-fluent-explorer .bundleId=${this.selectedBundleId}></now-fluent-explorer>`;
+      case 'actions':
+        return html`<now-actions-view .actionName=${this.activeSub}></now-actions-view>`;
       case 'admin':
       case 'settings':
         return html`
           <now-workbench-settings
+            .section=${this.activeSub}
             @settings-updated=${(e: CustomEvent<{ prefs: WorkbenchPreferences }>) => {
               this.welcomeModalOpen = false;
               this.autoRouteIntent = e.detail.prefs.auto_route_intent;

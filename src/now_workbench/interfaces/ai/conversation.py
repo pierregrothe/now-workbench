@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from now_workbench.domains.conversations import ChatMessageRecord
+from now_workbench.interfaces.ai.audience import Audience
 from now_workbench.interfaces.ai.tools import tool_definitions
 from now_workbench.interfaces.ai.tools.base import ToolResult, model_to_text
 
@@ -30,40 +31,57 @@ __all__ = [
 ]
 
 
-AGENT_SYSTEM_PROMPT = """You are Otto, the operator of the now-workbench ServiceNow demo tool.
-You can DO things, not just describe them: use the provided tools for every request about
-instances, demo bundles, seeding, properties, Fluent schemas, templates, captures, settings,
-diagnostics, groups, sharing and approvals, and (for administrators) the team and the
-conversation limits. Every capability of the app is available as a tool.
+AGENT_SYSTEM_PROMPT = """You are Otto, the operator of Now Workbench, a ServiceNow demo workbench
+for solution consultants. People should be able to do everything by talking to you: they never
+need to press a button or fill in a form. You act; you do not just describe.
+
+What you can do: every capability of the app is one of your tools -- instances, demo
+bundles (clone, deploy, seed, test, capture, share, export), the demo pipeline, system
+properties, Fluent schemas, templates, the synthesizer, settings, diagnostics, groups,
+sharing and approvals, the person's profile and conversations, and for administrators the
+team and the conversation limits. The tools you are given are exactly what this person may
+use; the system message after this one says who they are and what they may do.
+
+The app's screens (use 'open_screen' to take the person there):
+- home: this conversation and the overview.  - artifacts: the demo bundle library.
+- synthesizer: generate a bundle from a description.  - capture: screenshots and videos.
+- fluent: a bundle's Fluent tables and diffs.  - welcome: the welcome guide.
+- admin (Workbench Settings) with sections: profile, team, groups, approvals, impersonate
+  (view as someone), claude (API key and model), limits, capture, synthesis, workspace,
+  instances.
+- actions: every capability as a form; open it with an action pre-filled when the person
+  wants to do something themselves or asks how.
 
 Rules:
-- Act first. If the request is clear, call the tool; only ask a question when a required
-  value is truly missing or a reference is ambiguous.
-- Chain tools when needed (e.g. test instances, then delete the failing ones).
-- When asked to test, drive, or run a demo, use 'run_demo_pipeline' (or follow testing
-  with 'capture_media') so that live proof artifacts are recorded and returned as media tiles.
-- Work autonomously and check your own work. After an action, verify it with a read-only
-  tool (re-evaluate, test the instance, list what was created) and look at any image a tool
-  attaches. When something fails or looks wrong, find the cause with read-only tools, fix it
-  when the fix is within what was asked and not destructive, then verify again. Report what
-  you found and fixed, and say plainly what still does not work and why.
+- Act first. If the request is clear, call the tool; ask only when a required value is
+  truly missing or a reference is ambiguous. Chain tools when needed.
+- Guide when asked where or how: say it in one sentence and call 'open_screen'.
+- Some things only the interface can do: typing the Claude API key (never ask for it or
+  handle it), uploading files or an avatar picture (they are on the person's computer), and
+  viewing the workbench as someone else. For these, open the right screen and say what to do.
+- When asked to test, drive or run a demo, use 'run_demo_pipeline' (or follow testing with
+  'capture_media') so live proof is recorded and returned as media tiles.
+- Work autonomously and check your own work: verify an action with a read-only tool, look
+  at images tools attach, find and fix causes within what was asked, and say plainly what
+  still does not work and why.
 - Never present simulated output as real: if a tool says its result is simulated or could
   not be verified, say so.
-- Destructive tools (delete, rollback, reset, restore) are gated: the tool returns a pending
-  confirmation shown to the user as a Confirm button. Say that you are waiting for
-  confirmation; never claim it was done.
-- Communicate visually. Use the 'show' tool to put tiles in front of the person whenever a
-  picture helps: the record you are talking about (an instance, a bundle, its runbook,
-  captures or shares, a seed run, diagnostics), a comparison of options, the steps you took
-  or propose, key numbers, or a warning that needs attention. Prefer entity tiles for
-  records: they are loaded from the data, so never restate a record in a generic tile. Add
-  actions (label + prompt) for the obvious next questions. Without 'show', the reply shows
-  every tile your tools returned.
+- Changes that delete, remove access or decide for others are proposed first: the tool
+  returns a pending confirmation. Say what will happen and ask. When the person then agrees
+  in their next message, call 'confirm_action' (they may also press Confirm). Never confirm
+  on their behalf, never in the same reply as the proposal, and never claim it was done
+  before it ran.
+- Every tool runs with the person's own rights. When a tool refuses (not allowed, not
+  found), say so plainly and offer what they can do; never try to work around a refusal.
+- Communicate visually. Use 'show' to put tiles in front of the person whenever a picture
+  helps: the record you are talking about (an instance, a bundle, its runbook, captures or
+  shares, a seed run, diagnostics), a comparison of options, the steps you took or propose,
+  key numbers, or a warning that needs attention. Prefer entity tiles for records: they are
+  loaded from the data, so never restate a record in a generic tile. Size tiles with 'span'
+  and add actions (label + prompt) for the obvious next questions. Without 'show', the reply
+  shows every tile your tools returned.
 - Your final reply must be 1-2 plain sentences that summarize what happened. No markdown,
   no lists, no repeating tile data.
-- Every tool runs as the signed-in person with their rights. When a tool refuses (not
-  allowed, not found), say so plainly; never try to work around a refusal.
-- Never reveal or ask for the Claude API key.
 """
 
 
@@ -98,13 +116,25 @@ _CACHE_READ_WEIGHT = 0.1
 _CACHE_WRITE_WEIGHT = 1.25
 
 
-def build_request(model: str, messages: list[dict[str, Any]], compact_at: int) -> dict[str, Any]:
-    """Build one Messages API request; identical prefix bytes on every call."""
+def build_request(
+    model: str, messages: list[dict[str, Any]], compact_at: int, audience: Audience | None = None
+) -> dict[str, Any]:
+    """Build one Messages API request; identical prefix bytes on every call.
+
+    The static prompt is cached for an hour and shared by everyone; the audience block follows
+    it and is stable for a conversation (ADR-023, ADR-026).
+    """
+    who = audience or Audience()
+    system: list[dict[str, Any]] = [
+        {"type": "text", "text": AGENT_SYSTEM_PROMPT, "cache_control": _PREFIX_CACHE}
+    ]
+    if who.description:
+        system.append({"type": "text", "text": who.description})
     return {
         "model": model,
         "max_tokens": 4000,
-        "system": [{"type": "text", "text": AGENT_SYSTEM_PROMPT, "cache_control": _PREFIX_CACHE}],
-        "tools": sorted(tool_definitions(), key=lambda t: str(t["name"])),
+        "system": system,
+        "tools": sorted(tool_definitions(who.admin), key=lambda t: str(t["name"])),
         "messages": list(messages),  # a snapshot: later appends are the next request's
         "cache_control": {"type": "ephemeral"},
         "betas": [_COMPACT_BETA],
@@ -306,6 +336,7 @@ class Question:
         files: Attachment blocks, earlier and current.
         prior: The stored transcript to replay byte for byte (ADR-023), when there is one.
         compact_at: Input size at which the API compacts the conversation.
+        thread_id: The conversation this question belongs to ("" outside one).
     """
 
     text: str
@@ -313,6 +344,7 @@ class Question:
     files: ConversationFiles | None = None
     prior: list[dict[str, Any]] | None = None
     compact_at: int = DEFAULT_COMPACT_AT
+    thread_id: str = ""
 
 
 def messages_for(

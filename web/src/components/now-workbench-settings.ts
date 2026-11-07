@@ -4,8 +4,8 @@ import '../views/now-groups-settings.js';
 import '../views/now-approvals-settings.js';
 import '../views/now-impersonation.js';
 import '../views/now-limits-settings.js';
-import { LitElement, html } from 'lit';
-import { customElement, state } from 'lit/decorators.js';
+import { LitElement, html, type PropertyValues } from 'lit';
+import { customElement, property, state } from 'lit/decorators.js';
 import './now-admin-panel.js';
 
 import { isAdmin } from '../profile/avatars.js';
@@ -21,6 +21,8 @@ export class NowWorkbenchSettings extends LitElement {
   static styles = workbenchSettingsStyles;
 
   @state() private activeSection: SettingsSection = 'profile';
+  /** Section requested from outside (the URL or Otto); applied when it changes. */
+  @property() section = '';
   private readonly store = new StoreController(this);
   @state() private prefs: WorkbenchPreferences = { ...DEFAULT_PREFS };
   @state() private newApiKeyInput = '';
@@ -28,6 +30,11 @@ export class NowWorkbenchSettings extends LitElement {
   @state() private isVerifyingKey = false;
   @state() private keyVerificationError = '';
   @state() private saveMessage = '';
+
+  protected willUpdate(changed: PropertyValues<this>): void {
+    const wanted = SECTIONS.find((sec) => sec.id === this.section);
+    if (changed.has('section') && wanted) this.activeSection = wanted.id;
+  }
 
   connectedCallback(): void {
     super.connectedCallback();

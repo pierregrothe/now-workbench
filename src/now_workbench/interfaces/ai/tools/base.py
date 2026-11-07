@@ -38,6 +38,8 @@ class ToolResult(BaseModel):
     images: list[str] = Field(default_factory=list, max_length=4)
     # Set by the `show` tool: these tiles were chosen by Otto as the reply's visuals (ADR-025).
     shown: bool = False
+    # Commands for the interface (navigate, ...), applied when the reply arrives (ADR-026).
+    ui: list[dict[str, Any]] = Field(default_factory=list)
 
 
 @dataclass
@@ -47,6 +49,8 @@ class ToolContext:
     conn: sqlite3.Connection
     fake_mode: bool = False
     user: AuthUser | None = None
+    # The conversation Otto is answering in, so tools can act on "this conversation".
+    thread_id: str = ""
 
     def actor(self) -> AuthUser:
         """The person Otto acts for: the explicit user, else the request's (ADR-025)."""
@@ -69,6 +73,8 @@ class ToolSpec:
     category: str = "general"
     cli_equivalent: str = ""
     destructive: bool = False
+    # Offered only to workbench administrators (ADR-026); the services refuse others anyway.
+    admin_only: bool = False
     plan: ToolPlanner | None = None
 
     def definition(self) -> dict[str, Any]:
@@ -191,3 +197,49 @@ def model_to_text(payload: Any, limit: int = 4000) -> str:
     """Serialize tool data for the model, truncated to keep context small."""
     text = json.dumps(payload, default=str)
     return text if len(text) <= limit else text[:limit] + "...[truncated]"
+
+
+def _confirmation_result(spec: ToolSpec, ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
+    plan = spec.plan(ctx, args) if spec.plan else f"Run {spec.name}."
+    tile = text_tile(
+        f"tile-confirm-{spec.name}",
+        "Confirm action",
+        plan,
+        [
+            {
+                "id": "confirm_tool",
+                "label": "Confirm",
+                "variant": "primary",
+                "tool": spec.name,
+                "tool_input": args,
+                "plan": plan,
+            },
+            {"id": "cancel_tool", "label": "Cancel", "variant": "secondary"},
+        ],
+    )
+    return ToolResult(
+        summary=f"Waiting for your confirmation: {plan}",
+        pending=True,
+        tiles=[tile],
+    )
+
+
+def execute_tool(
+    ctx: ToolContext,
+    name: str,
+    args: dict[str, Any],
+    confirmed: bool = False,
+) -> ToolResult:
+    """Execute a registered tool; destructive tools require prior confirmation."""
+    spec = REGISTRY.get(name)
+    if spec is None:
+        return ToolResult(summary=f"Unknown tool '{name}'.", ok=False)
+    if spec.destructive and not confirmed:
+        try:
+            return _confirmation_result(spec, ctx, args)
+        except Exception as exc:
+            return ToolResult(summary=f"Could not prepare '{name}': {exc}", ok=False)
+    try:
+        return spec.handler(ctx, args)
+    except Exception as exc:
+        return ToolResult(summary=f"{name} failed: {exc}", ok=False)

@@ -26,7 +26,8 @@ from now_workbench.domains.conversations import (
     ThreadRepository,
     check_can_ask,
     claude_blocks,
-    delete_files,
+    delete_conversation,
+    update_conversation,
 )
 from now_workbench.interfaces.ai.conversation import ConversationFiles, replay_conversation
 from now_workbench.interfaces.ai.tile_routing import resolve_query_to_tiles
@@ -129,21 +130,14 @@ def get_thread(thread_id: str) -> ChatThreadRecord:
 def update_thread(thread_id: str, req: ChatThreadUpdate) -> ChatThreadRecord:
     """Update a thread's title, archived state, or target tab in SQLite."""
     with db_session() as conn:
-        updated = ThreadRepository(conn).update_thread(thread_id, req)
-        if not updated:
-            raise HTTPException(status_code=404, detail="Thread not found.")
-        return updated
+        return update_conversation(conn, thread_id, req)
 
 
 @router.delete("/{thread_id}")
 def delete_thread(thread_id: str) -> dict[str, Any]:
     """Permanently delete a conversational thread and its messages from SQLite."""
     with db_session() as conn:
-        attachments = ChatRepository(conn).list_attachments(thread_id)
-        deleted = ThreadRepository(conn).delete_thread(thread_id)
-        if not deleted:
-            raise HTTPException(status_code=404, detail="Thread not found.")
-        delete_files(attachments)
+        delete_conversation(conn, thread_id)
         _DELETED_DEFAULT_DBS.add(str(get_db_path()))
         return {"deleted_thread_id": thread_id, "status": "deleted"}
 
@@ -283,7 +277,7 @@ def _save_turn(
     if req.role == "user":
         context_window = existing_msgs[-MAX_THREAD_CONTEXT_MESSAGES:]
         if req.widget_type == "tool_confirm":
-            reply = confirmed_tool_reply(req, conn, context_window)
+            reply = confirmed_tool_reply(req, conn, context_window, thread_id)
         else:
             by_id = {a.id: a for a in attachments}
             files = ConversationFiles(
@@ -292,7 +286,9 @@ def _save_turn(
             prior = replay_conversation(
                 existing_msgs, thread_repo.list_transcripts(thread_id), _sent_files(attachments)
             )
-            reply = build_contextual_reply(req.content, conn, context_window, files, prior)
+            reply = build_contextual_reply(
+                req.content, conn, context_window, files, prior, thread_id
+            )
         thread_repo.add_message(
             ChatMessageRecord(
                 id=f"msg-{uuid.uuid4().hex[:8]}",

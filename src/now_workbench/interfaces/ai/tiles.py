@@ -69,6 +69,9 @@ class GenerativeUIResponse(BaseModel):
     steps: list[AgentStep] = Field(
         default_factory=list, description="Tool runs performed to produce this response"
     )
+    ui: list[dict[str, Any]] = Field(
+        default_factory=list, description="Interface commands to apply when the reply arrives"
+    )
     usage: dict[str, int] = Field(
         default_factory=dict, description="Claude tokens this reply used (ADR-023)"
     )

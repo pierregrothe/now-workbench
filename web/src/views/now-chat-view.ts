@@ -115,10 +115,34 @@ export class NowChatView extends LitElement {
     this.activeMode = 'thread';
     this.threadTitle = (text || 'Attached files').slice(0, 40);
 
-    const result = await this.threadCtrl.sendMessage(text);
+    this.applyReply(await this.threadCtrl.sendMessage(text));
+  }
 
-    if (result?.tiles && result.tiles.length > 0) {
-      this.activeTiles = result.tiles;
+  /**
+   * Act on a reply that just arrived (never on reloaded history): follow Otto's interface
+   * commands, and when Otto used tools, reload the shared lists so its changes show (ADR-026).
+   */
+  private applyReply(reply: ChatMessage | null): void {
+    if (!reply) return;
+    if (reply.tiles && reply.tiles.length > 0) {
+      this.activeTiles = reply.tiles;
+    }
+    if (reply.steps && reply.steps.length > 0) {
+      void workbenchStore.loadInstances();
+      void workbenchStore.loadBundles();
+      void workbenchStore.loadProfile();
+      this.dispatchEvent(new CustomEvent('threads-refresh', { bubbles: true, composed: true }));
+    }
+    for (const cmd of reply.ui ?? []) {
+      if (cmd.type === 'navigate') {
+        this.dispatchEvent(
+          new CustomEvent('nav-change', {
+            detail: { tab: cmd.tab, section: cmd.section, action: cmd.action, args: cmd.args },
+            bubbles: true,
+            composed: true,
+          })
+        );
+      }
     }
   }
 
@@ -298,9 +322,7 @@ export class NowChatView extends LitElement {
       widget_type: 'tool_confirm',
       widget_data: { tool: props.tool, input: props.tool_input ?? {} },
     });
-    if (result?.tiles && result.tiles.length > 0) {
-      this.activeTiles = result.tiles;
-    }
+    this.applyReply(result);
   }
 
   private handleTileAction(e: CustomEvent, decisionKey: string): void {

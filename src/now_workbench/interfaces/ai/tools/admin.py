@@ -90,6 +90,7 @@ register(
         description="List who may use the workbench and their roles (administrators).",
         properties={},
         handler=_list_team,
+        admin_only=True,
         category="admin",
     )
 )
@@ -107,6 +108,7 @@ register(
         },
         required=["email"],
         handler=_set_roles,
+        admin_only=True,
         category="admin",
         destructive=True,
         plan=lambda ctx, a: (
@@ -123,6 +125,7 @@ register(
         properties={"email": _EMAIL},
         required=["email"],
         handler=_remove_member,
+        admin_only=True,
         category="admin",
         destructive=True,
         plan=lambda ctx, a: f"Remove {a.get('email')}'s access to the workbench.",
@@ -143,6 +146,7 @@ register(
         description="Change conversation limits for everyone (administrators); omit unchanged.",
         properties={k: {"type": "integer"} for k in _LIMIT_FIELDS},
         handler=_set_limits,
+        admin_only=True,
         category="admin",
         destructive=True,
         plan=lambda ctx, a: (

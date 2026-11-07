@@ -9,10 +9,10 @@ from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 
+from now_workbench.domains import profile
 from now_workbench.domains.identity import AuthUser
 from now_workbench.domains.profile import (
     MAX_AVATAR_BYTES,
-    PRESET_AVATARS,
     AvatarPublic,
     PresetRequest,
     ProfilePublic,
@@ -66,9 +66,7 @@ def get_profile(user: AuthUser = Depends(current_user)) -> ProfilePublic:
 def update_profile(req: ProfileUpdate, user: AuthUser = Depends(current_user)) -> ProfilePublic:
     """Save the display name."""
     with db_session() as conn:
-        return _public(
-            user, ProfileRepository(conn).update_profile_name(user.email, req.display_name, _now())
-        )
+        return _public(user, profile.rename(conn, user.email, req.display_name))
 
 
 @router.put("/avatar/preset", response_model=ProfilePublic)
@@ -76,14 +74,8 @@ def choose_preset_avatar(
     req: PresetRequest, user: AuthUser = Depends(current_user)
 ) -> ProfilePublic:
     """Use one of the built-in avatars."""
-    if req.preset not in PRESET_AVATARS:
-        raise HTTPException(status_code=422, detail="Unknown avatar.")
-    delete_avatar(user.email)
     with db_session() as conn:
-        return _public(
-            user,
-            ProfileRepository(conn).set_profile_avatar(user.email, "preset", req.preset, _now()),
-        )
+        return _public(user, profile.choose_preset_avatar(conn, user.email, req.preset))
 
 
 @router.put("/avatar", response_model=ProfilePublic)

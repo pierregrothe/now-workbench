@@ -405,3 +405,10 @@ as the signed-in person. New tools cover groups, sharing, approvals, versions, t
 limits (impersonation stays UI-only, owner's choice). A `show` tool lets Otto present
 entity tiles loaded by id on the server and generic tiles it composes; tiles reuse the app's
 elements. Details: `.primer/adr/ADR-025-otto-tool-set-and-visual-tiles.md`.
+
+### 2026-11-07 -- ADR-026: Conversational control and UI parity
+
+Otto gets a per-person system block (roles, groups, view-as) and role-filtered tools; it can
+move the interface with `open_screen`, and the interface refreshes after Otto acts. The tool
+registry becomes the interface's action catalog: an Actions screen runs any capability by
+hand under the same rules. Details: `.primer/adr/ADR-026-conversational-control-and-ui-parity.md`.

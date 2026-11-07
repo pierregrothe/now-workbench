@@ -4,7 +4,13 @@
 # Date: 2026-11-07
 """Groups domain (ADR-015)."""
 
-from now_workbench.domains.groups.models import Group, GroupKind, GroupMember, MemberRole
+from now_workbench.domains.groups.models import (
+    Group,
+    GroupKind,
+    GroupMember,
+    MemberRole,
+    MemberStatus,
+)
 from now_workbench.domains.groups.repository import GroupRepository
 
 __all__ = [
@@ -13,4 +19,5 @@ __all__ = [
     "GroupMember",
     "GroupRepository",
     "MemberRole",
+    "MemberStatus",
 ]

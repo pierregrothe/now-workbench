@@ -89,6 +89,7 @@ def _widget_payload(resp: GenerativeUIResponse, conn: sqlite3.Connection) -> dic
         "layout": resp.layout,
         "tiles": [t.model_dump() for t in resp.tiles],
         "steps": [s.model_dump() for s in resp.steps],
+        "ui": list(resp.ui),
         "usage": dict(resp.usage),
     }
 
@@ -110,6 +111,7 @@ def _agent_reply(
     history: list[ChatMessageRecord],
     files: ConversationFiles | None = None,
     prior: list[dict[str, Any]] | None = None,
+    thread_id: str = "",
 ) -> _Reply | None:
     """Answer with the Claude tool-calling agent when an API key is configured."""
     pref_repo = PreferencesRepository(conn)
@@ -125,6 +127,7 @@ def _agent_reply(
                 files=files,
                 prior=prior,
                 compact_at=ChatRepository(conn).get_conversation_limits().compact_at_tokens,
+                thread_id=thread_id,
             ),
             conn,
             client=make_client(api_key),
@@ -149,11 +152,12 @@ def confirmed_tool_reply(
     req: ChatMessageCreate,
     conn: sqlite3.Connection,
     history: list[ChatMessageRecord],
+    thread_id: str = "",
 ) -> _Reply:
     """Execute a user-confirmed destructive tool call and report the result."""
     data = req.widget_data or {}
     prefs = PreferencesRepository(conn).get_workbench_preferences()
-    ctx = ToolContext(conn=conn, fake_mode=prefs.sdk_fake_mode)
+    ctx = ToolContext(conn=conn, fake_mode=prefs.sdk_fake_mode, thread_id=thread_id)
     result = execute_tool(ctx, str(data.get("tool", "")), dict(data.get("input") or {}), True)
     tiles = result.tiles or [text_tile("tile-tool-result", "Result", result.summary)]
     resp = GenerativeUIResponse(summary=result.summary, layout=result.layout, tiles=tiles)
@@ -166,9 +170,10 @@ def build_contextual_reply(
     history: list[ChatMessageRecord],
     files: ConversationFiles | None = None,
     prior: list[dict[str, Any]] | None = None,
+    thread_id: str = "",
 ) -> _Reply:
     """Determine assistant response text and structured Generative UI tiles with context."""
-    agent = _agent_reply(user_text, conn, history, files, prior)
+    agent = _agent_reply(user_text, conn, history, files, prior, thread_id)
     if agent is not None:
         return agent
     if files is not None and files.current:

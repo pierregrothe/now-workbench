@@ -508,7 +508,7 @@ async def test_run_agent_inside_running_loop_uses_sync_runner() -> None:
 
 
 def test_run_agent_sync_without_tools_skips_cache_marker(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(conversation_mod, "tool_definitions", lambda: [])
+    monkeypatch.setattr(conversation_mod, "tool_definitions", lambda admin=True: [])
     with db_session() as conn:
         client = _FakeClient([_text("none")])
         agent_mod._run_agent_sync(Question("q", []), conn, client, "m")
@@ -516,7 +516,7 @@ def test_run_agent_sync_without_tools_skips_cache_marker(monkeypatch: pytest.Mon
 
 
 async def test_runner_without_tools_skips_cache_marker(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(conversation_mod, "tool_definitions", lambda: [])
+    monkeypatch.setattr(conversation_mod, "tool_definitions", lambda admin=True: [])
     with db_session() as conn:
         resp = await ClaudeAgentRunner(_AsyncClient([_text("none")]), "m", conn).run("q", [])
         assert resp.summary == "none"

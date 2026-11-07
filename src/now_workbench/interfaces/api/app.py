@@ -38,6 +38,7 @@ from now_workbench.interfaces.ai.client import OttoClient
 from now_workbench.interfaces.ai.tile_routing import resolve_query_to_tiles
 from now_workbench.interfaces.ai.tiles import GenerativeUIResponse
 from now_workbench.interfaces.api.access import AccessValidator
+from now_workbench.interfaces.api.actions import router as actions_router
 from now_workbench.interfaces.api.attachments import attachments_router, limits_router
 from now_workbench.interfaces.api.captures import router as captures_router
 from now_workbench.interfaces.api.demos import router as demos_router
@@ -234,6 +235,7 @@ def create_app(
     app.include_router(impersonation_router)
     app.include_router(attachments_router)
     app.include_router(limits_router)
+    app.include_router(actions_router)
 
     sdk_runner = NowSdkRunner(now_sdk_bin=settings.now_sdk_bin, node_bin=settings.node_bin)
     log_broadcaster = LogBroadcaster()

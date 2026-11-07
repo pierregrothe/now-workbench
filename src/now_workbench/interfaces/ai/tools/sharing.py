@@ -219,6 +219,7 @@ register(
             "description": {"type": "string"},
         },
         required=["name", "kind"],
+        admin_only=True,
         category="sharing",
     )
 )
@@ -229,6 +230,7 @@ register(
         handler=_delete_group,
         properties={"group": _GROUP},
         required=["group"],
+        admin_only=True,
         category="sharing",
         destructive=True,
         plan=lambda ctx, a: f"Delete group '{a.get('group')}' and everything shared with it.",

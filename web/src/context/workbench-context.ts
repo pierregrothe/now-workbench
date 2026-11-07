@@ -25,6 +25,8 @@ export interface WorkbenchState {
   loadError: string | null;
   /** The local profile; null until loaded. */
   profile: ProfileData | null;
+  /** An action to pre-fill on the Actions screen (set by Otto's open_screen, ADR-026). */
+  pendingAction: { name: string; args: Record<string, unknown> } | null;
 }
 
 export type StateListener = (state: WorkbenchState) => void;
@@ -40,6 +42,7 @@ class WorkbenchStore {
     claudeKeyConfigured: false,
     loadError: null,
     profile: null,
+    pendingAction: null,
   };
 
   private _listeners = new Set<StateListener>();
