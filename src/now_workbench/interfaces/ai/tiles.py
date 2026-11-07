@@ -19,6 +19,7 @@ TileType = Literal[
     "steps",
     "comparison",
     "callout",
+    "chart",
 ]
 
 TileLayout = Literal["1-col", "2-col", "3-col", "auto"]

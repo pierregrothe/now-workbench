@@ -48,6 +48,7 @@ export const tileRendererStyles = css`
     .kpi-value { font-size: 22px; font-weight: 800; color: var(--now-text-primary, #0f172a); line-height: 1.1; }
     .kpi-label { font-size: 11.5px; font-weight: 600; color: var(--now-text-secondary, #475467); text-transform: uppercase; letter-spacing: 0.03em; }
     .kpi-hint { font-size: 11px; color: var(--now-text-secondary, #64748b); }
+    .kpi-trend { display: block; max-width: 100%; margin: 2px 0; }
     .kpi-item.good .kpi-value { color: #15803d; }
     .kpi-item.warn .kpi-value { color: #b45309; }
     .kpi-item.bad .kpi-value { color: #b91c1c; }

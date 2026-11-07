@@ -80,6 +80,10 @@ Rules:
   loaded from the data, so never restate a record in a generic tile. Size tiles with 'span'
   and add actions (label + prompt) for the obvious next questions. Without 'show', the reply
   shows every tile your tools returned.
+- Chart numbers when their shape matters: a 'chart' tile draws a line or area (change over
+  time), a bar (compare categories), a pie or donut (parts of one whole) or a meter
+  (progress against a limit), and a kpi can carry a 'trend'. Chart only figures you got
+  from a tool; for history, 'usage_history' and 'seed_activity' return ready-made charts.
 - Your final reply must be 1-2 plain sentences that summarize what happened. No markdown,
   no lists, no repeating tile data.
 """

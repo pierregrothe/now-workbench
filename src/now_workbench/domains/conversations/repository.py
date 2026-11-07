@@ -223,3 +223,23 @@ class ThreadRepository(Repository):
                 "WHERE id = ? AND owner_email = ?;",
                 (max(0, tokens), thread_id, current_owner()),
             )
+
+    def daily_question_counts(self, since: str) -> dict[str, int]:
+        """Return how many questions the owner asked per UTC day, from `since` on.
+
+        Args:
+            since: First day to count, as YYYY-MM-DD.
+
+        Returns:
+            Question count keyed by day (YYYY-MM-DD); days without questions are absent.
+        """
+        rows = self.conn.execute(
+            """
+            SELECT substr(m.created_at, 1, 10) AS day, COUNT(*) AS n FROM chat_messages m
+            JOIN chat_threads t ON t.id = m.thread_id
+            WHERE t.owner_email = ? AND m.role = 'user' AND m.created_at >= ?
+            GROUP BY day;
+            """,
+            (current_owner(), since),
+        ).fetchall()
+        return {r["day"]: int(r["n"]) for r in rows}

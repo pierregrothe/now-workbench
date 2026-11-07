@@ -88,3 +88,22 @@ class SeedRepository(Repository):
                 "UPDATE seed_operations SET status = ? WHERE id = ? AND owner_email = ?;",
                 (status, op_id, current_owner()),
             )
+
+    def daily_status_counts(self, since: str) -> dict[tuple[str, str], int]:
+        """Return the owner's seed runs per UTC day and status, from `since` on.
+
+        Args:
+            since: First day to count, as YYYY-MM-DD.
+
+        Returns:
+            Run count keyed by (day YYYY-MM-DD, status); empty combinations are absent.
+        """
+        rows = self.conn.execute(
+            """
+            SELECT substr(created_at, 1, 10) AS day, status, COUNT(*) AS n
+            FROM seed_operations WHERE owner_email = ? AND created_at >= ?
+            GROUP BY day, status;
+            """,
+            (current_owner(), since),
+        ).fetchall()
+        return {(r["day"], r["status"]): int(r["n"]) for r in rows}

@@ -94,7 +94,13 @@ REGISTRY: dict[str, ToolSpec] = {}
 
 
 def register(spec: ToolSpec) -> ToolSpec:
-    """Add a tool to the global registry."""
+    """Add a tool to the global registry.
+
+    Raises:
+        ValueError: Another tool already has this name (it would be silently replaced).
+    """
+    if spec.name in REGISTRY:
+        raise ValueError(f"Tool '{spec.name}' is already registered.")
     REGISTRY[spec.name] = spec
     return spec
 

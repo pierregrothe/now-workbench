@@ -7,10 +7,13 @@
 // apart. A missing value is shown as missing; nothing is filled in (ADR-013).
 
 import { openArrowIcon } from '../icons.js';
-import { LitElement, html } from 'lit';
+import { LitElement, html, svg } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import type { InstanceData } from '../context/instance-model.js';
 import { tileRendererStyles } from './now-tile-renderer-styles.js';
+import { SERIES_COLORS, smoothPath } from './now-chart-geometry.js';
+import type { ChartProps } from './now-chart-geometry.js';
+import './now-chart-tile.js';
 import './now-media-tile.js';
 import '../components/now-instance-hero.js';
 import '../components/now-diagnostics-card.js';
@@ -45,7 +48,8 @@ export interface UITileSpec {
     | 'kpis'
     | 'steps'
     | 'comparison'
-    | 'callout';
+    | 'callout'
+    | 'chart';
   title?: string;
   props: Record<string, any>;
   /** Columns (of three) the tile spans; absent follows the reply's layout. */
@@ -58,6 +62,21 @@ const PROBE_ACTIONS = new Set(['probe', 'probe_all']);
 const FULL_WIDTH_TILES = new Set(['instance', 'diagnostics', 'data-table']);
 /** Grid tracks (of six) a tile takes by default under each reply layout. */
 const LAYOUT_TRACKS: Record<string, number> = { '1-col': 6, '2-col': 3, '3-col': 2 };
+
+/** A KPI's trend: a 2px line with its latest point marked (ADR-027). */
+function sparkline(values: number[]) {
+  if (values.length < 2) return '';
+  const w = 120;
+  const h = 28;
+  const lo = Math.min(...values);
+  const span = Math.max(...values) - lo || 1;
+  const pts = values.map((v, i) => [(i / (values.length - 1)) * (w - 6) + 3, h - 4 - ((v - lo) / span) * (h - 8)] as [number, number]);
+  const [lx, ly] = pts[pts.length - 1];
+  return html`<svg class="kpi-trend" width=${w} height=${h} role="img" aria-label="Trend, latest ${values[values.length - 1]}">
+    ${svg`<path d=${smoothPath(pts)} fill="none" stroke=${SERIES_COLORS[0]} stroke-width="2" stroke-linejoin="round" stroke-linecap="round"></path>
+      <circle cx=${lx} cy=${ly} r="3.5" fill=${SERIES_COLORS[0]} stroke="#fff" stroke-width="2"></circle>`}
+  </svg>`;
+}
 
 @customElement('now-tile-renderer')
 export class NowTileRenderer extends LitElement {
@@ -151,6 +170,7 @@ export class NowTileRenderer extends LitElement {
                 (k) => html`<div class="kpi-item ${k.tone || 'neutral'}">
                   <span class="kpi-label">${k.label}</span>
                   <span class="kpi-value">${k.value}</span>
+                  ${Array.isArray(k.trend) ? sparkline(k.trend) : ''}
                   ${k.hint ? html`<span class="kpi-hint">${k.hint}</span>` : ''}
                 </div>`
               )}
@@ -195,6 +215,12 @@ export class NowTileRenderer extends LitElement {
           </div>
         `;
       }
+
+      case 'chart':
+        return html`<div class="gen-tile">
+          <now-chart-tile .props=${p as ChartProps} .heading=${t.title || ''}></now-chart-tile>
+          ${this.renderActions(p)}
+        </div>`;
 
       case 'callout':
         return html`

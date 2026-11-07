@@ -29,6 +29,7 @@ from now_workbench.interfaces.ai.tools.base import (
 )
 from now_workbench.interfaces.ai.tools.bundles import _get_runbook, _inspect_bundle
 from now_workbench.interfaces.ai.tools.captures import _list_demo_captures
+from now_workbench.interfaces.ai.tools.charts import MAX_POINTS, ChartSpec
 from now_workbench.interfaces.ai.tools.sharing import _list_shares
 
 __all__ = ["TileRequest"]
@@ -75,6 +76,8 @@ class Kpi(BaseModel):
     value: str = Field(min_length=1, max_length=40)
     tone: Tone = "neutral"
     hint: str = Field(default="", max_length=80)
+    # A small trend line drawn under the value (oldest first), ADR-027.
+    trend: list[float] = Field(default_factory=list, max_length=MAX_POINTS)
 
 
 class KpisTile(_Base):
@@ -113,6 +116,10 @@ class CalloutTile(_Base):
     tone: Literal["info", "success", "warning", "danger"] = "info"
 
 
+class ChartTile(_Base, ChartSpec):
+    kind: Literal["chart"]
+
+
 # --- entity tiles: records the server loads --------------------------------------------------
 
 
@@ -142,6 +149,7 @@ TileRequest = Annotated[
     | StepsTile
     | ComparisonTile
     | CalloutTile
+    | ChartTile
     | InstanceTile
     | BundleTile
     | SeedRunTile
@@ -221,7 +229,7 @@ def _entity(ctx: ToolContext, req: _Base) -> list[UITileSpec]:
             return [UITileSpec(id="diagnostics", type="diagnostics")]
 
 
-_GENERIC = (TextTile, TableTile, KpisTile, StepsTile, ComparisonTile, CalloutTile)
+_GENERIC = (TextTile, TableTile, KpisTile, StepsTile, ComparisonTile, CalloutTile, ChartTile)
 
 
 def _show(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
@@ -248,11 +256,15 @@ def _show(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
 
 
 _KINDS = (
-    "text {body}; table {columns, rows}; kpis {items:[{label, value, tone, hint}]}; "
+    "text {body}; table {columns, rows}; kpis {items:[{label, value, tone, hint, trend:[n]}]}; "
     "steps {items:[{label, status: done|running|todo|failed|skipped, detail}]}; "
     "comparison {columns:[{heading, points:[...]}]}; callout {body, tone: info|success|"
     "warning|danger}; instance {instance}; bundle|runbook|captures|shares {bundle_id}; "
-    "seed_run {operation_id}; diagnostics {}"
+    "seed_run {operation_id}; diagnostics {}; chart {chart: line|area|bar|pie|donut|meter, "
+    "labels:[...], series:[{name, values:[n per label]}], unit, stacked; a meter takes value "
+    "and max instead}. Charts: line or area for change over time, bar to compare categories, "
+    "pie or donut for parts of one whole (one series, at most 8 slices), meter for progress "
+    "against a limit; at most 8 series on one axis, never two measures of different scale"
 )
 
 register(

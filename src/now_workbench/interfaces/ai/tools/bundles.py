@@ -359,19 +359,6 @@ register(
 )
 register(
     ToolSpec(
-        name="delete_bundle",
-        description="Delete a demo bundle.",
-        properties={"bundle_id": BUNDLE_ARG},
-        required=["bundle_id"],
-        handler=_delete_bundle,
-        category="bundle",
-        cli_equivalent="(API) DELETE /api/demos/{id}",
-        destructive=True,
-        plan=_plan_delete_bundle,
-    )
-)
-register(
-    ToolSpec(
         name="synthesize_bundle",
         description="Generate a new demo bundle (Fluent schema, seed data, properties, narrative).",
         properties={

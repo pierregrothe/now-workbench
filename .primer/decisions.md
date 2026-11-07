@@ -412,3 +412,10 @@ Otto gets a per-person system block (roles, groups, view-as) and role-filtered t
 move the interface with `open_screen`, and the interface refreshes after Otto acts. The tool
 registry becomes the interface's action catalog: an Actions screen runs any capability by
 hand under the same rules. Details: `.primer/adr/ADR-026-conversational-control-and-ui-parity.md`.
+
+### 2026-11-07 -- ADR-027: Chart tiles and history tools
+
+`show` gains a `chart` kind (line, area, bar, pie, donut, meter) and KPI sparklines, drawn in
+plain SVG with no chart library, on the validated categorical palette, with a data table view.
+`usage_history` and `seed_activity` chart the person's own stored activity. The tool registry
+now refuses duplicate names. Details: `.primer/adr/ADR-027-chart-tiles-and-history-tools.md`.
