@@ -54,11 +54,22 @@ export class NowReplyFeedback extends LitElement {
   @state() private busy = false;
   @state() private status = '';
   @state() private error = '';
+  /** The stored comment the draft was last seeded from. */
+  private stored = '';
 
   willUpdate(changed: PropertyValues<this>): void {
-    if (changed.has('feedback')) {
+    const comment = this.feedback?.comment ?? '';
+    if (changed.has('messageId')) {
+      // Another reply (an element reused for a different message): start from its stored state.
       this.current = this.feedback?.rating ?? null;
-      this.draft = this.feedback?.comment ?? '';
+      this.draft = this.stored = comment;
+      this.commentOpen = false;
+      this.status = this.error = '';
+    } else if (changed.has('feedback')) {
+      // A history reload (the next question) must not wipe a comment still being typed.
+      this.current = this.feedback?.rating ?? null;
+      if (!this.commentOpen || this.draft === this.stored) this.draft = comment;
+      this.stored = comment;
     }
   }
 
@@ -73,7 +84,7 @@ export class NowReplyFeedback extends LitElement {
         body: JSON.stringify({ rating, comment }),
       });
       this.current = saved.rating;
-      this.draft = saved.comment;
+      this.draft = this.stored = saved.comment;
       this.status = comment === null ? 'Thanks for the feedback.' : 'Thanks, comment saved.';
       this.commentOpen = comment === null;
     } catch (err) {

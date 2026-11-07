@@ -189,3 +189,18 @@ test('the feedback row fits a phone', async ({ page }) => {
   expect(box?.height ?? 0).toBeGreaterThanOrEqual(40);
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
 });
+
+test('a comment being typed survives the next question reloading the history', async ({ page }) => {
+  const reply = `Reply with a draft ${Date.now()}`;
+  seedConversation('Feedback draft', reply);
+  await openConversation(page, 'Feedback draft');
+  await page.getByRole('button', { name: `Good reply: "${reply}"` }).click();
+  const box = page.getByRole('textbox', { name: 'Feedback comment' });
+  await box.fill('Still typing this');
+
+  await page.getByPlaceholder('Find answers, automate tasks, or create content instantly').fill('Show demo recipe bundles');
+  await page.getByRole('button', { name: 'Send', exact: true }).first().click();
+  // The next reply arrives with the reloaded history, which carries the stored (empty) comment.
+  await expect(page.getByRole('button', { name: 'Good reply' })).toHaveCount(2);
+  await expect(box).toHaveValue('Still typing this');
+});
