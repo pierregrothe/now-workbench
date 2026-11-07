@@ -12,7 +12,7 @@ Last updated: 2026-11-06
 - Enforcement: 11 blocking pre-commit/pre-push gates + 7 baseline-tracked ratchets (governance.md)
 - Ratchet baseline store: 2 entries in `.ratchet/baselines.json`
 - Domains with `protocols.py`/`factory.py`: 0
-- ADRs: 24 (`.primer/adr/`) | PRDs: 3 (`.primer/prd/`)
+- ADRs: 25 (`.primer/adr/`) | PRDs: 3 (`.primer/prd/`)
 
 ### Capability Inventory
 

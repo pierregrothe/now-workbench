@@ -397,3 +397,11 @@ through one `StoreController`; the views' copied top bar becomes `<now-workspace
 components still over 500 lines split into one child element per section. The web size
 baseline must end empty. The unmounted `now-otto-drawer` is deleted.
 Details: `.primer/adr/ADR-024-web-component-structure.md`.
+
+### 2026-11-07 -- ADR-025: Otto's tool set and visual tile catalog
+
+Rules move from API routes into domain services shared by the API and Otto's tools; tools run
+as the signed-in person. New tools cover groups, sharing, approvals, versions, team and
+limits (impersonation stays UI-only, owner's choice). A `show` tool lets Otto present
+entity tiles loaded by id on the server and generic tiles it composes; tiles reuse the app's
+elements. Details: `.primer/adr/ADR-025-otto-tool-set-and-visual-tiles.md`.

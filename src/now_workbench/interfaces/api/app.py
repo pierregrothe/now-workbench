@@ -9,9 +9,8 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict
 
@@ -42,6 +41,7 @@ from now_workbench.interfaces.api.access import AccessValidator
 from now_workbench.interfaces.api.attachments import attachments_router, limits_router
 from now_workbench.interfaces.api.captures import router as captures_router
 from now_workbench.interfaces.api.demos import router as demos_router
+from now_workbench.interfaces.api.errors import install_error_handlers
 from now_workbench.interfaces.api.guard import AccessMiddleware, assert_safe_binding
 from now_workbench.interfaces.api.impersonation import router as impersonation_router
 from now_workbench.interfaces.api.instances import router as instances_router
@@ -55,7 +55,6 @@ from now_workbench.interfaces.api.team import router as team_router
 from now_workbench.interfaces.api.templates import router as templates_router
 from now_workbench.interfaces.api.threads import router as threads_router
 from now_workbench.platform.config.origins import is_origin_allowed
-from now_workbench.platform.config.paths import UnsafePathError
 from now_workbench.platform.config.settings import settings
 from now_workbench.platform.db.session import db_session
 from now_workbench.platform.owner import owner_scope
@@ -217,10 +216,7 @@ def create_app(
         allow_headers=["*"],
     )
 
-    @app.exception_handler(UnsafePathError)
-    async def _reject_unsafe_path(build_request: Request, exc: UnsafePathError) -> JSONResponse:
-        """Turn a rejected user-supplied id into HTTP 400 on every route (never 500)."""
-        return JSONResponse(status_code=400, content={"detail": str(exc)})
+    install_error_handlers(app)
 
     app.include_router(instances_router)
     app.include_router(templates_router)

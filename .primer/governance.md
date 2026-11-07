@@ -70,7 +70,7 @@ local git hooks and harness hooks are the primary gates.
 
 ## ADR Catalog
 
-<!-- govtable:adr-catalog:start (count=24) -->
+<!-- govtable:adr-catalog:start (count=25) -->
 | ADR | Title | Enforcement | Status |
 |-----|-------|-------------|--------|
 | 001 | Hybrid Runtime with Python Core & Lit Web Components | hook | accepted |
@@ -97,6 +97,7 @@ local git hooks and harness hooks are the primary gates.
 | 022 | Deploying a Demo's Fluent App | architecture | accepted |
 | 023 | Prompt Caching, Compaction and Token Budgets | architecture | accepted |
 | 024 | Web Component Structure -- Styles, Controllers and Sub-Components | architecture | accepted |
+| 025 | Otto's Tool Set and Visual Tile Catalog | architecture | accepted |
 <!-- govtable:adr-catalog:end -->
 
 Full ADR files: `.primer/adr/`

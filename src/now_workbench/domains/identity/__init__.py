@@ -18,14 +18,28 @@ from now_workbench.domains.identity.setup import (
     TooManyAttemptsError,
     WrongCodeError,
 )
+from now_workbench.domains.identity.team import (
+    is_admin,
+    list_team,
+    normalize_email,
+    remove_member,
+    require_admin,
+    set_roles,
+)
 
 __all__ = [
     "AuthUser",
     "candidates",
     "effective_user",
+    "is_admin",
+    "list_team",
     "may_impersonate",
+    "normalize_email",
     "operator_owner",
+    "remove_member",
+    "require_admin",
     "Role",
+    "set_roles",
     "SetupCodes",
     "SetupError",
     "TeamMember",
