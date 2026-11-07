@@ -70,7 +70,8 @@ class TableTile(_Base):
 
 
 class Kpi(BaseModel):
-    model_config = ConfigDict(frozen=True, extra="forbid")
+    # A value may come as a number (5) or text ("5 runs"); either is shown as text.
+    model_config = ConfigDict(frozen=True, extra="forbid", coerce_numbers_to_str=True)
 
     label: str = Field(min_length=1, max_length=40)
     value: str = Field(min_length=1, max_length=40)
@@ -256,11 +257,13 @@ def _show(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
 
 
 _KINDS = (
-    "text {body}; table {columns, rows}; kpis {items:[{label, value, tone, hint, trend:[n]}]}; "
+    "text {body}; table {columns, rows}; "
+    "kpis {items:[{label, value, tone: neutral|good|warn|bad, hint, trend:[n]}]}; "
     "steps {items:[{label, status: done|running|todo|failed|skipped, detail}]}; "
     "comparison {columns:[{heading, points:[...]}]}; callout {body, tone: info|success|"
     "warning|danger}; instance {instance}; bundle|runbook|captures|shares {bundle_id}; "
-    "seed_run {operation_id}; diagnostics {}; chart {chart: line|area|bar|pie|donut|meter, "
+    "seed_run {operation_id}; diagnostics {}; every chart is kind 'chart': "
+    "chart {chart: line|area|bar|pie|donut|meter, "
     "labels:[...], series:[{name, values:[n per label]}], unit, stacked; a meter takes value "
     "and max instead}. Charts: line or area for change over time, bar to compare categories, "
     "pie or donut for parts of one whole (one series, at most 8 slices), meter for progress "

@@ -80,13 +80,14 @@ def test_show_draws_charts_and_kpi_trends(client: TestClient) -> None:
                     "series": [{"name": "n", "values": [1, 3]}],
                     "span": 1,
                 },
-                {"kind": "kpis", "items": [{"label": "Runs", "value": "4", "trend": [1, 2, 4]}]},
+                {"kind": "kpis", "items": [{"label": "Runs", "value": 4, "trend": [1, 2, 4]}]},
             ]
         },
     )
     assert res.ok and [t.type for t in res.tiles] == ["chart", "kpis"]
     assert res.tiles[0].span == 1 and res.tiles[0].props["series"][0]["values"] == [1.0, 3.0]
     assert res.tiles[1].props["items"][0]["trend"] == [1.0, 2.0, 4.0]
+    assert res.tiles[1].props["items"][0]["value"] == "4"
     wrong = {"kind": "chart", "chart": "line", "labels": ["a"], "series": []}
     assert not _run("show", {"tiles": [wrong]}).ok
 
@@ -147,6 +148,12 @@ def test_seed_activity_stacks_runs_by_outcome(client: TestClient) -> None:
     assert spec["chart"] == "bar" and spec["stacked"] and len(spec["labels"]) == 3
     assert [s["name"] for s in spec["series"]] == ["Completed", "Failed", "Paused"]
     assert res.data["runs_by_status"] == {"Completed": 2, "Failed": 1, "Paused": 1}
+    assert len(res.data["days"]) == 3
+    assert res.data["runs_per_day"] == {
+        "Completed": [0, 0, 2],
+        "Failed": [0, 0, 1],
+        "Paused": [0, 0, 1],
+    }
     assert "4 seed run(s)" in res.summary
 
 

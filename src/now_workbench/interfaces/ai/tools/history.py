@@ -109,7 +109,12 @@ def _seed_activity(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
         summary=f"{total} seed run(s) in the last {len(days)} days: "
         + ", ".join(f"{n} {name.lower()}" for name, n in by_status.items())
         + ".",
-        data={"runs_by_status": by_status},
+        data={
+            "runs_by_status": by_status,
+            # Chart-ready: every day (zeros included) and one list of values per outcome.
+            "days": spec.labels,
+            "runs_per_day": {s.name: [int(v) for v in s.values] for s in series},
+        },
         tiles=[chart_tile("seed-history", f"Seed runs per day, last {len(days)} days", spec)],
     )
 
