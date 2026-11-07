@@ -10,6 +10,9 @@ internal chores, docs, tests and CI are omitted, and the long-form entries are i
 ### Added
 - otto: Thumbs up/down with an optional comment and Get help under Otto's replies; ratings kept per reply, listed in Settings (admins see all)
 
+### Changed
+- api: POST /api/threads/{id}/messages takes questions only (role user); a client can no longer write a message as Otto or the system (422)
+
 ## [2026.11.1] - 2026-11-07
 
 ### Added

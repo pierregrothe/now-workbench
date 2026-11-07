@@ -18,6 +18,7 @@ from now_workbench.domains.conversations.files import (
 )
 from now_workbench.domains.conversations.limits import get_limits, set_limits
 from now_workbench.domains.conversations.models import (
+    MAX_FEEDBACK_LISTED,
     MAX_THREAD_CONTEXT_MESSAGES,
     Attachment,
     ChatMessageCreate,
@@ -28,6 +29,7 @@ from now_workbench.domains.conversations.models import (
     ConversationLimits,
     FeedbackCreate,
     MessageFeedback,
+    ReplyRating,
 )
 from now_workbench.domains.conversations.repository import ThreadRepository
 from now_workbench.domains.conversations.service import (
@@ -54,11 +56,13 @@ __all__ = [
     "get_limits",
     "LimitReachedError",
     "list_feedback",
+    "MAX_FEEDBACK_LISTED",
     "MAX_THREAD_CONTEXT_MESSAGES",
     "MessageFeedback",
     "rate_reply",
     "read_bytes",
     "remove_attachment",
+    "ReplyRating",
     "set_limits",
     "store_attachment",
     "ThreadRepository",

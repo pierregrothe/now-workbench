@@ -17,9 +17,10 @@ replies (`interfaces/ai/` and `interfaces/api/replies.py`), enforce the monthly 
 - `ThreadRepository` methods: `list_threads`, `get_thread`, `create_thread`, `update_thread`,
   `delete_thread`, `list_messages`, `add_message(msg, transcript=None)`, `list_transcripts`
   (message id -> stored transcript), `add_thread_tokens`, `daily_question_counts(since)`.
-- `FeedbackRepository` methods: `message_role`, `put(message_id, rating, comment)` (upsert,
-  False unless an assistant reply in the owner's thread), `get`, `list_own`, `list_all`
-  (unscoped: callers check the role).
+- `FeedbackRepository` methods: `message_role`, `put(message_id, rating, comment)` (upsert;
+  comment None keeps the stored one; returns the `MessageFeedback`, or None unless an
+  assistant reply in the owner's thread), `get`, `list_own`, `list_all` (unscoped: callers
+  check the role). Lists hold the newest `MAX_FEEDBACK_LISTED` (200).
 - `ChatRepository` methods: `get_conversation_limits`, `put_conversation_limits`,
   `add_attachment`, `list_attachments`, `get_attachment`, `attach_to_message`,
   `delete_attachment` (row only).
@@ -27,24 +28,28 @@ replies (`interfaces/ai/` and `interfaces/api/replies.py`), enforce the monthly 
   `update_conversation` (rename/archive/restore, `NotFoundError`), `delete_conversation`
   (thread, cascaded rows, then the files on disk), `remove_attachment` (unsent files only,
   `ConflictError` once sent), `rate_reply(conn, message_id, FeedbackCreate)` (`NotFoundError`
-  for a message not yours, `InvalidInputError` for a non-assistant message), and
+  for a message not yours or deleted meanwhile, `InvalidInputError` for a non-assistant
+  message), and
   `list_feedback(conn, actor)` (everyone's for administrators, otherwise your own).
 - Limits: `get_limits(conn)`, `set_limits(conn, actor, limits)` (administrators only).
 - Files: `check_can_ask(thread, limits)`, `store_attachment(thread_id, filename, data,
   existing, limits)` -> unsaved `Attachment`, `read_bytes`, `delete_files`, `claude_blocks`.
   Errors: `LimitReachedError`, `UnsupportedFileError` (both `ValueError`).
-- Models: `ChatThreadCreate`, `ChatThreadUpdate`, `ChatThreadRecord`, `ChatMessageCreate`,
-  `ChatMessageRecord` (carries the stored `rating`), `Attachment`, `ConversationLimits`,
-  `FeedbackCreate`, `MessageFeedback`; constant
-  `MAX_THREAD_CONTEXT_MESSAGES` (20, the history window callers slice).
+- Models: `ChatThreadCreate`, `ChatThreadUpdate`, `ChatThreadRecord`, `ChatMessageCreate`
+  (role is always "user": the API takes questions only, so no client can forge an Otto
+  reply), `ChatMessageRecord` (carries the stored `feedback`, a `ReplyRating`), `Attachment`,
+  `ConversationLimits`, `FeedbackCreate`, `MessageFeedback`; constants
+  `MAX_THREAD_CONTEXT_MESSAGES` (20, the history window callers slice) and
+  `MAX_FEEDBACK_LISTED`.
 
 ## Wiring
 
 - Tables: chat_threads, chat_messages, chat_attachments and message_feedback (v15, one row
-  per reply, cascades from its message; the others cascade on thread delete; `PRAGMA foreign_keys` is on in `db_session`), and the `conversation_limits` row of
+  per reply, cascades from its message, no owner column: it is the thread's owner, so it
+  follows the thread when orphans are claimed; the others cascade on thread delete; `PRAGMA foreign_keys` is on in `db_session`), and the `conversation_limits` row of
   app_settings (JSON payload). Attachment bytes live in files under
   `settings.get_data_dir()` / `attachments`, named by a random `att-` id.
-- Both repositories derive from `Repository` in `platform/db/repository.py`.
+- All three repositories derive from `Repository` in `platform/db/repository.py`.
 - Imported by `interfaces/api/threads.py`, `attachments.py`, `feedback.py`, `otto_ws.py`, `replies.py`,
   `allowance.py`, `usage.py`, and `interfaces/ai/conversation.py`, `tools/account.py`,
   `tools/admin.py`, `tools/confirm.py`, `tools/history.py`. No other domain imports it.
@@ -84,8 +89,9 @@ replies (`interfaces/ai/` and `interfaces/api/replies.py`), enforce the monthly 
 - `delete_attachment` and `delete_thread` remove rows only; delete the files with
   `delete_files` (the services already do this in the right order).
 
-- Feedback never leaves the workbench (no external service). Rating again replaces the row
-  (rating and comment), so a reply has at most one rating. `list_messages` LEFT JOINs it in.
+- Feedback never leaves the workbench (no external service). Rating again replaces the row,
+  so a reply has at most one rating; a request without a comment keeps the stored comment.
+  `list_messages` LEFT JOINs it in.
 
 ## Do not reinvent
 

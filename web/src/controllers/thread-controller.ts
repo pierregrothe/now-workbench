@@ -17,8 +17,8 @@ export interface ChatMessage {
   ui?: { type: string; [key: string]: unknown }[];
   /** Tool runs Otto performed for this reply (from the backend, never invented). */
   steps?: { label: string; ok: boolean }[];
-  /** The owner's stored thumbs up or down on an Otto reply (null when not rated). */
-  rating?: 'up' | 'down' | null;
+  /** The owner's stored rating and comment on an Otto reply (null when not rated). */
+  feedback?: { rating: 'up' | 'down'; comment: string } | null;
   tokens_in?: number;
   tokens_out?: number;
   cost_estimate?: number;
@@ -56,7 +56,7 @@ function mapThreadRecords(data: unknown): ChatMessage[] {
     layout: m.widget_data?.layout,
     ui: m.widget_data?.ui || [],
     steps: m.widget_data?.steps || [],
-    rating: m.rating ?? null,
+    feedback: m.feedback ?? null,
   }));
 }
 

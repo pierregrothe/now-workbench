@@ -19,13 +19,16 @@ __all__ = [
     "ConversationLimits",
     "FeedbackCreate",
     "MAX_FEEDBACK_COMMENT",
+    "MAX_FEEDBACK_LISTED",
     "MAX_THREAD_CONTEXT_MESSAGES",
     "MessageFeedback",
     "Rating",
+    "ReplyRating",
 ]
 
 Rating = Literal["up", "down"]
 MAX_FEEDBACK_COMMENT = 1000  # the schema's CHECK on message_feedback.comment (v15)
+MAX_FEEDBACK_LISTED = 200  # the newest ratings a feedback list returns
 
 
 class ConversationLimits(BaseModel):
@@ -114,10 +117,20 @@ class ChatMessageCreate(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     content: str
-    role: str = "user"
+    # Only questions come in over the API; Otto's replies are written by the server (no forgery).
+    role: Literal["user"] = "user"
     widget_type: str | None = None
     widget_data: dict[str, Any] | None = None
     attachment_ids: list[str] = Field(default_factory=list, max_length=50)
+
+
+class ReplyRating(BaseModel):
+    """The owner's stored rating of one Otto reply, as the thread history carries it."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    rating: Rating
+    comment: str = ""
 
 
 class ChatMessageRecord(BaseModel):
@@ -133,16 +146,21 @@ class ChatMessageRecord(BaseModel):
     widget_data: dict[str, Any] | None = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     # The owner's thumbs up or down on an Otto reply (schema v15); None when not rated.
-    rating: Rating | None = None
+    feedback: ReplyRating | None = None
 
 
 class FeedbackCreate(BaseModel):
-    """A thumbs up or down on one of Otto's replies, with an optional comment."""
+    """A thumbs up or down on one of Otto's replies, with an optional comment.
+
+    Attributes:
+        rating: "up" or "down".
+        comment: The new comment ("" clears it); None keeps the stored one.
+    """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     rating: Rating
-    comment: str = Field(default="", max_length=MAX_FEEDBACK_COMMENT)
+    comment: str | None = Field(default=None, max_length=MAX_FEEDBACK_COMMENT)
 
 
 class MessageFeedback(BaseModel):
@@ -151,7 +169,7 @@ class MessageFeedback(BaseModel):
     Attributes:
         message_id: The rated assistant message.
         thread_id: Its conversation.
-        owner_email: The person who rated it (the conversation's owner).
+        owner_email: The person who rated it (the conversation's current owner).
         rating: "up" or "down".
         comment: Optional words from the person ("" when none).
         reply: The text of the rated reply.

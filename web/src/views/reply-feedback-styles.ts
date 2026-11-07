@@ -34,14 +34,18 @@ export const replyFeedbackStyles = css`
     background: #f4f3f0;
     color: var(--now-text-primary, #16181d);
   }
-  .fb-btn[aria-pressed='true'] {
+  .fb-btn.up[aria-pressed='true'] {
     color: #1f7a33;
     background: #e8f5ea;
     border-color: #bfe3c5;
   }
-  .fb-btn:disabled {
-    opacity: 0.5;
-    cursor: default;
+  .fb-btn.down[aria-pressed='true'] {
+    color: #b42318;
+    background: #fdecea;
+    border-color: #f5c2bc;
+  }
+  .fb-btn[aria-busy='true'] {
+    cursor: progress;
   }
   .comment {
     display: flex;
@@ -114,8 +118,20 @@ export const feedbackListStyles = css`
     font-size: 13px;
     white-space: pre-wrap;
     overflow-wrap: anywhere;
+  }
+  .fb-reply.clipped {
     max-height: 7.5em;
     overflow: hidden;
+  }
+  .fb-more {
+    margin-top: 4px;
+    padding: 0;
+    border: none;
+    background: none;
+    color: var(--now-link, #1f6fb2);
+    font: inherit;
+    font-size: 12.5px;
+    cursor: pointer;
   }
   .fb-comment {
     margin: 6px 0 0;

@@ -17,8 +17,11 @@ __all__ = ["list_feedback", "rate_reply"]
 def rate_reply(conn: sqlite3.Connection, message_id: str, req: FeedbackCreate) -> MessageFeedback:
     """Rate one of Otto's replies in the owner's conversations; rating again replaces it.
 
+    A request without a comment keeps the stored comment; an empty comment clears it.
+
     Raises:
-        NotFoundError: The message does not exist or is in someone else's conversation.
+        NotFoundError: The message does not exist, is in someone else's conversation, or
+            was deleted before the rating was written.
         InvalidInputError: The message is not one of Otto's replies.
     """
     repo = FeedbackRepository(conn)
@@ -27,9 +30,9 @@ def rate_reply(conn: sqlite3.Connection, message_id: str, req: FeedbackCreate) -
         raise NotFoundError("Message not found.")
     if role != "assistant":
         raise InvalidInputError("Only Otto's replies can be rated.")
-    repo.put(message_id, req.rating, req.comment)
-    stored = repo.get(message_id)
-    assert stored is not None
+    stored = repo.put(message_id, req.rating, req.comment)
+    if stored is None:
+        raise NotFoundError("Message not found.")
     return stored
 
 

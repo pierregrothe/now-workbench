@@ -405,18 +405,18 @@ CREATE TABLE usage_allowances (
 """
 
 # v15 -- a thumbs up or down, with an optional comment, on one of Otto's replies (PRD-002).
-# One row per reply: rating again replaces it. Only the thread's owner can write it.
+# One row per reply: rating again replaces it. Ownership is the conversation's (chat_threads),
+# so the row follows its thread when orphans are claimed.
 _V15 = f"""
 CREATE TABLE message_feedback (
     message_id   TEXT PRIMARY KEY REFERENCES chat_messages (id) ON DELETE CASCADE,
-    owner_email  TEXT NOT NULL,
     rating       TEXT NOT NULL CHECK (rating IN ('up', 'down')),
     comment      TEXT NOT NULL DEFAULT '' CHECK (length(comment) <= 1000),
     created_at   TEXT NOT NULL DEFAULT {_NOW},
     updated_at   TEXT NOT NULL DEFAULT {_NOW}
 ) STRICT, WITHOUT ROWID;
 
-CREATE INDEX ix_message_feedback_owner ON message_feedback (owner_email, updated_at);
+CREATE INDEX ix_message_feedback_updated ON message_feedback (updated_at);
 """
 
 MIGRATIONS: tuple[str, ...] = (
