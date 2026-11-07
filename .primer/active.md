@@ -30,7 +30,7 @@ None. `main` passes the pre-push gate; pushing waits only for the owner's go-ahe
 ## Next Steps
 
 1. Push `main` when the owner approves.
-2. PRD-002 leftovers (see 3) and the remaining ADR-013 offline-fallback audit list.
+2. Remaining ADR-013 offline-fallback audit list (components outside the deep-fix scope).
 3. PRD-002 leftovers: chat feedback row (needs backend storage); restyle Synthesizer, Media
    Capture, Fluent Explorer and the Artifact library cards to ADR-019 measurements.
 4. Per-user Claude usage limits for outside testers (per-conversation token budgets exist).
