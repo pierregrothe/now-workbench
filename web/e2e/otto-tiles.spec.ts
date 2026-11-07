@@ -85,3 +85,26 @@ test('a follow-up action on a tile is asked as the next message', async ({ page 
   await page.getByRole('button', { name: 'Retest it' }).click();
   expect((await sent).postDataJSON().content).toBe('Test Alpha Lab again');
 });
+
+test('a tile spans one, two or three columns of the reply', async ({ page }) => {
+  const text = (id: string, span: number) => ({ id, type: 'rich-text', title: `Span ${span}`, span, props: { body: id } });
+  await page.route('**/api/threads/default-thread/messages', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify([reply([text('one', 1), text('two', 2), text('three', 3)])]),
+    }),
+  );
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.goto('/');
+  await selectThread(page);
+  const width = async (title: string) =>
+    (await page.locator('now-tile-renderer').filter({ hasText: title }).boundingBox())!.width;
+  const [one, two, three] = [await width('Span 1'), await width('Span 2'), await width('Span 3')];
+  // One and two columns share a row; three columns take the whole row.
+  expect(Math.round(one + two + 16)).toBeCloseTo(Math.round(three), -1);
+  expect(two).toBeGreaterThan(one * 1.8);
+  await page.setViewportSize({ width: 800, height: 1000 });
+  // Narrow screens stack every tile at full width.
+  await expect.poll(async () => Math.round(await width('Span 1'))).toBe(Math.round(await width('Span 3')));
+});

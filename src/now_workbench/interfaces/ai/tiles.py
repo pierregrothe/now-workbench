@@ -35,6 +35,12 @@ class UITileSpec(BaseModel):
     props: dict[str, Any] = Field(
         default_factory=dict, description="Structured properties passed to the tile component"
     )
+    span: int | None = Field(
+        default=None,
+        ge=1,
+        le=3,
+        description="Columns the tile spans (1-3); None follows the layout",
+    )
 
 
 class AgentStep(BaseModel):

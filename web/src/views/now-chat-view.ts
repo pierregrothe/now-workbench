@@ -219,7 +219,7 @@ export class NowChatView extends LitElement {
     `;
   }
 
-  private renderTile(tile: UITileSpec, msgKey: string, isLastMessage: boolean) {
+  private renderTile(tile: UITileSpec, msgKey: string, isLastMessage: boolean, layout?: string) {
     const isApproval = tile.id.startsWith('tile-confirm-');
     if (isApproval) {
       const decisionKey = `${msgKey}:${tile.id}`;
@@ -242,6 +242,7 @@ export class NowChatView extends LitElement {
     return html`
       <now-tile-renderer
         .tile=${tile}
+        .layout=${layout ?? 'auto'}
         @tile-action=${(e: CustomEvent) => this.handleTileAction(e, `${msgKey}:${tile.id}`)}
       ></now-tile-renderer>
     `;
@@ -252,7 +253,7 @@ export class NowChatView extends LitElement {
     const tiles =
       msg.tiles && msg.tiles.length > 0
         ? html`<div class="tiles-grid">
-            ${msg.tiles.map((tile) => this.renderTile(tile, msgKey, isLast))}
+            ${msg.tiles.map((tile) => this.renderTile(tile, msgKey, isLast, msg.layout))}
           </div>`
         : '';
     const stepList = msg.steps ?? [];

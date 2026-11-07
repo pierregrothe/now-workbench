@@ -48,6 +48,10 @@ Impersonation stays a deliberate action in the UI and has no tool.
 - **Generic tiles** carry content Otto writes: `rich-text`, `data-table`, `kpis`, `steps`,
   `comparison`, `callout`. Each has a strict schema; invalid input is returned to Otto as an
   error to correct.
+- Every tile may set a `span` of 1, 2 or 3 columns (owner's request 2026-11-07). The reply grid
+  has six tracks, so thirds, halves, two thirds and full width all fit; a tile without a span
+  follows the reply layout, and screen cards and tables default to the full width. Narrow
+  screens stack every tile.
 - `show` takes a list of tiles and a layout. When Otto calls it during a reply, the reply shows
   what Otto chose; otherwise it shows the tiles the tools returned, as today.
 - The system prompt tells Otto to use tiles as visual aids: a record it talks about, a

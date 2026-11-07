@@ -193,10 +193,10 @@ def test_show_generic_tiles_carry_otto_content_and_follow_ups(app: TestClient) -
             "kind": "comparison",
             "columns": [{"heading": "A", "points": ["x"]}, {"heading": "B", "points": ["y"]}],
         },
-        {"kind": "callout", "body": "Careful", "tone": "warning"},
+        {"kind": "callout", "body": "Careful", "tone": "warning", "span": 3},
     ]
     res = _run(ANA, "show", {"tiles": tiles})
-    assert res.ok and res.shown and res.layout == "2-col"
+    assert res.ok and res.shown and res.layout == "auto"
     assert [t.type for t in res.tiles] == [
         "rich-text",
         "data-table",
@@ -209,6 +209,8 @@ def test_show_generic_tiles_carry_otto_content_and_follow_ups(app: TestClient) -
         {"id": "ask", "label": "More", "prompt": "Tell me more"}
     ]
     assert res.tiles[0].title == "Why"
+    assert [t.span for t in res.tiles] == [None, None, None, None, None, 3]
+    assert "span" not in res.tiles[-1].props
 
 
 def test_show_entity_tiles_load_the_record_for_the_signed_in_person(app: TestClient) -> None:
@@ -266,3 +268,5 @@ def test_assemble_shows_only_otto_tiles_once_it_called_show() -> None:
     assert [t.id for t in reply.tiles] == ["t2", "t3"]
     plain = _assemble("Done.", [tool])
     assert [t.id for t in plain.tiles] == ["t1"]
+    laid_out = shown.model_copy(update={"layout": "3-col"})
+    assert _assemble("Done.", [laid_out]).layout == "3-col"  # Otto's layout is kept

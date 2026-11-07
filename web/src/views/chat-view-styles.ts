@@ -344,11 +344,28 @@ export const chatViewStyles = css`
         text-align: center;
       }
 
+      /* Six tracks so a tile can take a third, a half, two thirds or the full width; each
+         tile sets --tile-span (ADR-025). Narrow screens stack every tile. */
       .tiles-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+        grid-template-columns: repeat(6, minmax(0, 1fr));
         gap: 16px;
         margin-top: 16px;
+      }
+
+      .tiles-grid > now-tile-renderer {
+        grid-column: span var(--tile-span, 6);
+        min-width: 0;
+      }
+
+      .tiles-grid > .outcome-card {
+        grid-column: 1 / -1;
+      }
+
+      @media (max-width: 900px) {
+        .tiles-grid > now-tile-renderer {
+          grid-column: 1 / -1;
+        }
       }
 
       .dashboard-cards {

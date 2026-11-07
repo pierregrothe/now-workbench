@@ -11,6 +11,8 @@ export interface ChatMessage {
   text: string;
   timestamp?: string;
   tiles?: any[];
+  /** How the reply lays its tiles out ('1-col', '2-col', '3-col' or 'auto'). */
+  layout?: string;
   /** Tool runs Otto performed for this reply (from the backend, never invented). */
   steps?: { label: string; ok: boolean }[];
   tokens_in?: number;
@@ -47,6 +49,7 @@ function mapThreadRecords(data: unknown): ChatMessage[] {
       minute: '2-digit',
     }),
     tiles: m.widget_data?.tiles || [],
+    layout: m.widget_data?.layout,
     steps: m.widget_data?.steps || [],
   }));
 }

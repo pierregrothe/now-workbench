@@ -51,6 +51,7 @@ class _Base(BaseModel):
 
     title: str = Field(default="", max_length=80)
     actions: list[_Action] = Field(default_factory=list, max_length=4)
+    span: Literal[1, 2, 3] | None = None
 
 
 # --- generic tiles: content Otto writes ----------------------------------------------------
@@ -156,12 +157,17 @@ def _with(tile: UITileSpec, req: _Base, n: int) -> UITileSpec:
     if req.actions:
         props["actions"] = [{"id": "ask", **a.model_dump()} for a in req.actions]
     return tile.model_copy(
-        update={"id": f"tile-show-{n}-{tile.id}", "title": req.title or tile.title, "props": props}
+        update={
+            "id": f"tile-show-{n}-{tile.id}",
+            "title": req.title or tile.title,
+            "props": props,
+            "span": req.span or tile.span,
+        }
     )
 
 
 def _generic(req: _Base) -> UITileSpec:
-    data = req.model_dump(exclude={"title", "actions"})
+    data = req.model_dump(exclude={"title", "actions", "span"})
     kind = data.pop("kind")
     if kind == "table":
         return table_tile("table", req.title, data["columns"], data["rows"])
@@ -234,7 +240,7 @@ def _show(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
             problems.append(f"{req.kind}: {exc}")
             continue
         tiles += [_with(t, req, n) for t in made]
-    layout: TileLayout = args.get("layout") or ("2-col" if len(tiles) > 1 else "1-col")
+    layout: TileLayout = args.get("layout") or "auto"
     summary = f"Showing {len(tiles)} tile(s)." + (
         f" Not shown: {'; '.join(problems)}" if problems else ""
     )
@@ -257,7 +263,8 @@ register(
             "more than a sentence. Entity tiles (instance, bundle, runbook, captures, shares, "
             "seed_run, diagnostics) are loaded from the record, so prefer them when talking "
             "about a record. Generic tiles carry your own words. Every tile takes an optional "
-            "title and up to 4 actions {label, prompt} the person can click to ask a follow-up. "
+            "title, a span (1, 2 or 3 columns wide; the reply grid has 3 columns) and up to 4 "
+            "actions {label, prompt} the person can click to ask a follow-up. "
             f"Kinds and fields: {_KINDS}. Once you call show, the reply displays only the tiles "
             "you showed."
         ),

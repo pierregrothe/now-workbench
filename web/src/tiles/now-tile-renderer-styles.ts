@@ -6,7 +6,6 @@
 import { css } from 'lit';
 
 export const tileRendererStyles = css`
-    :host([wide]) { grid-column: 1 / -1; }
     :host { display: block; font-family: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
     .gen-tile { background: var(--now-bg-surface-0, #ffffff); border: 1px solid rgba(0,0,0,0.05); border-radius: 16px; padding: 18px 20px; display: flex; flex-direction: column; gap: 10px; box-shadow: 0 1px 2px rgba(0,0,0,0.04); transition: all 0.15s ease; text-align: left; }
     .gen-tile:hover { box-shadow: 0 4px 18px rgba(0,0,0,0.06); }

@@ -48,22 +48,36 @@ export interface UITileSpec {
     | 'callout';
   title?: string;
   props: Record<string, any>;
+  /** Columns (of three) the tile spans; absent follows the reply's layout. */
+  span?: 1 | 2 | 3 | null;
 }
 
 const STEP_MARK: Record<string, string> = { done: '\u2713', running: '\u2026', failed: '!', skipped: '-', todo: '' };
 const PROBE_ACTIONS = new Set(['probe', 'probe_all']);
-/** Tiles that reuse a full-width screen element take a whole row of the reply grid. */
-const WIDE_TILES = new Set(['instance', 'diagnostics']);
+/** Kinds that need the whole row (screen cards, tables) unless the tile sets its own span. */
+const FULL_WIDTH_TILES = new Set(['instance', 'diagnostics', 'data-table']);
+/** Grid tracks (of six) a tile takes by default under each reply layout. */
+const LAYOUT_TRACKS: Record<string, number> = { '1-col': 6, '2-col': 3, '3-col': 2 };
 
 @customElement('now-tile-renderer')
 export class NowTileRenderer extends LitElement {
   @property({ type: Object }) tile!: UITileSpec;
   @property({ type: Boolean }) isProbing: boolean = false;
+  /** The reply's layout; a tile without its own span follows it. */
+  @property() layout = 'auto';
 
   static styles = tileRendererStyles;
 
   protected willUpdate(): void {
-    this.toggleAttribute('wide', WIDE_TILES.has(this.tile?.type));
+    this.style.setProperty('--tile-span', String(this.tracks()));
+  }
+
+  /** Width in grid tracks (of six): the tile's own span, else full for wide kinds, else the layout. */
+  private tracks(): number {
+    const span = this.tile?.span;
+    if (span && span >= 1 && span <= 3) return span * 2;
+    if (FULL_WIDTH_TILES.has(this.tile?.type)) return 6;
+    return LAYOUT_TRACKS[this.layout] ?? 3;
   }
 
   private handleAction(actionId: string, props: Record<string, any>): void {

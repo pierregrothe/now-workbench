@@ -115,9 +115,9 @@ def _assemble(text: str, results: list[ToolResult]) -> GenerativeUIResponse:
     if not tiles:
         tiles = [text_tile("tile-otto-reply", "Otto", summary)]
     steps = [AgentStep(label=r.summary.strip().splitlines()[0][:120], ok=r.ok) for r in results]
-    return GenerativeUIResponse(
-        summary=summary, layout=_pick_layout(tiles), tiles=tiles, steps=steps
-    )
+    shown = [r for r in results if r.shown and r.ok]
+    layout = shown[-1].layout if shown else _pick_layout(tiles)
+    return GenerativeUIResponse(summary=summary, layout=layout, tiles=tiles, steps=steps)
 
 
 def build_diagnostic_error_tiles(err_msg: str) -> GenerativeUIResponse:
