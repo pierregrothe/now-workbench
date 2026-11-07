@@ -66,11 +66,9 @@ EPIC-001 to EPIC-016 are done; their story list is in `archive/progress-history.
 
 ## Known Issues
 
-- Some components outside the deep-fix scope may still carry offline fallbacks (ADR-013 audit
-  list).
-- Otto's follow-up replies can misreport their own tool use (history carries text only).
-- Chat feedback (thumbs, Get Help) is not built: it needs backend storage first.
-- CLI bundle-id arguments are not path-guarded.
-- Testers share the owner's Claude key; there is no per-user usage cap yet.
-- Removing a deployed demo app from an instance is manual (System Applications).
-- Capture scripts launch Chromium with `--ignore-certificate-errors`.
+- Demo-correctness defects recorded in the domain cards (EPIC-021): property restore reports
+  success after failures, capture assumes Xanadu, the async pipeline makes blocking plugin
+  queries, and sharing/group rule gaps. Fake-mode safety (story 01) is in review.
+- Removing a deployed demo app from an instance is manual (System Applications); EPIC-018 story 04.
+- Otto has no memory between threads yet (PRD-004, EPIC-022).
+- Playwright uses a fixed port (8091), so only one worktree can run the e2e suite at a time.
