@@ -6,11 +6,13 @@ Last updated: 2026-11-06
 
 ### Computed Numbers (2026-11-06)
 
-- Tests: 716 collected (`pytest --collect-only`); 53 Playwright e2e tests in 13 specs; coverage 100%
+- Tests: 707 collected (`pytest --collect-only`); 53 Playwright e2e tests in 13 specs; coverage 100%
+- Architecture: platform / domains / interfaces layers, 18 domain public roots, 20 import-linter
+  contracts (ADR-015)
 - Enforcement: 11 blocking pre-commit/pre-push gates + 7 baseline-tracked ratchets (governance.md)
 - Ratchet baseline store: 2 entries in `.ratchet/baselines.json`
 - Domains with `protocols.py`/`factory.py`: 0
-- ADRs: 22 (`.primer/adr/`) | PRDs: 3 (`.primer/prd/`)
+- ADRs: 23 (`.primer/adr/`) | PRDs: 3 (`.primer/prd/`)
 
 ### Capability Inventory
 
@@ -58,7 +60,7 @@ EPIC-001 to EPIC-016 are done; their story list is in `archive/progress-history.
 ## Known Issues
 
 - Some components outside the deep-fix scope may still carry offline fallbacks (ADR-013 audit
-  list); the held architecture findings (reuse-001/002, rules-003) wait for ADR-015.
+  list).
 - Otto's follow-up replies can misreport their own tool use (history carries text only).
 - Chat feedback (thumbs, Get Help) is not built: it needs backend storage first.
 - `now-otto-drawer` is unmounted dead code; CLI bundle-id arguments are not path-guarded.
