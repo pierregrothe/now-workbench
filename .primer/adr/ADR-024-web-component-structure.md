@@ -46,8 +46,10 @@ preference sections on a `PrefsSection` base, clone and deploy dialogs,
 `context/instance-model.ts`; `now-otto-drawer` deleted. `.file-size-baseline.json` is gone:
 every web file is under 500 lines. Fixed on the way (ADR-013): diagnostics no longer
 invent values, and failed settings, bundle and conversation loads are reported instead of
-showing defaults or empty lists. Left as is: the capture-studio and synthesizer form CSS
-look alike but differ in spacing, so merging them would change the screens.
+showing defaults or empty lists. Since 2026-11-07 (story 2026.11b.02) the capture-studio and
+synthesizer forms share `styles/form-styles.ts` (labels, fields, segmented chips, the primary pill
+button); each view keeps only its own differences. The Settings form stays on its own rules: its
+filled fields and button padding differ, so a swap would change that screen.
 
 ## Consequences
 
