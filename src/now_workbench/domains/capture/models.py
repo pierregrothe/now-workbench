@@ -6,6 +6,24 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field
 
 
+class Viewport(BaseModel):
+    """Browser viewport of a capture or a recorded walkthrough."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    width: int = Field(default=1280, ge=1)
+    height: int = Field(default=720, ge=1)
+
+
+class SignIn(BaseModel):
+    """Credentials a capture signs in with; they go to the browser on stdin, never in argv."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    username: str = ""
+    password: str = Field(default="", repr=False)
+
+
 class CaptureRequest(BaseModel):
     """Request parameters to capture a screenshot or video of a ServiceNow instance."""
 

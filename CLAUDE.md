@@ -29,7 +29,8 @@ All gates run **locally** at specific development milestones. No external GitHub
    - `ruff`: Fast Python linting (0 violations).
    - `ruff-format`: Formatting check across all Python files.
    - `mypy`: Strict static type checking on `src/`.
-   - `file-size`: File size caps (src <= 800 lines, tests <= 1000 lines).
+   - `file-size`: File size caps (src <= 500 lines, `_internal` 800, models/config 1000; tests <= 1000; web <= 500 with a shrink-only baseline; ADR-015).
+   - `import-contracts`: Layer, acyclic-domain and public-root contracts (`lint-imports`, ADR-015).
    - `ratchet-all`: Evaluates metric ratchets in `.ratchet/` (violations can only decrease, never increase).
    - `primer-reconcile`: Validates `.primer/policies/registry.yaml` against live hooks and ADR files.
    - `conventional-pre-commit`: Conventional Commits message validation (`commit-msg` stage).

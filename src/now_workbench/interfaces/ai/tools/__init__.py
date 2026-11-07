@@ -2,7 +2,14 @@
 
 from typing import Any
 
-from now_workbench.interfaces.ai.tools import bundles, captures, instances, operations, system
+from now_workbench.interfaces.ai.tools import (
+    bundles,
+    captures,
+    demos,
+    instances,
+    operations,
+    system,
+)
 from now_workbench.interfaces.ai.tools.base import (
     REGISTRY,
     ToolContext,
@@ -18,6 +25,7 @@ __all__ = [
     "ToolSpec",
     "bundles",
     "captures",
+    "demos",
     "execute_tool",
     "instances",
     "operations",

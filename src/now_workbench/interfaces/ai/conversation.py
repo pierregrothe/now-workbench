@@ -4,7 +4,7 @@
 # Date: 2026-11-07
 """Conversation assembly for the Claude API (ADR-023): replay, caching, compaction, billing."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from now_workbench.domains.conversations import ChatMessageRecord
@@ -14,6 +14,7 @@ from now_workbench.interfaces.ai.tools.base import ToolResult, model_to_text
 type FileBlocks = list[dict[str, Any]]
 
 __all__ = [
+    "Question",
     "add_usage",
     "AGENT_SYSTEM_PROMPT",
     "block_to_dict",
@@ -283,6 +284,25 @@ class ConversationFiles:
 
     by_message: dict[str, FileBlocks]
     current: FileBlocks
+
+
+@dataclass(frozen=True)
+class Question:
+    """One question to Otto and the conversation it continues.
+
+    Attributes:
+        text: What the user asked.
+        history: Stored messages of the conversation (used when no transcript exists).
+        files: Attachment blocks, earlier and current.
+        prior: The stored transcript to replay byte for byte (ADR-023), when there is one.
+        compact_at: Input size at which the API compacts the conversation.
+    """
+
+    text: str
+    history: list[ChatMessageRecord] = field(default_factory=list)
+    files: ConversationFiles | None = None
+    prior: list[dict[str, Any]] | None = None
+    compact_at: int = DEFAULT_COMPACT_AT
 
 
 def messages_for(

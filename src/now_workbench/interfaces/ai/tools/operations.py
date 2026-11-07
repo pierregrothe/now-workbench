@@ -7,6 +7,7 @@ from now_workbench.domains.properties import PropertyEngine
 from now_workbench.domains.runbooks import RunbookEngine
 from now_workbench.domains.seed import SeedEngine, SeedRepository
 from now_workbench.interfaces.ai.tools.base import (
+    BUNDLE_ARG,
     ToolContext,
     ToolResult,
     ToolSpec,
@@ -18,7 +19,6 @@ from now_workbench.interfaces.ai.tools.base import (
 )
 from now_workbench.interfaces.ai.tools.bundles import bundle_path
 
-_BUNDLE = {"type": "string", "description": "Demo bundle id (slug)"}
 _INST = {"type": "string", "description": "Instance id/name; defaults to the default instance"}
 
 
@@ -254,7 +254,7 @@ register(
     ToolSpec(
         name="seed_bundle",
         description="Seed a bundle's sample records into an instance.",
-        properties={"bundle_id": _BUNDLE, "instance": _INST},
+        properties={"bundle_id": BUNDLE_ARG, "instance": _INST},
         required=["bundle_id"],
         handler=_seed,
         category="seed",
@@ -302,7 +302,7 @@ register(
     ToolSpec(
         name="reset_demo",
         description="Tear a demo down: roll back its seed records and restore system properties.",
-        properties={"bundle_id": _BUNDLE, "instance": _INST},
+        properties={"bundle_id": BUNDLE_ARG, "instance": _INST},
         required=["bundle_id"],
         handler=_reset,
         category="seed",
@@ -315,7 +315,7 @@ register(
     ToolSpec(
         name="verify_stage",
         description="Verify live instance state for a walkthrough stage.",
-        properties={"bundle_id": _BUNDLE, "step_number": {"type": "integer"}, "instance": _INST},
+        properties={"bundle_id": BUNDLE_ARG, "step_number": {"type": "integer"}, "instance": _INST},
         required=["bundle_id", "step_number"],
         handler=_verify_stage,
         category="bundle",
@@ -326,7 +326,7 @@ register(
     ToolSpec(
         name="get_properties",
         description="Show a bundle's system properties and snapshot state.",
-        properties={"bundle_id": _BUNDLE, "instance": _INST},
+        properties={"bundle_id": BUNDLE_ARG, "instance": _INST},
         required=["bundle_id"],
         handler=_get_properties,
         category="properties",
@@ -337,7 +337,7 @@ register(
     ToolSpec(
         name="apply_properties",
         description="Apply a bundle's system properties to an instance.",
-        properties={"bundle_id": _BUNDLE, "instance": _INST},
+        properties={"bundle_id": BUNDLE_ARG, "instance": _INST},
         required=["bundle_id"],
         handler=_apply_properties,
         category="properties",
@@ -348,7 +348,7 @@ register(
     ToolSpec(
         name="restore_properties",
         description="Restore original system properties from snapshot.",
-        properties={"bundle_id": _BUNDLE, "instance": _INST},
+        properties={"bundle_id": BUNDLE_ARG, "instance": _INST},
         required=["bundle_id"],
         handler=_restore_properties,
         category="properties",

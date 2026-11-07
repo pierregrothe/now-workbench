@@ -11,28 +11,30 @@ from pathlib import Path
 
 import pytest
 
-from now_workbench.domains.capture.driver import _build_runner_cmd, encode_stdin_credentials
-from now_workbench.domains.instances.models import InstanceRecord
+from now_workbench.domains.capture.driver import (
+    _build_runner_cmd,
+    _RunnerFiles,
+    encode_stdin_credentials,
+)
+from now_workbench.domains.capture.models import Viewport
 
 _SCRIPTS = Path(__file__).resolve().parents[1] / "scripts" / "dev-tools"
 
 
 def test_build_runner_cmd_keeps_credentials_out_of_argv(tmp_path: Path) -> None:
-    """The runner command line carries the stdin flag and no username or password."""
-    inst = InstanceRecord(
-        id="i-1", name="I", url="https://i.service-now.com", username="svc.user", password="S3cr3t!"
-    )
-    cmd = _build_runner_cmd(
-        tmp_path / "runner.mjs",
+    """The runner command line carries the stdin flag and no username or password.
+
+    The builder no longer receives the instance at all, so credentials cannot reach argv.
+    """
+    files = _RunnerFiles(
         tmp_path / "pb.json",
-        "https://i.service-now.com/now",
         tmp_path / "v.webm",
         tmp_path / "v.png",
         tmp_path / "log.json",
         tmp_path / "state.json",
-        1280,
-        720,
-        inst,
+    )
+    cmd = _build_runner_cmd(
+        tmp_path / "runner.mjs", files, "https://i.service-now.com/now", Viewport()
     )
     joined = " ".join(cmd)
     assert "--credentials-stdin" in cmd

@@ -18,6 +18,7 @@ from typer.testing import CliRunner
 
 from now_workbench.domains.bundles.manager import BundleManager
 from now_workbench.domains.capture import driver as driver_mod
+from now_workbench.domains.capture.models import Viewport
 from now_workbench.domains.conversations import files as files_mod
 from now_workbench.domains.conversations.models import (
     Attachment,
@@ -170,18 +171,14 @@ async def test_run_runner_failure_without_log_reports_stderr(tmp_path: Path) -> 
 
 
 def test_build_runner_cmd_fake_flag_precedes_credentials_flag(tmp_path: Path) -> None:
-    record = InstanceRepository(init_db(":memory:")).add_instance(
-        InstanceCreate(id="i", name="n", url="https://x")
+    files = driver_mod._RunnerFiles(
+        tmp_path / "p", tmp_path / "v", tmp_path / "i", tmp_path / "l", tmp_path / "st"
     )
-    args = (tmp_path / "s", tmp_path / "p", "https://x/", tmp_path / "v", tmp_path / "i")
-    cmd = driver_mod._build_runner_cmd(
-        *args, tmp_path / "l", tmp_path / "st", 10, 20, record, fake_mode=True
-    )
+    args = (tmp_path / "s", files, "https://x/", Viewport(width=10, height=20))
+    cmd = driver_mod._build_runner_cmd(*args, fake_mode=True)
     assert cmd[-2:] == ["--fake", "--credentials-stdin"]
     assert cmd[cmd.index("--width") + 1] == "10"
-    plain = driver_mod._build_runner_cmd(
-        *args, tmp_path / "l", tmp_path / "st", 10, 20, record, fake_mode=False
-    )
+    plain = driver_mod._build_runner_cmd(*args, fake_mode=False)
     assert "--fake" not in plain
 
 
@@ -866,10 +863,13 @@ async def test_full_pipeline_property_and_deploy_failures(
 
 async def test_execute_video_playbook_fake_mode_writes_media(tmp_path: Path) -> None:
     from now_workbench.domains.capture import engine as capture_engine_mod
+    from now_workbench.domains.capture.models import CaptureRequest, SignIn
 
     video, thumb = tmp_path / "v.webm", tmp_path / "v.png"
+    req = CaptureRequest(bundle_id="bid", viewport_width=640, viewport_height=480)
+    inst = capture_engine_mod._playbook_instance(None, "https://x", SignIn())
     ok, live, steps = await capture_engine_mod._execute_video_playbook(
-        tmp_path, "bid", None, "https://x", "", "", video, thumb, 640, 480, fake_mode=True
+        req, tmp_path, inst, video, thumb, fake_mode=True
     )
     assert video.exists()
     assert ok is (video.stat().st_size > 500)
@@ -890,7 +890,9 @@ async def test_run_chrome_capture_success_with_stub_node(
     )
     monkeypatch.setenv("PATH", f"{tmp_path / 'bin'}:/bin:/usr/bin")
     out = tmp_path / "o.png"
-    ok, why = await capture_engine_mod._run_chrome_capture("https://x", out, "screenshot", 9, 9)
+    ok, why = await capture_engine_mod._run_chrome_capture(
+        "https://x", out, "screenshot", Viewport(width=9, height=9)
+    )
     assert (ok, why) == (True, "")
 
 

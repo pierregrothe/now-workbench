@@ -30,6 +30,7 @@ from now_workbench.interfaces.ai.agent import (
 from now_workbench.interfaces.ai.client import OttoClient, validate_api_key
 from now_workbench.interfaces.ai.conversation import (
     ConversationFiles,
+    Question,
     _history_to_messages,
     block_to_dict,
     result_content,
@@ -487,22 +488,22 @@ async def test_runner_run_without_done_event_returns_placeholder() -> None:
 def test_run_agent_sync_context_and_failure_paths() -> None:
     with db_session() as conn:
         files = ConversationFiles(by_message={}, current=[])
-        resp = run_agent("hi", [], conn, _FakeClient([_text("hello")]), "m", files=files)
+        resp = run_agent(Question("hi", [], files=files), conn, _FakeClient([_text("hello")]), "m")
         assert resp.summary == "hello"
 
 
 async def test_run_agent_inside_running_loop_uses_sync_runner() -> None:
     with db_session() as conn:
         client = _FakeClient([_tool_call("t1", "list_instances", {}), _text("listed")])
-        resp = run_agent("list", [], conn, client, "m", fake_mode=True)
+        resp = run_agent(Question("list", []), conn, client, "m", fake_mode=True)
         assert resp.summary == "listed" and resp.steps
         # tool_result was fed back with a single cache breakpoint
         call = client.messages.calls[-1]
         assert call["cache_control"] == {"type": "ephemeral"}
         assert call["system"][0]["cache_control"] == {"type": "ephemeral", "ttl": "1h"}
         with pytest.raises(AgentUnavailableError):
-            run_agent("x", [], conn, _Boom(), "m", fake_mode=True)
-        diag = run_agent("x", [], conn, _Boom(), "m")
+            run_agent(Question("x", []), conn, _Boom(), "m", fake_mode=True)
+        diag = run_agent(Question("x", []), conn, _Boom(), "m")
         assert diag.tiles[0].id == "tile-diagnostic-error"
 
 
@@ -510,7 +511,7 @@ def test_run_agent_sync_without_tools_skips_cache_marker(monkeypatch: pytest.Mon
     monkeypatch.setattr(conversation_mod, "tool_definitions", lambda: [])
     with db_session() as conn:
         client = _FakeClient([_text("none")])
-        agent_mod._run_agent_sync("q", [], conn, client, "m")
+        agent_mod._run_agent_sync(Question("q", []), conn, client, "m")
         assert client.messages.calls[0]["tools"] == []
 
 

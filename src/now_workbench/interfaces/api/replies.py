@@ -18,7 +18,7 @@ from now_workbench.domains.instances import InstanceRepository, check_and_record
 from now_workbench.domains.settings import PreferencesRepository
 from now_workbench.domains.sharing import list_accessible
 from now_workbench.interfaces.ai.agent import build_diagnostic_error_tiles, make_client, run_agent
-from now_workbench.interfaces.ai.conversation import ConversationFiles
+from now_workbench.interfaces.ai.conversation import ConversationFiles, Question
 from now_workbench.interfaces.ai.tile_routing import resolve_query_to_tiles
 from now_workbench.interfaces.ai.tiles import GenerativeUIResponse
 from now_workbench.interfaces.ai.tools import execute_tool
@@ -119,15 +119,17 @@ def _agent_reply(
     prefs = pref_repo.get_workbench_preferences()
     try:
         resp = run_agent(
-            user_text,
-            history,
+            Question(
+                user_text,
+                history,
+                files=files,
+                prior=prior,
+                compact_at=ChatRepository(conn).get_conversation_limits().compact_at_tokens,
+            ),
             conn,
             client=make_client(api_key),
             model=prefs.claude_model,
             fake_mode=prefs.sdk_fake_mode,
-            files=files,
-            prior=prior,
-            compact_at=ChatRepository(conn).get_conversation_limits().compact_at_tokens,
         )
     except Exception as exc:
         if not prefs.sdk_fake_mode:

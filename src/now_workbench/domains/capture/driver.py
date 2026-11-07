@@ -2,10 +2,12 @@
 
 import json
 import shutil
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from now_workbench.domains.capture.models import Viewport
 from now_workbench.domains.capture.playbook import (
     DemoPlaybook,
     PlaybookActionType,
@@ -129,17 +131,22 @@ def _fake_execute_playbook(
     )
 
 
+@dataclass(frozen=True)
+class _RunnerFiles:
+    """Files one playbook run reads and writes."""
+
+    playbook: Path
+    video: Path
+    image: Path
+    log: Path
+    storage_state: Path
+
+
 def _build_runner_cmd(
     runner_script: Path,
-    temp_playbook_path: Path,
+    files: _RunnerFiles,
     full_url: str,
-    output_video: Path,
-    output_image: Path,
-    temp_log: Path,
-    storage_state: Path,
-    viewport_width: int,
-    viewport_height: int,
-    instance: InstanceRecord,
+    viewport: Viewport,
     fake_mode: bool = False,
 ) -> list[str]:
     node_bin = shutil.which("node") or "node"
@@ -147,21 +154,21 @@ def _build_runner_cmd(
         node_bin,
         str(runner_script),
         "--playbook",
-        str(temp_playbook_path),
+        str(files.playbook),
         "--url",
         full_url,
         "--output-video",
-        str(output_video),
+        str(files.video),
         "--output-image",
-        str(output_image),
+        str(files.image),
         "--output-log",
-        str(temp_log),
+        str(files.log),
         "--storage-state",
-        str(storage_state),
+        str(files.storage_state),
         "--width",
-        str(viewport_width),
+        str(viewport.width),
         "--height",
-        str(viewport_height),
+        str(viewport.height),
     ]
     if fake_mode:
         cmd.append("--fake")
@@ -268,8 +275,7 @@ class PlaywrightPlaybookDriver:
         instance: InstanceRecord,
         output_video: Path,
         output_image: Path,
-        viewport_width: int = 1280,
-        viewport_height: int = 720,
+        viewport: Viewport | None = None,
         fake_mode: bool = False,
     ) -> PlaybookExecutionResult:
         """Run declarative playbook steps and generate video & screenshot proofs."""
@@ -294,18 +300,11 @@ class PlaywrightPlaybookDriver:
             if playbook.start_path.startswith("/")
             else f"/{playbook.start_path}"
         )
+        files = _RunnerFiles(
+            temp_playbook_path, output_video, output_image, temp_log, storage_state
+        )
         cmd = _build_runner_cmd(
-            runner_script,
-            temp_playbook_path,
-            f"{base_url}{start_part}",
-            output_video,
-            output_image,
-            temp_log,
-            storage_state,
-            viewport_width,
-            viewport_height,
-            instance,
-            fake_mode,
+            runner_script, files, f"{base_url}{start_part}", viewport or Viewport(), fake_mode
         )
 
         run_error = await _run_runner(cmd, instance)

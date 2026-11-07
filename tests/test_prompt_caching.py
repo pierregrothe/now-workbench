@@ -13,7 +13,7 @@ from fastapi.testclient import TestClient
 
 from now_workbench.domains.conversations.models import ChatMessageRecord
 from now_workbench.domains.conversations.repository import ThreadRepository
-from now_workbench.interfaces.ai.conversation import replay_conversation
+from now_workbench.interfaces.ai.conversation import Question, replay_conversation
 from now_workbench.interfaces.api import replies as replies_api
 from now_workbench.interfaces.api.app import create_app
 from now_workbench.platform.config.settings import settings
@@ -229,7 +229,7 @@ def test_run_agent_signed_compaction_block_and_trailing_user_turn_are_kept() -> 
     fake = _ScriptedClaude([_Resp([_Signed(), _Block("text", text="ok")])])
     prior = [{"role": "user", "content": "unanswered earlier question"}]
     with db_session() as conn:
-        resp = run_agent("now this", [], conn, fake, "claude-test", prior=prior)
+        resp = run_agent(Question("now this", [], prior=prior), conn, fake, "claude-test")
     sent = fake.messages.calls[0]["messages"]
     assert sent == [{"role": "user", "content": "unanswered earlier question\nnow this"}]
     assert resp.transcript[0]["content"][0] == {

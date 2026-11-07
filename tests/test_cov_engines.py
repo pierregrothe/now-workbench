@@ -19,7 +19,7 @@ from now_workbench.domains.bundles.manager import BundleManager
 from now_workbench.domains.capture import driver as driver_mod
 from now_workbench.domains.capture import engine as capture_engine_mod
 from now_workbench.domains.capture.engine import CaptureFailedError, PlaywrightCaptureEngine
-from now_workbench.domains.capture.models import CaptureArtifact, CaptureRequest
+from now_workbench.domains.capture.models import CaptureArtifact, CaptureRequest, Viewport
 from now_workbench.domains.demos.pipeline import DemoPipelineEngine
 from now_workbench.domains.instances.models import InstanceCreate, InstanceProfile, InstanceRecord
 from now_workbench.domains.instances.repository import InstanceRepository
@@ -359,7 +359,7 @@ async def test_run_chrome_capture_script_missing(
 ) -> None:
     monkeypatch.setattr(capture_engine_mod, "dev_script", lambda name: tmp_path / name)
     ok, why = await capture_engine_mod._run_chrome_capture(
-        "https://x", tmp_path / "o.png", "screenshot", 10, 10
+        "https://x", tmp_path / "o.png", "screenshot", Viewport(width=10, height=10)
     )
     assert ok is False
     assert "not installed" in why
@@ -370,7 +370,7 @@ async def test_run_chrome_capture_node_missing(
 ) -> None:
     monkeypatch.setenv("PATH", str(tmp_path / "empty"))
     ok, why = await capture_engine_mod._run_chrome_capture(
-        "https://x", tmp_path / "o.png", "screenshot", 10, 10
+        "https://x", tmp_path / "o.png", "screenshot", Viewport(width=10, height=10)
     )
     assert (ok, why) == (False, "Node.js is not installed on the server")
 
@@ -381,7 +381,7 @@ async def test_run_chrome_capture_unstartable_node(
     _stub(tmp_path / "bin", "node", "#!/nonexistent/interpreter\n")
     monkeypatch.setenv("PATH", f"{tmp_path / 'bin'}:/bin:/usr/bin")
     ok, why = await capture_engine_mod._run_chrome_capture(
-        "https://x", tmp_path / "o.png", "screenshot", 10, 10
+        "https://x", tmp_path / "o.png", "screenshot", Viewport(width=10, height=10)
     )
     assert ok is False
     assert why.startswith("could not start the browser")
@@ -397,12 +397,12 @@ async def test_run_chrome_capture_failure_reports_last_stderr_line_or_code(
         "#!/bin/sh\ncat >/dev/null\necho first >&2\necho last >&2\nexit 2\n",
     )
     ok, why = await capture_engine_mod._run_chrome_capture(
-        "https://x", tmp_path / "o.png", "screenshot", 10, 10
+        "https://x", tmp_path / "o.png", "screenshot", Viewport(width=10, height=10)
     )
     assert (ok, why) == (False, "last")
     _stub(tmp_path / "bin", "node", "#!/bin/sh\ncat >/dev/null\nexit 4\n")
     ok, why = await capture_engine_mod._run_chrome_capture(
-        "https://x", tmp_path / "o.png", "screenshot", 10, 10
+        "https://x", tmp_path / "o.png", "screenshot", Viewport(width=10, height=10)
     )
     assert why == "the browser exited with code 4"
 

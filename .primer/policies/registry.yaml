@@ -102,9 +102,6 @@ policies:
         id: ratchet-all
         stage: commit
       - kind: ratchet
-        id: complexity
-        stage: commit
-      - kind: ratchet
         id: type-ignores
         stage: commit
       - kind: ratchet

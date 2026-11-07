@@ -10,6 +10,7 @@ from now_workbench.domains.instances.models import InstanceCreate
 from now_workbench.domains.instances.repository import InstanceRepository
 from now_workbench.domains.settings.repository import PreferencesRepository
 from now_workbench.interfaces.ai.agent import run_agent
+from now_workbench.interfaces.ai.conversation import Question
 from now_workbench.interfaces.ai.tools import execute_tool
 from now_workbench.interfaces.ai.tools.base import REGISTRY, ToolContext
 from now_workbench.interfaces.api.app import create_app
@@ -86,7 +87,7 @@ def test_agent_chains_tools_and_gates_destructive_actions() -> None:
                 _Resp([_Block("text", text="Waiting for your confirmation.")], "end_turn"),
             ]
         )
-        resp = run_agent("delete failing instances", [], conn, client, "claude-test")
+        resp = run_agent(Question("delete failing instances", []), conn, client, "claude-test")
         assert resp.summary == "Waiting for your confirmation."
         confirm = [t for t in resp.tiles if t.id == "tile-confirm-delete_instances"]
         assert confirm, "destructive tool must produce a confirmation tile"
@@ -104,7 +105,7 @@ def test_agent_chains_tools_and_gates_destructive_actions() -> None:
 def test_agent_plain_answer_without_tools() -> None:
     with db_session() as conn:
         client = _FakeClient([_Resp([_Block("text", text="Hello there.")], "end_turn")])
-        resp = run_agent("hi", [], conn, client, "claude-test")
+        resp = run_agent(Question("hi", []), conn, client, "claude-test")
         assert resp.summary == "Hello there."
         assert resp.tiles[0].type == "rich-text"
 
@@ -260,7 +261,7 @@ def test_agent_long_tool_chain_keeps_at_most_four_cache_breakpoints() -> None:
         script = [_tool_call(f"t{i}", "list_bundles", {}) for i in range(7)]
         script.append(_Resp([_Block("text", text="Done.")], "end_turn"))
         client = _FakeClient(script)
-        run_agent("check everything", [], conn, client, "claude-test")
+        run_agent(Question("check everything", []), conn, client, "claude-test")
         for call in client.messages.calls:
             marks = sum(1 for t in call["tools"] if "cache_control" in t)
             marks += sum(1 for b in call["system"] if "cache_control" in b)

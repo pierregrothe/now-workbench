@@ -16,12 +16,12 @@ local git hooks and harness hooks are the primary gates.
 |------|-------------|-------|-----|------|
 | conventional-pre-commit | Conventional Commits message validation | global | [ADR-005] | conventional-pre-commit |
 | import-contracts | Layers, acyclic domains and domain public roots (import-linter) | project | [ADR-015] | lint-imports |
-| file-size | File size limits (src 800, tests 1000 lines) | project | [ADR-005] | scripts/check_file_sizes.py |
+| file-size | File size limits (src 500 tiered, tests 1000, web 500 lines) | project | [ADR-005, ADR-015] | scripts/check_file_sizes.py |
 | mypy | Static type checking (mypy strict mode) | project | [ADR-005] | mypy |
 | primer-reconcile | Governance policy registry drift gate | project | [ADR-005] | .claude/scripts/primer-reconcile.py |
 | pytest-pre-push | Test suite pass with 100% coverage floor using pure fakes | project | [ADR-005] | pytest |
 | ratchet-all | Run metric ratchets parallel pool | project | [ADR-005] | .ratchet/ratchet_check.py all |
-| ruff | Fast Python linting (0 violations) | global | [ADR-005] | ruff |
+| ruff | Linting incl. complexity <= 10 and <= 6 arguments (0 violations) | global | [ADR-005, ADR-015] | ruff |
 | ruff-format | Code formatting verification | global | [ADR-005] | ruff format |
 | web-e2e | Playwright end-to-end UI suite against real backend (pre-push) | project | [ADR-013] | @playwright/test |
 | web-typecheck | Frontend TypeScript strict check (tsc --noEmit) | project | [ADR-001] | tsc |
@@ -29,13 +29,12 @@ local git hooks and harness hooks are the primary gates.
 
 ### Pre-commit -- ratchet (8 checks, baseline-tracked)
 
-<!-- govtable:gates-ratchet:start (count=8) -->
+<!-- govtable:gates-ratchet:start (count=7) -->
 | Hook | Description | Scope | ADR |
 |------|-------------|-------|-----|
 | absolute-imports | Relative imports within src/ forbidden (must remain 0) | project | [ADR-005] |
 | ascii-only | Non-ASCII characters across codebase must remain 0 | global | [ADR-005] |
 | async-subprocess | Blocking subprocess calls in async def must remain 0 | project | [ADR-005] |
-| complexity | Functions exceeding complexity 10 cannot increase | project | [ADR-005] |
 | file-size | Grandfathered oversize files may shrink, never grow | project | [ADR-005] |
 | no-mocks | Mock occurrences in tests must remain 0 | project | [ADR-005] |
 | pydantic-strict | Pydantic BaseModel subclasses missing extra=forbid/frozen=True must remain 0 | project | [ADR-005] |

@@ -4,6 +4,7 @@ from typing import Any
 
 from now_workbench.domains.capture import PlaywrightCaptureEngine
 from now_workbench.interfaces.ai.tools.base import (
+    BUNDLE_ARG,
     ToolContext,
     ToolResult,
     ToolSpec,
@@ -14,11 +15,6 @@ from now_workbench.interfaces.ai.tools.base import (
 )
 from now_workbench.interfaces.ai.tools.bundles import bundle_access
 from now_workbench.platform.config.settings import settings
-
-_BUNDLE = {
-    "type": "string",
-    "description": "Identifier of the demo bundle (e.g. 'sample-ai-assistant').",
-}
 
 
 def _list_demo_captures(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
@@ -117,7 +113,7 @@ register(
     ToolSpec(
         name="list_demo_captures",
         description="List all screenshots and videos captured for a demonstration bundle.",
-        properties={"bundle_id": _BUNDLE},
+        properties={"bundle_id": BUNDLE_ARG},
         required=["bundle_id"],
         handler=_list_demo_captures,
         category="bundle",
@@ -129,7 +125,7 @@ register(
         name="update_demo_capture",
         description="Update label or caption of a screenshot or video artifact.",
         properties={
-            "bundle_id": _BUNDLE,
+            "bundle_id": BUNDLE_ARG,
             "filename": {"type": "string"},
             "label": {"type": "string"},
         },
@@ -144,7 +140,7 @@ register(
         name="delete_demo_capture",
         description="Permanently delete a screenshot or video capture artifact file.",
         properties={
-            "bundle_id": _BUNDLE,
+            "bundle_id": BUNDLE_ARG,
             "filename": {"type": "string"},
         },
         required=["bundle_id", "filename"],

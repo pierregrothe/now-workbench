@@ -9,6 +9,7 @@ from typing import Any
 import pytest
 
 from now_workbench.interfaces.ai.agent import AgentUnavailableError, run_agent
+from now_workbench.interfaces.ai.conversation import Question
 from now_workbench.platform.db.session import db_session
 
 
@@ -23,4 +24,4 @@ class _BrokenClient:
 
 async def test_run_agent_running_loop_fake_mode_propagates_unavailable_error() -> None:
     with db_session() as conn, pytest.raises(AgentUnavailableError, match="boom"):
-        run_agent("hi", [], conn, _BrokenClient(), "claude-test", fake_mode=True)
+        run_agent(Question("hi", []), conn, _BrokenClient(), "claude-test", fake_mode=True)

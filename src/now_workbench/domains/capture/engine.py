@@ -15,7 +15,7 @@ from now_workbench.domains.capture.driver import (
     encode_stdin_credentials,
     load_playbook,
 )
-from now_workbench.domains.capture.models import CaptureArtifact, CaptureRequest
+from now_workbench.domains.capture.models import CaptureArtifact, CaptureRequest, SignIn, Viewport
 from now_workbench.domains.instances import InstanceRecord
 from now_workbench.domains.releases import translate_workspace_url
 from now_workbench.platform.config.paths import dev_script, safe_child
@@ -99,13 +99,12 @@ async def _run_chrome_capture(
     full_url: str,
     output_file: Path,
     media_type: str,
-    width: int,
-    height: int,
-    username: str = "",
-    password: str = "",
+    viewport: Viewport,
+    sign_in: SignIn | None = None,
     duration: float = 3.0,
 ) -> tuple[bool, str]:
     """Take a live Chrome (Puppeteer) screenshot or video; return (ok, why it failed)."""
+    creds = sign_in or SignIn()
     script_path = dev_script("chrome_capture.mjs")
     if not script_path.exists():
         return False, f"the capture script is not installed ({script_path})"
@@ -122,9 +121,9 @@ async def _run_chrome_capture(
         "--mode",
         media_type,
         "--width",
-        str(width),
+        str(viewport.width),
         "--height",
-        str(height),
+        str(viewport.height),
         "--duration",
         str(duration),
         "--credentials-stdin",
@@ -132,7 +131,7 @@ async def _run_chrome_capture(
     try:
         proc = await spawn(cmd, stdin=True)
         _out, err = await communicate_bounded(
-            proc, _CAPTURE_TIMEOUT_S, encode_stdin_credentials(username, password)
+            proc, _CAPTURE_TIMEOUT_S, encode_stdin_credentials(creds.username, creds.password)
         )
     except ProcessTimeoutError as exc:  # before OSError: TimeoutError is an OSError
         return False, f"the browser {exc}"
@@ -144,40 +143,38 @@ async def _run_chrome_capture(
     return False, (detail[-1] if detail else f"the browser exited with code {proc.returncode}")
 
 
-async def _execute_video_playbook(
-    bundle_path: Path,
-    bundle_id: str,
-    instance_id: str | None,
-    base_url: str,
-    username: str,
-    password: str,
-    output_file: Path,
-    thumb_file: Path,
-    width: int,
-    height: int,
-    fake_mode: bool,
-) -> tuple[bool, bool, list[dict[str, Any]]]:
-    """Execute declarative demo playbook for video proof recording."""
-    driver = PlaywrightPlaybookDriver()
-    playbook = load_playbook(bundle_path, bundle_id)
-    inst_record = InstanceRecord(
+def _playbook_instance(instance_id: str | None, base_url: str, sign_in: SignIn) -> InstanceRecord:
+    """The instance record a recorded walkthrough signs in to."""
+    return InstanceRecord(
         id=instance_id or "default-instance",
         name="Target Instance",
         url=base_url,
-        username=username or "admin",
-        password=password,
+        username=sign_in.username or "admin",
+        password=sign_in.password,
         auth_type="basic",
         release="Xanadu",
         is_default=True,
         status="active",
     )
+
+
+async def _execute_video_playbook(
+    req: CaptureRequest,
+    bundle_path: Path,
+    instance: InstanceRecord,
+    output_file: Path,
+    thumb_file: Path,
+    fake_mode: bool = False,
+) -> tuple[bool, bool, list[dict[str, Any]]]:
+    """Record the bundle's declarative walkthrough as the video proof."""
+    driver = PlaywrightPlaybookDriver()
+    playbook = load_playbook(bundle_path, req.bundle_id)
     exec_res = await driver.execute_playbook(
         playbook,
-        inst_record,
+        instance,
         output_video=output_file,
         output_image=thumb_file,
-        viewport_width=width,
-        viewport_height=height,
+        viewport=Viewport(width=req.viewport_width, height=req.viewport_height),
         fake_mode=fake_mode,
     )
     ok = exec_res.success and output_file.exists() and output_file.stat().st_size > 500
@@ -325,17 +322,13 @@ class PlaywrightCaptureEngine:
             )
         elif req.media_type == "video":
             ok, live_auth, step_results = await _execute_video_playbook(
+                req,
                 safe_child(self.bundles_dir, req.bundle_id),
-                req.bundle_id,
-                req.instance_id,
-                base_url,
-                username,
-                password,
+                _playbook_instance(
+                    req.instance_id, base_url, SignIn(username=username, password=password)
+                ),
                 output_file,
                 media_dir / f"{capture_id}.png",
-                req.viewport_width,
-                req.viewport_height,
-                fake_mode=False,
             )
             if not ok:
                 failed = [
@@ -352,10 +345,8 @@ class PlaywrightCaptureEngine:
                 full_url,
                 output_file,
                 req.media_type,
-                req.viewport_width,
-                req.viewport_height,
-                username=username,
-                password=password,
+                Viewport(width=req.viewport_width, height=req.viewport_height),
+                SignIn(username=username, password=password),
             )
             if not ok:
                 raise CaptureFailedError(f"The screenshot could not be taken: {reason}.")

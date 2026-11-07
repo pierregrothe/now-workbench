@@ -3,11 +3,14 @@
 # Enforce ADR-005 file-size limits with a ratchet for grandfathered files.
 # Author: Pierre Grothe
 # Date: 2026-10-29
-"""Check that Python files stay within the size limits set by ADR-005.
+"""Check that source files stay within the size limits of ADR-005 as amended by ADR-015.
 
 Limits:
-    src/now_workbench/ -- 800 lines
-    tests/             -- 1000 lines
+    src/now_workbench/                          -- 500 lines
+    src/now_workbench/**/_internal/             -- 800 lines
+    models / config / enums / protocols / constants modules -- 1000 lines
+    tests/                                      -- 1000 lines
+    web/src/**/*.ts                             -- 500 lines
 
 Files already over the limit when this script was first introduced are
 listed in ``.file-size-baseline.json`` at their current size. The ratchet
@@ -23,21 +26,24 @@ from __future__ import annotations
 
 import json
 import sys
+from collections.abc import Callable
 from pathlib import Path
 from typing import cast
 
-__all__ = ["main"]
+__all__ = ["main", "src_limit"]
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SRC_ROOT = REPO_ROOT / "src" / "now_workbench"
 TESTS_ROOT = REPO_ROOT / "tests"
 BASELINE_PATH = REPO_ROOT / ".file-size-baseline.json"
 
-SRC_LIMIT = 800
+SRC_LIMIT = 500
+INTERNAL_LIMIT = 800
+DATA_LIMIT = 1000
+DATA_MODULES = frozenset({"models", "config", "enums", "protocols", "constants"})
 TEST_LIMIT = 1000
 WEB_LIMIT = 500
 WEB_ROOT = REPO_ROOT / "web" / "src"
-WEB_MODULAR_DIRS = ("views", "controllers", "tiles", "modals", "context")
 
 
 def _load_baseline() -> dict[str, int]:
@@ -85,45 +91,52 @@ def _python_files(root: Path) -> list[Path]:
     return out
 
 
-def _check(root: Path, limit: int, baseline: dict[str, int]) -> list[str]:
-    """Return human-readable violation strings for files under ``root``."""
-    violations: list[str] = []
-    for path in _python_files(root):
-        rel = path.relative_to(REPO_ROOT).as_posix()
-        lines = _count_lines(path)
-        baselined = baseline.get(rel)
-        if baselined is not None:
-            if lines > baselined:
-                violations.append(
-                    f"{rel}: {lines} lines (baseline {baselined}, must not grow -- ADR-005)"
-                )
-            continue
-        if lines > limit:
-            violations.append(
-                f"{rel}: {lines} lines exceeds limit of {limit} (ADR-005). "
-                f"Either split the module or add an entry to .file-size-baseline.json "
-                f"with justification."
-            )
-    return violations
+def src_limit(path: Path) -> int:
+    """Return the line limit of a module under ``src/`` (tiers of ADR-015).
+
+    Args:
+        path: A Python file under ``src/now_workbench``.
+
+    Returns:
+        1000 for models/config/enums/protocols/constants, 800 under ``_internal/``, else 500.
+    """
+    if path.stem in DATA_MODULES or path.parent.name in DATA_MODULES:
+        return DATA_LIMIT
+    if "_internal" in path.parts:
+        return INTERNAL_LIMIT
+    return SRC_LIMIT
 
 
-def _check_web(limit: int) -> list[str]:
-    """Check that modular TypeScript files in web/src stay within limit (ADR-010)."""
-    violations: list[str] = []
+def _violation(path: Path, limit: int, baseline: dict[str, int]) -> str | None:
+    """Return the violation for one file, honouring a grandfathered baseline size."""
+    rel = path.relative_to(REPO_ROOT).as_posix()
+    lines = _count_lines(path)
+    baselined = baseline.get(rel)
+    if baselined is not None:
+        if lines > baselined:
+            return f"{rel}: {lines} lines (baseline {baselined}, must not grow -- ADR-015)"
+        return None
+    if lines > limit:
+        return (
+            f"{rel}: {lines} lines exceeds limit of {limit} (ADR-015). Split the module; "
+            f"a baseline entry in .file-size-baseline.json needs a justification."
+        )
+    return None
+
+
+def _check(paths: list[Path], limit_of: Callable[[Path], int], baseline: dict[str, int]) -> list[str]:
+    """Return human-readable violation strings for ``paths``."""
+    found = (_violation(p, limit_of(p), baseline) for p in paths)
+    return [v for v in found if v]
+
+
+def _web_files() -> list[Path]:
+    """Every TypeScript source of the web app (tests and declarations excluded)."""
     if not WEB_ROOT.exists():
-        return violations
-    for d in WEB_MODULAR_DIRS:
-        sub_dir = WEB_ROOT / d
-        if not sub_dir.exists():
-            continue
-        for path in sub_dir.glob("*.ts"):
-            rel = path.relative_to(REPO_ROOT).as_posix()
-            lines = _count_lines(path)
-            if lines > limit:
-                violations.append(
-                    f"{rel}: {lines} lines exceeds limit of {limit} (ADR-010). Split component."
-                )
-    return violations
+        return []
+    return [
+        p for p in WEB_ROOT.rglob("*.ts") if not p.name.endswith((".d.ts", ".test.ts", ".spec.ts"))
+    ]
 
 
 def main() -> int:
@@ -135,13 +148,13 @@ def main() -> int:
         return 2
 
     violations = (
-        _check(SRC_ROOT, SRC_LIMIT, baseline)
-        + _check(TESTS_ROOT, TEST_LIMIT, baseline)
-        + _check_web(WEB_LIMIT)
+        _check(_python_files(SRC_ROOT), src_limit, baseline)
+        + _check(_python_files(TESTS_ROOT), lambda _p: TEST_LIMIT, baseline)
+        + _check(_web_files(), lambda _p: WEB_LIMIT, baseline)
     )
     if not violations:
         return 0
-    print("File-size violations (ADR-005 / ADR-010):", file=sys.stderr)
+    print("File-size violations (ADR-005 as amended by ADR-015):", file=sys.stderr)
     for v in violations:
         print(f"  {v}", file=sys.stderr)
     return 1

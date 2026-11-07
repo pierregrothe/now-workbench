@@ -49,8 +49,21 @@ target-version = "py314"
 line-length = 100
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "W", "UP"]
+select = ["E", "F", "I", "W", "UP", "C901", "PLR0913"]
 ignore = []
+
+# ADR-015: cyclomatic complexity <= 10 and at most 6 arguments per function in src/.
+[tool.ruff.lint.mccabe]
+max-complexity = 10
+
+[tool.ruff.lint.pylint]
+max-args = 6
+
+[tool.ruff.lint.per-file-ignores]
+# The limits govern application code, as the ratchet they replace did; tests are exempt.
+"tests/**" = ["C901", "PLR0913"]
+# Typer maps every command-line option to one function parameter.
+"src/now_workbench/interfaces/cli/**" = ["PLR0913"]
 
 [tool.black]
 line-length = 100

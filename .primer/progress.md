@@ -7,7 +7,7 @@ Last updated: 2026-11-06
 ### Computed Numbers (2026-11-06)
 
 - Tests: 716 collected (`pytest --collect-only`); 53 Playwright e2e tests in 13 specs; coverage 100%
-- Enforcement: 11 blocking pre-commit/pre-push gates + 8 baseline-tracked ratchets (governance.md)
+- Enforcement: 11 blocking pre-commit/pre-push gates + 7 baseline-tracked ratchets (governance.md)
 - Ratchet baseline store: 2 entries in `.ratchet/baselines.json`
 - Domains with `protocols.py`/`factory.py`: 0
 - ADRs: 22 (`.primer/adr/`) | PRDs: 3 (`.primer/prd/`)

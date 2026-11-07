@@ -72,8 +72,10 @@ async def test_run_chrome_capture_reports_a_stuck_browser(
     fake_node.chmod(0o755)
     monkeypatch.setattr(engine.shutil, "which", lambda _name: str(fake_node))
     monkeypatch.setattr(engine, "_CAPTURE_TIMEOUT_S", 0.3)
+    from now_workbench.domains.capture.models import Viewport
+
     ok, why = await engine._run_chrome_capture(
-        "https://x.service-now.com", tmp_path / "shot.png", "image", 800, 600
+        "https://x.service-now.com", tmp_path / "shot.png", "image", Viewport(width=800, height=600)
     )
     assert not ok and why.startswith("the browser stopped after")
 

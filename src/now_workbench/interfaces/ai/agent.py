@@ -14,6 +14,7 @@ from now_workbench.domains.conversations import ChatMessageRecord
 from now_workbench.interfaces.ai.conversation import (
     DEFAULT_COMPACT_AT,
     ConversationFiles,
+    Question,
     add_usage,
     block_to_dict,
     build_request,
@@ -295,17 +296,24 @@ class ClaudeAgentRunner:
 
 
 def run_agent(
-    user_text: str,
-    history: list[ChatMessageRecord],
+    question: Question,
     conn: sqlite3.Connection,
     client: Any,
     model: str,
     fake_mode: bool = False,
-    files: ConversationFiles | None = None,
-    prior: list[dict[str, Any]] | None = None,
-    compact_at: int = DEFAULT_COMPACT_AT,
 ) -> GenerativeUIResponse:
-    """Run Otto for one question and return its reply (with transcript and usage)."""
+    """Run Otto for one question and return its reply (with transcript and usage).
+
+    Args:
+        question: The question and the conversation it continues.
+        conn: Open database connection the tools work on.
+        client: Anthropic client.
+        model: Claude model id.
+        fake_mode: Tools simulate instance calls instead of making them.
+
+    Returns:
+        Otto's reply with tiles, transcript and token usage.
+    """
     import asyncio
 
     runner = ClaudeAgentRunner(client=client, model=model, conn=conn, fake_mode=fake_mode)
@@ -317,29 +325,25 @@ def run_agent(
         in_running_loop = False
 
     if in_running_loop:
-        return _run_agent_sync(
-            user_text, history, conn, client, model, fake_mode, files, prior, compact_at
-        )
-    return asyncio.run(runner.run(user_text, history, files, prior, compact_at))
+        return _run_agent_sync(question, conn, client, model, fake_mode)
+    q = question
+    return asyncio.run(runner.run(q.text, q.history, q.files, q.prior, q.compact_at))
 
 
 def _run_agent_sync(
-    user_text: str,
-    history: list[ChatMessageRecord],
+    question: Question,
     conn: sqlite3.Connection,
     client: Any,
     model: str,
     fake_mode: bool = False,
-    files: ConversationFiles | None = None,
-    prior: list[dict[str, Any]] | None = None,
-    compact_at: int = DEFAULT_COMPACT_AT,
 ) -> GenerativeUIResponse:
     """Direct synchronous runner for tests and sync execution contexts."""
     ctx = ToolContext(conn=conn, fake_mode=fake_mode)
+    files, compact_at = question.files, question.compact_at
     messages = (
-        with_question(prior, user_text, files)
-        if prior is not None
-        else messages_for(history, user_text, files)
+        with_question(question.prior, question.text, files)
+        if question.prior is not None
+        else messages_for(question.history, question.text, files)
     )
     start = len(messages)
     usage: dict[str, int] = {}

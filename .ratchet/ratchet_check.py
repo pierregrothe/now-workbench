@@ -37,13 +37,9 @@ VALIDATORS = {
         "cmd": [sys.executable, str(RATCHET_DIR / "count_no_mocks.py")],
         "description": "ADR-005 in-memory fakes only (no unittest.mock)",
     },
-    "complexity": {
-        "cmd": [sys.executable, str(RATCHET_DIR / "count_complexity.py")],
-        "description": "ADR-005 function complexity <= 10",
-    },
     "file-size": {
         "cmd": [sys.executable, str(RATCHET_DIR / "count_file_size.py")],
-        "description": "ADR-005 file size limits (src <= 800, tests <= 1000)",
+        "description": "ADR-015 file size limits (src <= 500 tiered, tests <= 1000, web <= 500)",
     },
     "type-ignores": {
         "cmd": [sys.executable, str(RATCHET_DIR / "count_type_ignores.py")],

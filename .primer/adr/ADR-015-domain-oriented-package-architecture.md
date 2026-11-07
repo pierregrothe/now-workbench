@@ -3,7 +3,7 @@
 **Status:** accepted 2026-11-07 (open questions answered by the owner; see "Resolved
 questions")
 **Date:** 2026-11-06
-**Amends (once accepted):** ADR-005 (size and complexity limits), ADR-006 (repository
+**Amends:** ADR-005 (size and complexity limits), ADR-006 (repository
 composition)
 **Reference:** the alphaseeker project (`services/<domain>/` template, import-linter
 contracts, tiered size limits), scaled down to this project's size.
@@ -139,6 +139,15 @@ import and test path, and green pytest, mypy, ruff, ratchets and Playwright:
    Without a Claude key the tile resolver remains the fallback.
 4. **Web: later, in its own ADR.** The 500-line limit is made blocking with the current
    offenders baselined.
+
+## Migration status (2026-11-07)
+
+Done: per-domain repositories; the three layers with 18 domain public roots; import-linter
+(`.importlinter`, pre-commit `import-contracts`, 20 contracts, blocking from the start since
+nothing was left to baseline); tiered file sizes with the 8 web components baselined; ruff
+C901 (10) and PLR0913 (6 arguments) replacing `.ratchet/count_complexity.py`. Typer commands
+in `interfaces/cli` are exempt from the argument limit (one parameter per option). Tests keep
+mirroring the old flat layout; moving them under `tests/<layer>/` is optional follow-up.
 
 ## Consequences (if accepted)
 

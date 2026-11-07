@@ -20,8 +20,7 @@ uv run python .ratchet/ratchet_check.py --init         # initialize baselines fr
 ## Active Validators (ADR-005)
 
 - `no-mocks`: Strictly bans `unittest.mock`, `pytest-mock`, `patch` in tests. Only deterministic in-memory fakes permitted.
-- `complexity`: Cyclomatic complexity threshold (max 10) for functions in `src/now_workbench/`.
-- `file-size`: Enforces file-size caps (src <= 800, tests <= 1000 lines).
+- `file-size`: Enforces file-size caps (src <= 500 tiered per ADR-015, tests <= 1000, web <= 500 lines).
 - `type-ignores`: Burndown ratchet for `# type: ignore` occurrences in `src/`.
 - `absolute-imports`: Strictly bans relative imports in `src/now_workbench/`.
 

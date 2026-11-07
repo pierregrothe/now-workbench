@@ -238,7 +238,7 @@ def test_capture_media_live_attaches_image(
     library: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(
-        "now_workbench.interfaces.ai.tools.bundles.PlaywrightCaptureEngine", _FakeCaptureEngine
+        "now_workbench.interfaces.ai.tools.demos.PlaywrightCaptureEngine", _FakeCaptureEngine
     )
     _FakeCaptureEngine.root = tmp_path
     _FakeCaptureEngine.media = "screenshot"
@@ -257,7 +257,7 @@ def test_capture_media_live_video_uses_png_poster(
     library: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(
-        "now_workbench.interfaces.ai.tools.bundles.PlaywrightCaptureEngine", _FakeCaptureEngine
+        "now_workbench.interfaces.ai.tools.demos.PlaywrightCaptureEngine", _FakeCaptureEngine
     )
     _FakeCaptureEngine.root = tmp_path
     _FakeCaptureEngine.media = "video"
@@ -275,7 +275,7 @@ def test_capture_media_oversized_image_is_not_attached(
     library: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(
-        "now_workbench.interfaces.ai.tools.bundles.PlaywrightCaptureEngine", _FakeCaptureEngine
+        "now_workbench.interfaces.ai.tools.demos.PlaywrightCaptureEngine", _FakeCaptureEngine
     )
     _FakeCaptureEngine.root = tmp_path
     _FakeCaptureEngine.media = "screenshot"

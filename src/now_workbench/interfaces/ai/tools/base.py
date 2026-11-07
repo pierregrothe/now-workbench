@@ -14,6 +14,12 @@ from pydantic import BaseModel, ConfigDict, Field
 from now_workbench.domains.instances import InstanceRecord, InstanceRepository
 from now_workbench.interfaces.ai.tiles import TileLayout, UITileSpec
 
+# JSON schema of the bundle id argument most tools take.
+BUNDLE_ARG: dict[str, str] = {
+    "type": "string",
+    "description": "Demo bundle id (slug, e.g. 'sample-ai-assistant').",
+}
+
 
 class ToolResult(BaseModel):
     """Outcome of executing a tool: text for the model plus tiles for the user."""
