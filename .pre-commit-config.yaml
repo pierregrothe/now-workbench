@@ -3,7 +3,7 @@
 # Author: Pierre Grothe
 # Date: 2026-10-29
 
-default_install_hook_types: [pre-commit, commit-msg, pre-push]
+default_install_hook_types: [pre-commit, prepare-commit-msg, commit-msg, pre-push]
 
 repos:
   - repo: https://github.com/compilerla/conventional-pre-commit
@@ -15,6 +15,28 @@ repos:
 
   - repo: local
     hooks:
+      - id: guard-branch
+        name: No commits on main -- a branch per story (ADR-032)
+        entry: python scripts/dev-tools/pr_gate.py guard-branch
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-commit]
+
+      - id: conventionalize-merge-msg
+        name: Conventional subject for local merge commits (ADR-032)
+        entry: python scripts/hooks/prepare_merge_commit_msg.py
+        language: system
+        stages: [prepare-commit-msg]
+
+      - id: guard-push
+        name: No pushes to main -- land a PR instead (ADR-032)
+        entry: python scripts/dev-tools/pr_gate.py guard-push
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push]
+
       - id: ruff
         name: Ruff Lint Check
         entry: python .claude/hooks/_venv_run.py ruff check src/ tests/
@@ -85,7 +107,7 @@ repos:
 
       - id: pytest-pre-push
         name: pytest -- full suite + 100% coverage floor (pre-push)
-        entry: python .claude/hooks/_venv_run.py pytest -q --tb=short --cov=src/now_workbench --cov-fail-under=100
+        entry: python scripts/dev-tools/pr_gate.py run-unless-proven pytest-pre-push -- python .claude/hooks/_venv_run.py pytest -q --tb=short --cov=src/now_workbench --cov-fail-under=100
         language: system
         types: [python]
         pass_filenames: false
@@ -94,7 +116,7 @@ repos:
 
       - id: mutation-gate
         name: Mutation gate -- every mutant of the gated modules killed (pre-push, ADR-029)
-        entry: python .claude/hooks/_venv_run.py python scripts/mutation_gate.py
+        entry: python scripts/dev-tools/pr_gate.py run-unless-proven mutation-gate -- python .claude/hooks/_venv_run.py python scripts/mutation_gate.py
         language: system
         pass_filenames: false
         always_run: true
@@ -102,7 +124,7 @@ repos:
 
       - id: web-e2e
         name: Playwright end-to-end UI suite (pre-push, ADR-013)
-        entry: npm --prefix web run test:e2e
+        entry: python scripts/dev-tools/pr_gate.py run-unless-proven web-e2e -- npm --prefix web run test:e2e
         language: system
         pass_filenames: false
         always_run: true

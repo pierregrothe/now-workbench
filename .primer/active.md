@@ -7,7 +7,7 @@ Python Version: `3.14.10`
 
 ## Current Focus
 
-EPIC-017 (tester safeguards) complete; next: EPIC-018 `.primer/epics/2026.11b-conversation-polish/`.
+EPIC-019 (branch and PR workflow) story 01 in progress on `feature/pr-workflow`; EPIC-018 waits.
 
 `main` -- deployed and live at https://workbench.grothe.ca (srv01chambly, Cloudflare Access).
 Per-user data, groups and approved sharing, impersonation, attachments and limits, and an

@@ -11,10 +11,13 @@ and /primer sync. Prose outside the markers is user-owned.
 Hooks that block commits and pushes locally. There is no GitHub Actions CI;
 local git hooks and harness hooks are the primary gates.
 
-<!-- govtable:gates-blocking:start (count=12) -->
+<!-- govtable:gates-blocking:start (count=15) -->
 | Hook | Description | Scope | ADR | Tool |
 |------|-------------|-------|-----|------|
 | conventional-pre-commit | Conventional Commits message validation | global | [ADR-005] | conventional-pre-commit |
+| conventionalize-merge-msg | Conventional subject for local merge commits (prepare-commit-msg) | project | [ADR-032] | scripts/hooks/prepare_merge_commit_msg.py |
+| guard-branch | No commits on main; a branch per story | project | [ADR-032] | scripts/dev-tools/pr_gate.py |
+| guard-push | No pushes to main; land a PR instead (pre-push) | project | [ADR-032] | scripts/dev-tools/pr_gate.py |
 | import-contracts | Layers, acyclic domains and domain public roots (import-linter) | project | [ADR-015] | lint-imports |
 | file-size | File size limits (src 500 tiered, tests 1000, web 500 lines) | project | [ADR-005, ADR-015] | scripts/check_file_sizes.py |
 | mutation-gate | Every mutant of the gated modules killed (mutmut, pre-push) | project | [ADR-029] | scripts/mutation_gate.py |
@@ -71,7 +74,7 @@ local git hooks and harness hooks are the primary gates.
 
 ## ADR Catalog
 
-<!-- govtable:adr-catalog:start (count=31) -->
+<!-- govtable:adr-catalog:start (count=32) -->
 | ADR | Title | Enforcement | Status |
 |-----|-------|-------------|--------|
 | 001 | Hybrid Runtime with Python Core & Lit Web Components | hook | accepted |
@@ -105,6 +108,7 @@ local git hooks and harness hooks are the primary gates.
 | 029 | Mutation Gate, Telemetry Retention and S3 Backups | governance | accepted |
 | 030 | Phone and Tablet Layouts | architecture | accepted |
 | 031 | Monthly Claude Usage Allowances | architecture | accepted |
+| 032 | Branch and Pull-Request Workflow | governance | accepted |
 <!-- govtable:adr-catalog:end -->
 
 Full ADR files: `.primer/adr/`
