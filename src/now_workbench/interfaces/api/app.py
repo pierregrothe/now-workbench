@@ -55,6 +55,7 @@ from now_workbench.interfaces.api.instances import router as instances_router
 from now_workbench.interfaces.api.profile import router as profile_router
 from now_workbench.interfaces.api.properties import router as properties_router
 from now_workbench.interfaces.api.replies import load_verified_instances_dict
+from now_workbench.interfaces.api.retention import telemetry_retention
 from now_workbench.interfaces.api.settings_api import router as settings_router
 from now_workbench.interfaces.api.setup import router as setup_router
 from now_workbench.interfaces.api.sharing import approvals_router, artifacts_router, groups_router
@@ -181,7 +182,8 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
         needs_setup = configured and UserRepository(conn).count_admins() == 0
     if needs_setup:
         app.state.setup_codes.issue()
-    yield
+    async with telemetry_retention():
+        yield
 
 
 def create_app(

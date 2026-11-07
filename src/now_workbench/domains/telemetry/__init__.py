@@ -7,9 +7,15 @@ from now_workbench.domains.telemetry.models import (
     UsageEvent,
 )
 from now_workbench.domains.telemetry.repository import TOKEN_KINDS, TelemetryRepository
-from now_workbench.domains.telemetry.service import record_action, record_usage, team_by_person
+from now_workbench.domains.telemetry.service import (
+    purge_expired,
+    record_action,
+    record_usage,
+    team_by_person,
+)
 
 __all__ = [
+    "purge_expired",
     "record_action",
     "record_usage",
     "team_by_person",

@@ -100,6 +100,24 @@ Testers use your Claude key; their usage is billed to your account.
 Keep the key and the database backups apart: either one alone reveals no credential. Losing
 the key makes the stored passwords and Claude key unrecoverable (re-enter them in the UI).
 
+### Off-site backups to S3 (optional)
+
+Fill the `WORKBENCH_BACKUP_S3_*` lines in `.env` (bucket, region, endpoint for R2/MinIO/B2,
+prefix, access key and its secret), run `docker compose up -d`, then:
+
+```bash
+docker exec now-workbench workbench backup --s3
+# Backup uploaded: s3://<bucket>/now-workbench/workbench-20261107T020000Z.db (... bytes)
+```
+
+Use a key that can write to that bucket only, and keep the master key out of the bucket.
+Expire old snapshots with a bucket lifecycle rule; the workbench never deletes. To run it
+nightly, add a host cron entry, for example
+`0 2 * * * docker exec now-workbench workbench backup --s3 >> ~/workbench-backup.log 2>&1`.
+
+Telemetry (Claude usage and action runs) is purged after `WORKBENCH_TELEMETRY_RETENTION_DAYS`
+(365 by default, at least 60), at startup and every day.
+
 ## Updating
 
 Copy the new source as in step 2 (it never overwrites `.env`), then `docker compose up -d --build`. Volumes are kept, and

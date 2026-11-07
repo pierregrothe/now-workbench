@@ -197,3 +197,14 @@ policies:
         id: pytest-pre-push
         stage: push
     status: enforced
+
+  - slug: mutation-testing
+    name: Every mutant of the gated modules is killed (mutmut, pre-push)
+    category: testing
+    constitutional: false
+    justifying_adrs: [ADR-029]
+    checks:
+      - kind: pre-commit-hook
+        id: mutation-gate
+        stage: push
+    status: enforced

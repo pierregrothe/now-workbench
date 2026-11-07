@@ -33,6 +33,14 @@ services:
       - WORKBENCH_CLAUDE_MODEL=${WORKBENCH_CLAUDE_MODEL:-claude-sonnet-5-5}
       # Optional: the shared Claude key. When set it wins over a key entered in the UI.
       - WORKBENCH_ANTHROPIC_API_KEY=${WORKBENCH_ANTHROPIC_API_KEY:-}
+      - WORKBENCH_TELEMETRY_RETENTION_DAYS=${WORKBENCH_TELEMETRY_RETENTION_DAYS:-365}
+      # Optional: `workbench backup --s3` (ADR-029). Unset means no S3 target.
+      - WORKBENCH_BACKUP_S3_BUCKET=${WORKBENCH_BACKUP_S3_BUCKET:-}
+      - WORKBENCH_BACKUP_S3_REGION=${WORKBENCH_BACKUP_S3_REGION:-us-east-1}
+      - WORKBENCH_BACKUP_S3_ENDPOINT=${WORKBENCH_BACKUP_S3_ENDPOINT:-}
+      - WORKBENCH_BACKUP_S3_PREFIX=${WORKBENCH_BACKUP_S3_PREFIX:-now-workbench/}
+      - WORKBENCH_BACKUP_S3_ACCESS_KEY_ID=${WORKBENCH_BACKUP_S3_ACCESS_KEY_ID:-}
+      - WORKBENCH_BACKUP_S3_SECRET_ACCESS_KEY=${WORKBENCH_BACKUP_S3_SECRET_ACCESS_KEY:-}
     volumes:
       # The database and the master key are in separate volumes: a copy of one is useless
       # without the other. Back them up separately (see docs/deploy.md).

@@ -51,6 +51,17 @@ class Settings(BaseSettings):
     now_sdk_bin: str = Field(default="now-sdk", description="Path or command for now-sdk")
     node_bin: str = Field(default="node", description="Path or command for node")
 
+    # Telemetry (ADR-029): events older than this are purged; at least the longest chart.
+    telemetry_retention_days: int = Field(default=365, ge=60, description="Telemetry kept")
+
+    # Backups to an S3-compatible bucket (ADR-029); `workbench backup --s3` uses them.
+    backup_s3_bucket: str = Field(default="", description="Bucket name")
+    backup_s3_region: str = Field(default="us-east-1", description="Signing region")
+    backup_s3_endpoint: str = Field(default="", description="Endpoint; empty means AWS")
+    backup_s3_prefix: str = Field(default="now-workbench/", description="Key prefix")
+    backup_s3_access_key_id: str = Field(default="", description="Access key id")
+    backup_s3_secret_access_key: str = Field(default="", description="Secret access key")
+
     def get_data_dir(self) -> Path:
         """Return resolved data directory respecting a runtime WORKBENCH_DATA_DIR override.
 

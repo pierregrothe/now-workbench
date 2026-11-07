@@ -66,3 +66,5 @@ data/
 .e2e/
 web/test-results/
 web/playwright-report/
+.deep-review/
+mutants/

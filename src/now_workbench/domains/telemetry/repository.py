@@ -28,6 +28,11 @@ _INSERT_ACTION = (
 )
 # `{scope}` is empty (everyone) or the owner filter; `?` placeholders follow in that order.
 _OWNER_SCOPE = "AND owner_email = ?"
+# Retention (ADR-029): one statement per table, both run in one transaction.
+_PURGE = (
+    "DELETE FROM usage_events WHERE created_at < ?;",
+    "DELETE FROM action_events WHERE created_at < ?;",
+)
 _DAILY_TOKENS = (
     "SELECT substr(created_at, 1, 10) AS day, "
     + ", ".join(f"SUM({k}) AS {k}" for k in TOKEN_KINDS)
@@ -87,6 +92,18 @@ class TelemetryRepository(Repository):
                     event.duration_ms,
                 ),
             )
+
+    def purge_before(self, cutoff: str) -> int:
+        """Delete every usage and action event recorded before `cutoff`.
+
+        Args:
+            cutoff: ISO timestamp (UTC); older events go.
+
+        Returns:
+            The number of events deleted.
+        """
+        with self.conn:
+            return sum(self.conn.execute(sql, (cutoff,)).rowcount for sql in _PURGE)
 
     def _own(self, sql: str, since: str) -> list[Any]:
         """Run an aggregate over the owner's events from `since` on."""

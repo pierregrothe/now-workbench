@@ -427,3 +427,12 @@ is stored per person with the real actor; architecture tests fail the build on a
 New charts: tokens per day, action history, team usage (administrators), live instance counts
 from the Aggregate API. Otto's markdown renders through a safe Lit renderer, never raw HTML.
 Charts stay plain SVG (owner's choice). Details: `.primer/adr/ADR-028-telemetry-and-live-instance-charts.md`.
+
+### 2026-11-07 -- ADR-029: Mutation gate, telemetry retention and S3 backups
+
+A pre-push `mutation-gate` fails the push unless mutmut kills every mutant of the gated modules
+(ADR-027/028/029 code); timeouts are re-run once alone (a mutmut fork-server deadlock), and
+survivors are never retried. Telemetry is purged past `WORKBENCH_TELEMETRY_RETENTION_DAYS`
+(default 365, minimum 60, the longest chart), at startup and daily. `workbench backup --s3`
+uploads the snapshot to an S3-compatible bucket, signed with SigV4 over httpx (no AWS SDK).
+Details: `.primer/adr/ADR-029-mutation-gate-telemetry-retention-s3-backups.md`.

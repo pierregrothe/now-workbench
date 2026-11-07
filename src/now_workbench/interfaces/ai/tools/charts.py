@@ -10,12 +10,13 @@ at most eight series (categorical colors are never cycled), one value axis, and 
 donut is one series of at most eight non-negative slices (the rest fold into "Other").
 """
 
-from datetime import UTC, date, datetime, timedelta
+from datetime import date, timedelta
 from typing import Any, Literal, Self
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from now_workbench.interfaces.ai.tiles import UITileSpec
+from now_workbench.platform.clock import utc_now
 
 __all__ = [
     "chart_tile",
@@ -123,7 +124,7 @@ def history_days(args: dict[str, Any]) -> list[date]:
         The days, ending today.
     """
     n = min(max(int(args.get("days") or 30), 1), MAX_POINTS)
-    today = datetime.now(UTC).date()
+    today = utc_now().date()
     return [today - timedelta(days=i) for i in range(n - 1, -1, -1)]
 
 

@@ -74,3 +74,4 @@ now-workbench/
 - `pytest >= 8.3` with `pytest-asyncio` and `pytest-cov` (100% coverage floor)
 - `ruff >= 0.8` (linting & formatting, 0 violations, line length 100)
 - `mypy >= 1.13` (strict mode, 0 errors)
+- `mutmut >= 3.8` (mutation gate at pre-push, fork-server mode; ADR-029)

@@ -11,6 +11,7 @@ API).
 """
 
 import sqlite3
+from datetime import datetime, timedelta
 
 from now_workbench.domains.identity import AuthUser, require_admin
 from now_workbench.domains.telemetry.models import (
@@ -22,7 +23,7 @@ from now_workbench.domains.telemetry.models import (
 from now_workbench.domains.telemetry.repository import TelemetryRepository
 from now_workbench.platform.owner import current_owner
 
-__all__ = ["record_action", "record_usage", "team_by_person"]
+__all__ = ["purge_expired", "record_action", "record_usage", "team_by_person"]
 
 
 def _actor_email(actor: AuthUser | None) -> str:
@@ -111,3 +112,18 @@ def team_by_person(
     require_admin(actor)
     repo = TelemetryRepository(conn)
     return repo.tokens_by_person(since), repo.actions_by_person(since)
+
+
+def purge_expired(conn: sqlite3.Connection, retention_days: int, now: datetime) -> int:
+    """Delete everyone's telemetry older than the retention window (ADR-029).
+
+    Args:
+        conn: Open connection.
+        retention_days: Days of events to keep, ending at `now`.
+        now: The current UTC time.
+
+    Returns:
+        The number of events deleted.
+    """
+    cutoff = now - timedelta(days=retention_days)
+    return TelemetryRepository(conn).purge_before(cutoff.strftime("%Y-%m-%dT%H:%M:%S.000Z"))

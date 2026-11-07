@@ -92,6 +92,14 @@ repos:
         always_run: true
         stages: [pre-push]
 
+      - id: mutation-gate
+        name: Mutation gate -- every mutant of the gated modules killed (pre-push, ADR-029)
+        entry: python .claude/hooks/_venv_run.py python scripts/mutation_gate.py
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push]
+
       - id: web-e2e
         name: Playwright end-to-end UI suite (pre-push, ADR-013)
         entry: npm --prefix web run test:e2e

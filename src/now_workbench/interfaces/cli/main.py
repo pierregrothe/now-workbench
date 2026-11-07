@@ -4,6 +4,7 @@ import asyncio
 import os
 from pathlib import Path
 
+import httpx
 import typer
 from rich.console import Console
 from rich.panel import Panel
@@ -26,6 +27,7 @@ from now_workbench.platform.remediation import (
     execute_remediation,
     inspect_remediation_needs,
 )
+from now_workbench.platform.s3 import S3Target, put_object
 from now_workbench.platform.sdk.runner import NowSdkRunner
 
 _format_instance_status = format_instance_status
@@ -202,17 +204,9 @@ def doctor(
         _render_remediation_summary(plan)
 
 
-@app.command()
-def backup(
-    out: str = typer.Option("-", "--out", "-o", help="Destination file, or - for stdout"),
-) -> None:
-    """Write a consistent snapshot of the database (credentials stay sealed).
-
-    The master key is NOT included: keep it separately, or the snapshot cannot be decrypted.
-    Example on the server: docker exec now-workbench workbench backup > workbench.db
-    """
+def _snapshot() -> bytes:
+    """A consistent copy of the live database, through SQLite's online backup."""
     import sqlite3
-    import sys
     import tempfile
 
     from now_workbench.platform.db.session import get_db_path
@@ -226,7 +220,53 @@ def backup(
         finally:
             target.close()
             source.close()
-        data = snapshot.read_bytes()
+        return snapshot.read_bytes()
+
+
+def _s3_target() -> S3Target:
+    """The backup bucket from settings; every part must be set."""
+    target = S3Target(
+        bucket=settings.backup_s3_bucket,
+        region=settings.backup_s3_region,
+        access_key_id=settings.backup_s3_access_key_id,
+        secret_access_key=settings.backup_s3_secret_access_key,
+        endpoint=settings.backup_s3_endpoint,
+    )
+    if not (target.bucket and target.access_key_id and target.secret_access_key):
+        raise typer.BadParameter(
+            "set WORKBENCH_BACKUP_S3_BUCKET, WORKBENCH_BACKUP_S3_ACCESS_KEY_ID and "
+            "WORKBENCH_BACKUP_S3_SECRET_ACCESS_KEY first",
+            param_hint="--s3",
+        )
+    return target
+
+
+@app.command()
+def backup(
+    out: str = typer.Option("-", "--out", "-o", help="Destination file, or - for stdout"),
+    s3: bool = typer.Option(False, "--s3", help="Upload to the configured S3 bucket instead"),
+) -> None:
+    """Write a consistent snapshot of the database (credentials stay sealed).
+
+    The master key is NOT included: keep it separately, or the snapshot cannot be decrypted.
+    Example on the server: docker exec now-workbench workbench backup > workbench.db
+    With --s3 the snapshot goes to s3://<bucket>/<prefix>workbench-<UTC time>.db.
+    """
+    import sys
+    from datetime import UTC, datetime
+
+    if s3:
+        target = _s3_target()
+        stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+        data = _snapshot()
+        try:
+            where = put_object(target, f"{settings.backup_s3_prefix}workbench-{stamp}.db", data)
+        except (RuntimeError, ValueError, httpx.HTTPError) as exc:
+            console.print(f"[bold red]Backup upload failed:[/bold red] {exc}")
+            raise typer.Exit(code=1) from exc
+        console.print(f"[green]Backup uploaded:[/green] {where} ({len(data)} bytes)")
+        return
+    data = _snapshot()
     if out == "-":
         sys.stdout.buffer.write(data)
         sys.stdout.buffer.flush()

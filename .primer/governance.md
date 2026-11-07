@@ -11,12 +11,13 @@ and /primer sync. Prose outside the markers is user-owned.
 Hooks that block commits and pushes locally. There is no GitHub Actions CI;
 local git hooks and harness hooks are the primary gates.
 
-<!-- govtable:gates-blocking:start (count=11) -->
+<!-- govtable:gates-blocking:start (count=12) -->
 | Hook | Description | Scope | ADR | Tool |
 |------|-------------|-------|-----|------|
 | conventional-pre-commit | Conventional Commits message validation | global | [ADR-005] | conventional-pre-commit |
 | import-contracts | Layers, acyclic domains and domain public roots (import-linter) | project | [ADR-015] | lint-imports |
 | file-size | File size limits (src 500 tiered, tests 1000, web 500 lines) | project | [ADR-005, ADR-015] | scripts/check_file_sizes.py |
+| mutation-gate | Every mutant of the gated modules killed (mutmut, pre-push) | project | [ADR-029] | scripts/mutation_gate.py |
 | mypy | Static type checking (mypy strict mode) | project | [ADR-005] | mypy |
 | primer-reconcile | Governance policy registry drift gate | project | [ADR-005] | .claude/scripts/primer-reconcile.py |
 | pytest-pre-push | Test suite pass with 100% coverage floor using pure fakes | project | [ADR-005] | pytest |
@@ -70,7 +71,7 @@ local git hooks and harness hooks are the primary gates.
 
 ## ADR Catalog
 
-<!-- govtable:adr-catalog:start (count=28) -->
+<!-- govtable:adr-catalog:start (count=29) -->
 | ADR | Title | Enforcement | Status |
 |-----|-------|-------------|--------|
 | 001 | Hybrid Runtime with Python Core & Lit Web Components | hook | accepted |
@@ -101,6 +102,7 @@ local git hooks and harness hooks are the primary gates.
 | 026 | Conversational Control and UI Parity | architecture | accepted |
 | 027 | Chart Tiles and History Tools | architecture | accepted |
 | 028 | Telemetry, Live Instance Charts and Rendered Text | architecture | accepted |
+| 029 | Mutation Gate, Telemetry Retention and S3 Backups | governance | accepted |
 <!-- govtable:adr-catalog:end -->
 
 Full ADR files: `.primer/adr/`
