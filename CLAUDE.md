@@ -56,6 +56,10 @@ uv run python .claude/scripts/primer-reconcile.py
 # Pre-commit install & run
 uv run pre-commit run --all-files
 
+# Does it already exist? Run BEFORE writing a helper; describe the need, not the name (ADR-033)
+uv run python scripts/dev-tools/find_capability.py <plain words>              # lexical
+uv run python scripts/dev-tools/find_capability.py --semantic <plain words>   # + TypeSafe Jev (TYPESAFE_API_KEY)
+
 # CLI diagnostic & inspection
 uv run workbench doctor
 uv run workbench demo list
