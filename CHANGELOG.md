@@ -7,6 +7,8 @@ internal chores, docs, tests and CI are omitted, and the long-form entries are i
 
 ## [Unreleased]
 
+## [2026.11.1] - 2026-11-07
+
 ### Added
 - governance: domain cards: a ratchet on names a card gives that src lacks, and a pre-push freshness nudge (ADR-033)
 - docs: a CLAUDE.md card in each of the 19 domains: entry points, wiring, invariants, what not to reinvent (ADR-033)
