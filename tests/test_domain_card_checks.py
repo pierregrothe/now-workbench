@@ -159,6 +159,10 @@ def test_build_index_checks_project_modules_that_share_a_stdlib_name() -> None:
     assert not index.resolves("platform.db.ghost_fn")
     assert not index.resolves("profile.ghost_fn")
     assert not index.resolves("ChatRepository.ghost_method")
+    assert index.resolves("now_workbench.domains.profile")
+    assert index.resolves("now_workbench.interfaces.api.app")
+    assert index.resolves("settings.get_bundles_dir")  # `settings` is also a variable
+    assert not index.resolves("now_workbench.domains.ghost_domain")
     assert {"platform", "profile"} <= index.modules
 
 

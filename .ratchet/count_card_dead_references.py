@@ -170,6 +170,7 @@ class Index:
     members: dict[str, set[str]] = field(default_factory=dict)
     modules: set[str] = field(default_factory=set)
     open_classes: set[str] = field(default_factory=set)
+    values: set[str] = field(default_factory=set)
 
     def resolves(self, name: str) -> bool:
         """Say whether a (dotted) name is defined, each part a member of the part before it.
@@ -186,10 +187,25 @@ class Index:
         for parent, part in itertools.pairwise(parts):
             if parent in self.open_classes:
                 continue
+            if parent in self.values:  # a variable of unknown type: the member must exist somewhere
+                if part not in self.names:
+                    return False
+                continue
             known = self.members.get(parent)
             if not (part in known if known is not None else part in self.names):
                 return False
         return True
+
+
+def _inherit(index: Index, bases: dict[str, set[str]]) -> None:
+    """Give each class its bases' members; a class with a base outside src stays open."""
+    for cls, parents in bases.items():
+        if any(p.split(".")[-1] not in bases for p in parents if p not in {"object", "Protocol"}):
+            index.open_classes.add(cls)
+    for _ in range(len(bases)):  # inherited members, to a fixed point
+        for cls, parents in bases.items():
+            for p in parents:
+                index.members[cls] |= index.members.get(p.split(".")[-1], set())
 
 
 def build_index(src: Path = SRC) -> Index:
@@ -208,31 +224,24 @@ def build_index(src: Path = SRC) -> Index:
         index.modules.update(part for part in rel if part != "__init__")
         index.names.update(rel)
         tree = ast.parse(path.read_text(encoding="utf-8"))
-        owner = rel[-2] if rel[-1] == "__init__" and len(rel) > 1 else rel[-1]
-        if rel == ("__init__",):
-            owner = src.name
+        package = rel[:-1] if rel[-1] == "__init__" else rel
+        owner = package[-1] if package else src.name
+        parent = package[-2] if len(package) > 1 else src.name
         index.members.setdefault(owner, set()).update(_top_level(tree))
-        parent = (
-            rel[-3]
-            if rel[-1] == "__init__" and len(rel) > 2
-            else (rel[-2] if len(rel) > 1 else src.name)
-        )
-        index.members.setdefault(parent, set()).add(owner)
+        if package:
+            index.members.setdefault(parent, set()).add(owner)
         for node in ast.walk(tree):
             index.names |= _bound_names(node)
+            match node:
+                case ast.Name(id=name, ctx=ast.Store()) | ast.arg(arg=name):
+                    index.values.add(name)
             if isinstance(node, ast.ClassDef):
                 index.members.setdefault(node.name, set()).update(_class_members(node))
                 index.names |= _env_names(node)
                 bases.setdefault(node.name, set()).update(
                     ast.unparse(b).split("[")[0] for b in node.bases
                 )
-    for cls, parents in bases.items():
-        if any(p.split(".")[-1] not in bases for p in parents if p not in {"object", "Protocol"}):
-            index.open_classes.add(cls)
-    for _ in range(len(bases)):  # inherited members, to a fixed point
-        for cls, parents in bases.items():
-            for p in parents:
-                index.members[cls] |= index.members.get(p.split(".")[-1], set())
+    _inherit(index, bases)
     return index
 
 
