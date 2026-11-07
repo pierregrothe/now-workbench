@@ -126,6 +126,11 @@ receives only the `WORKBENCH_BACKUP_S3_*` settings. It runs nightly from the `pi
 15 3 * * * /opt/docker/now-workbench/deploy/workbench-backup.sh >> /home/pierre/workbench-backup.log 2>&1
 ```
 
+The bucket expires snapshots under `now-workbench/` after 90 days and aborts incomplete
+uploads after 1 day (S3 lifecycle rules, set 2026-11-07). Changing them needs the key's owner
+permission, granted only for the change: `garage bucket allow --owner ...`, set the rules
+with any S3 client, then `garage bucket deny --owner ...`.
+
 Telemetry (Claude usage and action runs) is purged after `WORKBENCH_TELEMETRY_RETENTION_DAYS`
 (365 by default, at least 60), at startup and every day.
 

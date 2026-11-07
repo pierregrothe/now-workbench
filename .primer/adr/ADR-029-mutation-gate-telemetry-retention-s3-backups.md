@@ -67,7 +67,8 @@ and `_SECRET_ACCESS_KEY`. The existing file and stdout targets are unchanged.
   network, run nightly by cron, with only the `WORKBENCH_BACKUP_S3_*` settings. The firewall
   is unchanged.
 - **Retention and scheduling** of the objects belong to the bucket (lifecycle rules) and the
-  host (cron). The workbench uploads; it does not delete.
+  host (cron). The workbench uploads; it does not delete. The Garage bucket expires snapshots
+  after 90 days; the backup key keeps read and write only (no owner permission).
 
 ## Consequences
 
