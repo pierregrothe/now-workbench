@@ -63,9 +63,11 @@ the Table API itself, or build SDK projects (`platform/sdk/project.py`).
   table map renames seed tables and runbook `target_table`s.
 - The video proof is a placeholder whenever the instance is simulated.
 - `evaluate_bundle` runs twice per pipeline (start and end) and, like
-  `install_required_modules`, makes blocking `httpx.Client` plugin queries; `run_full_pipeline`
-  calls both through `asyncio.to_thread` so the event loop stays free. Any new async caller
-  must do the same.
+  `install_required_modules`, makes blocking `httpx.Client` plugin queries. Off the event
+  loop: `run_full_pipeline` calls all three through `asyncio.to_thread`; the sync API evaluate
+  route runs in FastAPI's threadpool; Otto's demo tools run in a worker thread (`/ws/otto` via
+  `ClaudeAgentRunner.stream_run`, the thread reply worker, the sync actions route); the CLI has
+  no loop. Any new async caller must use `asyncio.to_thread` too.
 - Seed file parse errors are swallowed in `evaluate_bundle` (counts just drop).
 - An empty runbook counts as passed here (`all_passed=True`), unlike `test_runbook`.
 - `pipeline.py` is about 445 lines against the 500-line cap.

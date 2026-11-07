@@ -1,5 +1,6 @@
 """Otto agent loop: Async Claude tool-calling over the shared action registry (ADR-011)."""
 
+import asyncio
 import functools
 import inspect
 import sqlite3
@@ -321,7 +322,10 @@ class ClaudeAgentRunner:
                     )
                 if not calls:
                     break
-                for ev in loop.run_tools(calls):
+                # Tools are sync and may block on an instance: run them in a worker thread
+                # (to_thread copies the owner scope); this run waits, so its connection is
+                # never used from two threads at once.
+                for ev in await asyncio.to_thread(loop.run_tools, calls):
                     yield ev
             yield AgentEvent(
                 event_type=AgentEventType.DONE,
@@ -371,8 +375,6 @@ def run_agent(
     Returns:
         Otto's reply with tiles, transcript and token usage.
     """
-    import asyncio
-
     runner = ClaudeAgentRunner(client=client, model=model, conn=conn, fake_mode=fake_mode)
 
     try:

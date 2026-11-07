@@ -18,7 +18,7 @@ internal chores, docs, tests and CI are omitted, and the long-form entries are i
 
 ### Fixed
 - demos: one is_simulated rule everywhere; a simulated instance never gets a real deploy, seed call or capture; seed and deploy honour sdk_fake_mode
-- demos: the demo pipeline checks and records plugins in a worker thread, so a slow instance no longer stalls the server while it runs
+- demos: the demo pipeline and Otto's tools over /ws/otto run blocking instance queries in a worker thread; a slow instance no longer stalls the server
 
 ## [2026.11.1] - 2026-11-07
 
