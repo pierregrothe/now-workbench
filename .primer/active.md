@@ -10,18 +10,18 @@ Python Version: `3.14.10`
 `main` -- deployed and live at https://workbench.grothe.ca (srv01chambly, Cloudflare Access).
 Per-user data, groups and approved sharing, impersonation, attachments and limits, and an
 autonomous Otto are all verified end to end against a real instance (Alectri, Australia).
-ADR-015 and ADR-024 are done: platform / domains / interfaces layers, per-domain repositories, 20
+ADR-015, ADR-024 and ADR-025 are done (Otto: 59 tools incl. sharing and admin, a `show` tile catalog): platform / domains / interfaces layers, per-domain repositories, 20
 import-linter contracts, 500-line modules. The pre-push gate passes (100% coverage, 53 e2e);
 nothing has been pushed yet.
 
 ## Recent Changes
 
 (no merge commits; last 5 commits on `main`)
+- 1399d16 feat(web): render Otto's catalog tiles with the app's own elements (ADR-025)
+- 95bb2cb feat(otto): sharing and admin tools, and a show tool for visual tiles (ADR-025)
+- 7f3b433 refactor(domains): sharing, group and team rules move into domain services (ADR-025)
+- b3bda0e chore(primer): sync project context
 - b1dfc53 refactor(web): one InstanceData type; PrefsSection base for preference sections
-- 29e0b56 refactor(web): shell keeps navigation only; every web file under 500 lines (ADR-024)
-- 136fc68 refactor(web): clone and deploy dialogs leave the demo catalog (ADR-024)
-- 600490b refactor(web): settings sections as elements; settings load and reset report failures (ADR-024)
-- f7a467c refactor(web): component styles beside their components; split the admin panel (ADR-024)
 
 ## Open Blockers
 
