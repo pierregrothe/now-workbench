@@ -14,6 +14,7 @@ from now_workbench.domains.conversations.files import (
     read_bytes,
     store_attachment,
 )
+from now_workbench.domains.conversations.limits import get_limits, set_limits
 from now_workbench.domains.conversations.models import (
     MAX_THREAD_CONTEXT_MESSAGES,
     Attachment,
@@ -38,9 +39,11 @@ __all__ = [
     "claude_blocks",
     "ConversationLimits",
     "delete_files",
+    "get_limits",
     "LimitReachedError",
     "MAX_THREAD_CONTEXT_MESSAGES",
     "read_bytes",
+    "set_limits",
     "store_attachment",
     "ThreadRepository",
     "UnsupportedFileError",

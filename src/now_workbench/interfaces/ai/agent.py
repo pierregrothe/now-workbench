@@ -96,9 +96,17 @@ def _pick_layout(tiles: list[UITileSpec]) -> TileLayout:
 
 
 def _assemble(text: str, results: list[ToolResult]) -> GenerativeUIResponse:
-    """Merge tool tiles (later results replace earlier tiles with the same id)."""
+    """Merge tool tiles (later results replace earlier tiles with the same id).
+
+    When Otto called `show`, the reply carries the tiles it chose plus any pending
+    confirmations; otherwise every tool's tiles, as before (ADR-025).
+    """
+    if any(r.shown and r.ok for r in results):
+        visible = [r for r in results if (r.shown and r.ok) or r.pending]
+    else:
+        visible = results
     by_id: dict[str, UITileSpec] = {}
-    for res in results:
+    for res in visible:
         for tile in res.tiles:
             by_id.pop(tile.id, None)
             by_id[tile.id] = tile

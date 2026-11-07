@@ -3,11 +3,14 @@
 from typing import Any
 
 from now_workbench.interfaces.ai.tools import (
+    admin,
     bundles,
     captures,
     demos,
     instances,
     operations,
+    sharing,
+    show,
     system,
 )
 from now_workbench.interfaces.ai.tools.base import (
@@ -20,6 +23,7 @@ from now_workbench.interfaces.ai.tools.base import (
 
 __all__ = [
     "REGISTRY",
+    "admin",
     "ToolContext",
     "ToolResult",
     "ToolSpec",
@@ -29,6 +33,8 @@ __all__ = [
     "execute_tool",
     "instances",
     "operations",
+    "sharing",
+    "show",
     "system",
     "tool_definitions",
 ]

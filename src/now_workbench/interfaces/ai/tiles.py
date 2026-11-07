@@ -13,6 +13,12 @@ TileType = Literal[
     "rich-text",
     "data-table",
     "media-player",
+    "instance",
+    "diagnostics",
+    "kpis",
+    "steps",
+    "comparison",
+    "callout",
 ]
 
 TileLayout = Literal["1-col", "2-col", "3-col", "auto"]
@@ -63,52 +69,3 @@ class GenerativeUIResponse(BaseModel):
     # The exact messages exchanged with Claude for this reply, replayed unchanged on later
     # questions so the conversation is served from the prompt cache. Never sent to the UI.
     transcript: list[dict[str, Any]] = Field(default_factory=list, exclude=True)
-
-
-RENDER_UI_TILES_TOOL = {
-    "name": "render_ui_tiles",
-    "description": (
-        "Render visual ServiceNow Lux interactive tiles in the session instead of markdown text. "
-        "Use this tool whenever the user asks for instances, bundles, metrics, schemas, or status."
-    ),
-    "input_schema": {
-        "type": "object",
-        "properties": {
-            "summary": {
-                "type": "string",
-                "description": "Concise 1-sentence executive summary with no excessive text.",
-            },
-            "layout": {
-                "type": "string",
-                "enum": ["1-col", "2-col", "3-col", "auto"],
-                "description": "Grid column layout for the tiles.",
-            },
-            "tiles": {
-                "type": "array",
-                "items": {
-                    "type": "object",
-                    "properties": {
-                        "id": {"type": "string"},
-                        "type": {
-                            "type": "string",
-                            "enum": [
-                                "instance-kpi",
-                                "instance-card",
-                                "demo-bundle",
-                                "security-alert",
-                                "fluent-schema",
-                                "rich-text",
-                                "data-table",
-                                "media-player",
-                            ],
-                        },
-                        "title": {"type": "string"},
-                        "props": {"type": "object"},
-                    },
-                    "required": ["id", "type", "props"],
-                },
-            },
-        },
-        "required": ["summary", "layout", "tiles"],
-    },
-}

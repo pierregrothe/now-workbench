@@ -4,6 +4,7 @@
 # Date: 2026-11-07
 """Identity domain (ADR-015)."""
 
+from now_workbench.domains.identity.actor import NoActorError, actor_scope, current_actor
 from now_workbench.domains.identity.impersonation import (
     candidates,
     effective_user,
@@ -28,12 +29,15 @@ from now_workbench.domains.identity.team import (
 )
 
 __all__ = [
+    "actor_scope",
     "AuthUser",
     "candidates",
+    "current_actor",
     "effective_user",
     "is_admin",
     "list_team",
     "may_impersonate",
+    "NoActorError",
     "normalize_email",
     "operator_owner",
     "remove_member",

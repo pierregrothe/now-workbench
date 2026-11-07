@@ -11,6 +11,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from now_workbench.domains.identity import AuthUser, current_actor
 from now_workbench.domains.instances import InstanceRecord, InstanceRepository
 from now_workbench.interfaces.ai.tiles import TileLayout, UITileSpec
 
@@ -35,6 +36,8 @@ class ToolResult(BaseModel):
     # Images Claude should see with the result (base64 PNG/JPEG), so Otto can check its own
     # work, e.g. that a screenshot shows the requested page and not a sign-in screen.
     images: list[str] = Field(default_factory=list, max_length=4)
+    # Set by the `show` tool: these tiles were chosen by Otto as the reply's visuals (ADR-025).
+    shown: bool = False
 
 
 @dataclass
@@ -43,6 +46,11 @@ class ToolContext:
 
     conn: sqlite3.Connection
     fake_mode: bool = False
+    user: AuthUser | None = None
+
+    def actor(self) -> AuthUser:
+        """The person Otto acts for: the explicit user, else the request's (ADR-025)."""
+        return self.user or current_actor()
 
 
 ToolHandler = Callable[[ToolContext, dict[str, Any]], ToolResult]

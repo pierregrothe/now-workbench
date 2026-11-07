@@ -2,7 +2,7 @@
 
 from now_workbench.interfaces.ai.tile_builders import build_instance_response
 from now_workbench.interfaces.ai.tile_routing import resolve_query_to_tiles
-from now_workbench.interfaces.ai.tiles import RENDER_UI_TILES_TOOL, GenerativeUIResponse, UITileSpec
+from now_workbench.interfaces.ai.tiles import GenerativeUIResponse, UITileSpec
 
 
 def test_ui_tile_spec_model() -> None:
@@ -35,7 +35,6 @@ def test_generative_ui_response_model() -> None:
     assert resp.summary == "You have 1 instance."
     assert resp.layout == "2-col"
     assert len(resp.tiles) == 1
-    assert RENDER_UI_TILES_TOOL["name"] == "render_ui_tiles"
 
 
 def test_build_instance_response() -> None:

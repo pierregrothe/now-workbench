@@ -7,6 +7,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import Response
 
+from now_workbench.domains import conversations
 from now_workbench.domains.conversations import (
     Attachment,
     ChatRepository,
@@ -126,6 +127,4 @@ def put_limits(
 ) -> ConversationLimits:
     """Change the conversation limits for everyone (administrators)."""
     with db_session() as conn:
-        chat_repo = ChatRepository(conn)
-        chat_repo.put_conversation_limits(limits, updated_by=user.email)
-        return chat_repo.get_conversation_limits()
+        return conversations.set_limits(conn, user, limits)

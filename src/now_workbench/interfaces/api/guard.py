@@ -11,7 +11,7 @@ from typing import Any
 from fastapi import Depends, HTTPException, Request
 from starlette.types import ASGIApp, Receive, Scope, Send
 
-from now_workbench.domains.identity import AuthUser, Role
+from now_workbench.domains.identity import AuthUser, Role, actor_scope
 from now_workbench.interfaces.api.access import ACCESS_HEADER, AccessValidator
 from now_workbench.platform.owner import LOCAL_EMAIL, owner_scope
 
@@ -142,7 +142,7 @@ class AccessMiddleware:
             # Impersonation (ADR-020): from here on the request is the impersonated person.
             user = self._act_as(user)
         scope.setdefault("state", {})["user"] = user
-        with owner_scope(user.email):
+        with owner_scope(user.email), actor_scope(user):
             await self.app(scope, receive, send)
 
     @staticmethod
