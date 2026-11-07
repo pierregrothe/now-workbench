@@ -31,7 +31,7 @@ class WorkbenchPreferences(BaseModel):
     capture_viewport_width: int = 1440
     capture_viewport_height: int = 900
     capture_default_media_type: str = "screenshot"
-    capture_wait_timeout_ms: int = 1500
+    capture_wait_timeout_ms: int = Field(default=1500, ge=0, le=30000)  # chrome_capture.mjs range
     capture_fake_mode: bool = False
 
     # 3. Solution Consultant & Synthesis Defaults
@@ -62,7 +62,7 @@ class WorkbenchPreferencesUpdate(BaseModel):
     capture_viewport_width: int | None = None
     capture_viewport_height: int | None = None
     capture_default_media_type: str | None = None
-    capture_wait_timeout_ms: int | None = None
+    capture_wait_timeout_ms: int | None = Field(default=None, ge=0, le=30000)
     capture_fake_mode: bool | None = None
 
     sc_author_name: str | None = None

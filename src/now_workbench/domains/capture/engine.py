@@ -26,7 +26,7 @@ from now_workbench.domains.releases import is_release_detected, translate_worksp
 from now_workbench.platform.config.paths import dev_script, safe_child
 from now_workbench.platform.procs import ProcessTimeoutError, communicate_bounded, spawn
 
-__all__ = ["CaptureFailedError", "PlaywrightCaptureEngine"]
+__all__ = ["CaptureFailedError", "PlaywrightCaptureEngine", "UnknownReleaseError"]
 
 # A screenshot signs in, loads a list and waits for it; anything slower is stuck.
 _CAPTURE_TIMEOUT_S = 240.0
@@ -163,22 +163,27 @@ async def _run_chrome_capture(
 
 
 def _rooted(path: str) -> str:
-    """Return ``path`` with a leading slash."""
-    return path if path.startswith("/") else f"/{path}"
+    """Return ``path`` with exactly one leading slash; a full URL is returned as is."""
+    return path if path.startswith(("http://", "https://")) else "/" + path.lstrip("/")
 
 
 def _translate(path: str, release: str) -> str:
-    """Translate a workspace path for ``release``; an undetected release leaves it as written.
+    """Root a path, then translate it for ``release``; an undetected release only roots it.
 
     Args:
-        path: Requested path, possibly with an ``@workspace/...`` token.
+        path: Requested path, possibly with an ``@workspace/...`` token or a full URL.
         release: The instance's detected release.
 
     Returns:
-        The release-specific path, or ``path`` unchanged when the release is not known
-        (it is never guessed, ADR-014).
+        The release-specific path with exactly one leading slash (a full URL keeps its
+        form), or the rooted ``path`` untranslated when the release is not known (it is
+        never guessed, ADR-014).
     """
-    return translate_workspace_url(path, release) if is_release_detected(release) else path
+    rooted = _rooted(path)
+    if not is_release_detected(release):
+        return rooted
+    # A rooted token ("/@workspace/itsm/x") translates to "//now/..."; root it again.
+    return _rooted(translate_workspace_url(rooted, release))
 
 
 def _translated_playbook(playbook: DemoPlaybook, release: str) -> DemoPlaybook:
@@ -187,7 +192,7 @@ def _translated_playbook(playbook: DemoPlaybook, release: str) -> DemoPlaybook:
         step.model_copy(update={"path": _translate(step.path, release)}) if step.path else step
         for step in playbook.steps
     ]
-    start = _rooted(_translate(playbook.start_path, release))
+    start = _translate(playbook.start_path, release)
     return playbook.model_copy(update={"start_path": start, "steps": steps})
 
 
@@ -258,6 +263,10 @@ def _check_capture_exists(
 
 class CaptureFailedError(RuntimeError):
     """A live capture failed; nothing was saved (never replaced by a placeholder)."""
+
+
+class UnknownReleaseError(CaptureFailedError):
+    """A live capture was refused: the instance's release is not detected yet (ADR-014)."""
 
 
 class PlaywrightCaptureEngine:
@@ -366,11 +375,12 @@ class PlaywrightCaptureEngine:
             The saved index entry.
 
         Raises:
-            CaptureFailedError: The live capture failed, or the release is unknown for a live
-                capture (paths are never translated for a guessed release, ADR-014).
+            UnknownReleaseError: A live capture whose release is undetected (paths are never
+                translated for a guessed release, ADR-014); a ``CaptureFailedError``.
+            CaptureFailedError: The live capture failed.
         """
         if not req.fake_mode and not is_release_detected(release):
-            raise CaptureFailedError(
+            raise UnknownReleaseError(
                 "The instance's release is unknown, so its workspace paths cannot be chosen; "
                 "run a connection test on the instance first (ADR-014)."
             )
@@ -387,7 +397,7 @@ class PlaywrightCaptureEngine:
             playbook = _translated_playbook(load_playbook(bundle_path, req.bundle_id), release)
             path_part = playbook.start_path
         else:
-            path_part = _rooted(_translate(req.target_path, release))
+            path_part = _translate(req.target_path, release)
 
         used_engine = "playwright-simulated"
         step_results: list[dict[str, Any]] = []

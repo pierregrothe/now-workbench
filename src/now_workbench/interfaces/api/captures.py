@@ -15,6 +15,7 @@ from now_workbench.domains.capture import (
     CaptureFailedError,
     CaptureRequest,
     PlaywrightCaptureEngine,
+    UnknownReleaseError,
 )
 from now_workbench.domains.instances import InstanceRepository, is_simulated
 from now_workbench.domains.settings import PreferencesRepository
@@ -86,6 +87,8 @@ async def create_demo_capture(bundle_id: str, req: CaptureRequest) -> CaptureArt
             password=password,
             release=inst.release,
         )
+    except UnknownReleaseError as exc:  # before its base: a fixable precondition
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     except CaptureFailedError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
