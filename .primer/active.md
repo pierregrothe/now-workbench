@@ -7,7 +7,7 @@ Python Version: `3.14.10`
 
 ## Current Focus
 
-Parallel worktrees: EPIC-021/01 fake-mode safety, EPIC-018/01 feedback row and 02 restyle in review; PRD-004 accepted (EPIC-022 next after the feedback row). main is v2026.11.1, deployed to srv01chambly.
+Release rule now follows PRDs (a merge that ships a PRD releases); story branches landing in turn: restyle, fake-mode safety, feedback row.
 
 `main` -- deployed and live at https://workbench.grothe.ca (srv01chambly, Cloudflare Access).
 Per-user data, groups and approved sharing, impersonation, attachments and limits, and an
