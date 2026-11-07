@@ -453,7 +453,7 @@ async def test_capture_video_playbook_failure_names_failed_step(
     eng = PlaywrightCaptureEngine(bundles_dir=tmp_path)
     req = CaptureRequest(bundle_id="b", target_path="/x", media_type="video")
     with pytest.raises(CaptureFailedError, match=r"go \(bad\)"):
-        await eng.capture(req, instance_url="https://x")
+        await eng.capture(req, instance_url="https://x", release="Zurich")
     assert eng.list_captures("b") == []
 
 
@@ -466,7 +466,7 @@ async def test_capture_video_playbook_success_is_labelled_native(
     monkeypatch.setattr(capture_engine_mod, "_execute_video_playbook", ok)
     eng = PlaywrightCaptureEngine(bundles_dir=tmp_path)
     req = CaptureRequest(bundle_id="b", target_path="/x", media_type="video")
-    art = await eng.capture(req, instance_url="https://x/")
+    art = await eng.capture(req, instance_url="https://x/", release="Zurich")
     assert art.engine == "google-chrome-native"
     assert art.live_authenticated is True
 
@@ -475,7 +475,7 @@ async def test_capture_fake_mode_writes_labelled_placeholder(tmp_path: Path) -> 
     eng = PlaywrightCaptureEngine(bundles_dir=tmp_path)
     for media_type, magic in (("screenshot", b"\x89PNG"), ("video", b"\x1a\x45\xdf\xa3")):
         req = CaptureRequest(bundle_id="b", target_path="x", media_type=media_type, fake_mode=True)
-        art = await eng.capture(req, instance_url="https://x")
+        art = await eng.capture(req, instance_url="https://x", release="Zurich")
         assert art.engine == "playwright-simulated"
         assert Path(art.file_path).read_bytes().startswith(magic)
 

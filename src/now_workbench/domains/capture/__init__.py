@@ -4,7 +4,11 @@
 # Date: 2026-11-07
 """Playwright screenshot and video capture engine for ServiceNow instances."""
 
-from now_workbench.domains.capture.engine import CaptureFailedError, PlaywrightCaptureEngine
+from now_workbench.domains.capture.engine import (
+    CaptureFailedError,
+    PlaywrightCaptureEngine,
+    UnknownReleaseError,
+)
 from now_workbench.domains.capture.models import CaptureArtifact, CaptureRequest
 
 __all__ = [
@@ -12,4 +16,5 @@ __all__ = [
     "CaptureFailedError",
     "CaptureRequest",
     "PlaywrightCaptureEngine",
+    "UnknownReleaseError",
 ]

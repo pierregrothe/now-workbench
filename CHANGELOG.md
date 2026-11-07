@@ -18,6 +18,7 @@ internal chores, docs, tests and CI are omitted, and the long-form entries are i
 
 ### Fixed
 - demos: one is_simulated rule everywhere; a simulated instance never gets a real deploy, seed call or capture; seed and deploy honour sdk_fake_mode
+- capture: Captures translate paths for the instance's detected release (API, Otto, videos); an unknown release is refused (HTTP 409), never guessed as Xanadu
 
 ## [2026.11.1] - 2026-11-07
 

@@ -1,10 +1,18 @@
+# src/now_workbench/domains/settings/repository.py
+# The owner's preferences row and sealed secrets.
+# Author: Pierre Grothe
+# Date: 2026-11-07
 """Preferences and sealed-secret repository mixin (ADR-012)."""
 
 import json
 from datetime import UTC, datetime
 from typing import Any
 
-from now_workbench.domains.settings.models import WorkbenchPreferences, WorkbenchPreferencesUpdate
+from now_workbench.domains.settings.models import (
+    CAPTURE_WAIT_MAX_MS,
+    WorkbenchPreferences,
+    WorkbenchPreferencesUpdate,
+)
 from now_workbench.platform.config.crypto import mask_api_key, seal_secret, unseal_secret
 from now_workbench.platform.db.repository import Repository
 from now_workbench.platform.owner import current_owner
@@ -24,6 +32,23 @@ def _env_api_key() -> str:
     from now_workbench.platform.config.settings import settings
 
     return settings.anthropic_api_key.strip()
+
+
+def _clamp_stored_wait(payload: dict[str, Any]) -> dict[str, Any]:
+    """Clamp a stored ``capture_wait_timeout_ms`` into 0..CAPTURE_WAIT_MAX_MS.
+
+    A value saved before the bound existed would otherwise fail validation on every load.
+
+    Args:
+        payload: The stored preferences payload.
+
+    Returns:
+        The payload, with an out-of-range integer wait clamped.
+    """
+    wait = payload.get("capture_wait_timeout_ms")
+    if isinstance(wait, int) and not isinstance(wait, bool):
+        payload["capture_wait_timeout_ms"] = min(CAPTURE_WAIT_MAX_MS, max(0, wait))
+    return payload
 
 
 def _secret_context(name: str) -> str:
@@ -60,7 +85,7 @@ class PreferencesRepository(Repository):
             "SELECT payload FROM user_preferences WHERE email = ?;", (current_owner(),)
         ).fetchone()
         if row:
-            return dict(json.loads(row["payload"]))
+            return _clamp_stored_wait(dict(json.loads(row["payload"])))
 
         from now_workbench.platform.config.settings import settings
 
