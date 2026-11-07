@@ -1,6 +1,8 @@
 # Story 2026.11a.05: ADR-013 audit: no component shows made-up data when offline
 
-Status: backlog
+Status: done
+Done: 2026-11-07
+Started: 2026-11-07
 Spec-Clarity: high
 Depends-On: none
 Board: STORY-058
@@ -30,17 +32,17 @@ AC2:
 
 ## Tasks / Subtasks
 
-- [ ] Audit each component's fallback branch; remove fabricated data (AC: 1,2)
-- [ ] One Playwright spec per component proving the error/empty state (AC: 1)
-- [ ] Update ADR-013 follow-up note to done (AC: 2)
+- [x] Audit each component's fallback branch; remove fabricated data (AC: 1,2)
+- [x] One Playwright spec per component proving the error/empty state (AC: 1)
+- [x] Update ADR-013 follow-up note to done (AC: 2)
 
 ## Definition of Done
 
-- [ ] All acceptance criteria verified
-- [ ] Tests added or updated and passing (pytest 100% coverage; Playwright where UI changes)
-- [ ] Ruff clean (zero violations), mypy strict, tsc clean
-- [ ] No changes outside the story's stated scope
-- [ ] References section links verified
+- [x] All acceptance criteria verified
+- [x] Tests added or updated and passing (pytest 100% coverage; Playwright where UI changes)
+- [x] Ruff clean (zero violations), mypy strict, tsc clean
+- [x] No changes outside the story's stated scope
+- [x] References section links verified
 
 ## Existing Code
 
@@ -53,6 +55,13 @@ AC2:
 
 - web/src/components/{now-workbench-shell,now-demo-catalog,now-presenter-hud,now-fluent-explorer,now-welcome-modal,now-console,now-capture-prefs}.ts
 - web/src/views/now-profile-settings.ts
+
+### Outcome (2026-11-07)
+
+- Already honest (earlier deep-fix, specs exist): demo catalog, presenter HUD, settings load/save, profile.
+- Fixed: Fluent explorer bundle list (was silent) and welcome guide save (was silent, closed as if saved; now saves first and stays open with the reason).
+- Accepted: the shell keeps interface defaults when preferences cannot load (no data shown from them); capture prefs' "Offline Simulation Fallback" is a setting label.
+- Not rendered anywhere: `now-console` (dead code, flagged, left unchanged).
 
 ### Testing Approach
 

@@ -318,6 +318,11 @@ export const welcomeModalStyles = css`
       margin: 0;
     }
 
+    .save-error {
+      font-size: 12.5px;
+      color: #b42318;
+    }
+
     .modal-nav-row {
       display: flex;
       align-items: center;

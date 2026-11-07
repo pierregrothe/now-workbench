@@ -63,3 +63,7 @@ forbids for the AI path.
   (`now-workbench-shell`, `now-demo-catalog`, `now-otto-drawer`, `now-presenter-hud`,
   `now-fluent-explorer`, `now-welcome-modal`, `now-console`). Each needs an e2e spec
   proving it shows an explicit error or empty state instead of fabricated data.
+  Done 2026-11-07 (STORY-058, `web/e2e/no-fabricated-fallbacks.spec.ts` plus the earlier
+  `deepfix-*` specs). The Fluent bundle list and the welcome guide's save were silent and now
+  report failures. The shell keeps its interface defaults when preferences cannot load (no
+  data is shown from them). `now-console` is not rendered anywhere, so it was left unchanged.

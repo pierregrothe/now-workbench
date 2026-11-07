@@ -7,7 +7,7 @@ Python Version: `3.14.10`
 
 ## Current Focus
 
-Story in progress: `.primer/epics/2026.11a-tester-safeguards/07-guard-unguarded-policies.story.md` (EPIC-017, STORY-060).
+EPIC-017 (tester safeguards) complete; next: EPIC-018 `.primer/epics/2026.11b-conversation-polish/`.
 
 `main` -- deployed and live at https://workbench.grothe.ca (srv01chambly, Cloudflare Access).
 Per-user data, groups and approved sharing, impersonation, attachments and limits, and an

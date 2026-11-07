@@ -397,7 +397,7 @@
     {
       "id": "EPIC-017",
       "title": "Tester Safeguards and Hardening",
-      "status": "in-progress",
+      "status": "done",
       "stories": [
         {
           "id": "STORY-054",
@@ -422,7 +422,7 @@
         {
           "id": "STORY-058",
           "title": "ADR-013 audit: no component shows made-up data when offline",
-          "status": "backlog"
+          "status": "done"
         },
         {
           "id": "STORY-059",

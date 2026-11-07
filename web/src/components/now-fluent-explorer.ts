@@ -22,6 +22,7 @@ export interface FluentTable {
 export class NowFluentExplorer extends LitElement {
   @property({ type: String }) bundleId = 'sample-ai-assistant'
   @state() private availableBundles: Array<{ id: string; name: string }> = []
+  @state() private bundleListError = ''
   @state() private tables: FluentTable[] = []
   @state() private selectedTableIndex = 0
   @state() private loading = true
@@ -40,22 +41,26 @@ export class NowFluentExplorer extends LitElement {
   }
 
   private async loadAvailableBundles() {
+    // A failure is said out loud: the bundle picker never stays silently empty (ADR-013).
+    this.bundleListError = ''
     try {
       const resp = await fetch('/api/demos')
-      if (resp.ok) {
-        const list = (await resp.json()) as Array<{ manifest: { id: string; name: string } }>
-        if (Array.isArray(list) && list.length > 0) {
-          this.availableBundles = list.map((b) => ({
-            id: b.manifest.id,
-            name: b.manifest.name,
-          }))
-          if (!this.availableBundles.some((b) => b.id === this.bundleId)) {
-            this.bundleId = this.availableBundles[0].id
-          }
+      if (!resp.ok) {
+        this.bundleListError = `Could not load the demo bundles (HTTP ${resp.status}).`
+        return
+      }
+      const list = (await resp.json()) as Array<{ manifest: { id: string; name: string } }>
+      if (Array.isArray(list) && list.length > 0) {
+        this.availableBundles = list.map((b) => ({
+          id: b.manifest.id,
+          name: b.manifest.name,
+        }))
+        if (!this.availableBundles.some((b) => b.id === this.bundleId)) {
+          this.bundleId = this.availableBundles[0].id
         }
       }
-    } catch {
-      // Offline fallback
+    } catch (e) {
+      this.bundleListError = `Could not load the demo bundles: ${e instanceof Error ? e.message : String(e)}`
     }
   }
 
@@ -129,6 +134,9 @@ export class NowFluentExplorer extends LitElement {
         </div>
 
         <div class="actions-group">
+          ${this.bundleListError
+            ? html`<span class="bundle-list-error" role="alert">${this.bundleListError}</span>`
+            : ''}
           ${this.availableBundles.length > 0
             ? html`
                 <select

@@ -56,6 +56,11 @@ export const fluentExplorerStyles = css`
       gap: 10px;
     }
 
+    .bundle-list-error {
+      font-size: 12.5px;
+      color: #b42318;
+    }
+
     .btn {
       position: relative;
       display: inline-flex;

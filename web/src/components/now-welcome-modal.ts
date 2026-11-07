@@ -66,6 +66,7 @@ export class NowWelcomeModal extends LitElement {
   @property({ type: Boolean }) open = false;
   @state() private activeSectionId = 'overview';
   @state() private dontShowAgain = false;
+  @state() private saveError = '';
 
   connectedCallback(): void {
     super.connectedCallback();
@@ -97,17 +98,27 @@ export class NowWelcomeModal extends LitElement {
     }
   }
 
-  private handleCheckboxChange(e: Event): void {
+  private async handleCheckboxChange(e: Event): Promise<void> {
     const checked = (e.target as HTMLInputElement).checked;
     this.dontShowAgain = checked;
     localStorage.setItem('now-workbench-show-welcome', checked ? 'false' : 'true');
-    void fetch('/api/settings', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ show_welcome_on_startup: !checked }),
-    }).catch(() => {
-      // offline fallback
-    });
+    this.saveError = '';
+    // This browser remembers the choice either way; the account setting is saved first, and a
+    // failure keeps the guide open with the reason instead of closing as if it had worked.
+    try {
+      const res = await fetch('/api/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ show_welcome_on_startup: !checked }),
+      });
+      if (!res.ok) {
+        this.saveError = `Could not save this choice for your account (HTTP ${res.status}).`;
+        return;
+      }
+    } catch (err) {
+      this.saveError = `Could not save this choice for your account: ${err instanceof Error ? err.message : String(err)}`;
+      return;
+    }
     this.dispatchEvent(
       new CustomEvent('show-welcome-change', {
         detail: { showOnStartup: !checked },
@@ -239,10 +250,11 @@ export class NowWelcomeModal extends LitElement {
                   <input
                     type="checkbox"
                     .checked=${this.dontShowAgain}
-                    @change=${this.handleCheckboxChange}
+                    @change=${(e: Event) => void this.handleCheckboxChange(e)}
                   />
                   <span>Don't show this welcome guide on startup</span>
                 </label>
+                ${this.saveError ? html`<span class="save-error" role="alert">${this.saveError}</span>` : ''}
 
                 <div class="nav-buttons-group">
                   ${this.currentSectionIndex > 0
