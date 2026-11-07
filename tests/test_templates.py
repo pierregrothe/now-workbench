@@ -114,3 +114,20 @@ def test_template_unparseable_manifest_handled(tmp_path: Path) -> None:
     res = engine.instantiate("bad-manifest-bundle", req)
     assert (res / "manifest.json").exists()
     assert "Customer Corp" in (res / "manifest.json").read_text(encoding="utf-8")
+
+
+def test_instantiate_replaces_an_existing_target(tmp_path: Path) -> None:
+    """A second instantiation into the same target starts from a clean copy of the base."""
+    base = tmp_path / "bundles" / "base"
+    base.mkdir(parents=True)
+    (base / "manifest.json").write_text('{"id": "base", "name": "Base"}', encoding="utf-8")
+    out = tmp_path / "out"
+    stale = out / "acme" / "stale.txt"
+    stale.parent.mkdir(parents=True)
+    stale.write_text("left over", encoding="utf-8")
+    engine = TemplateEngine(bundles_dir=tmp_path / "bundles", output_dir=out)
+    request = TemplateInstantiationRequest(target_bundle_id="acme", customer_name="Acme")
+    result = engine.instantiate("base", request)
+    assert result == out / "acme"
+    assert not stale.exists()
+    assert json.loads((result / "manifest.json").read_text())["id"] == "acme"

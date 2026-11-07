@@ -7,7 +7,7 @@ Python Version: `3.14.10`
 
 ## Current Focus
 
-EPIC-020 (domain cards and capability search, ADR-033) complete; next: EPIC-018 `.primer/epics/2026.11b-conversation-polish/`, then a backlog epic for the code defects the cards recorded.
+EPIC-018 story 02 (restyle) landed (PR #8); releases now follow PRDs (this branch); fake-mode safety (EPIC-021/01) and the feedback row (EPIC-018/01) next; PRD-004 accepted, EPIC-022 queued.
 
 `main` -- deployed and live at https://workbench.grothe.ca (srv01chambly, Cloudflare Access).
 Per-user data, groups and approved sharing, impersonation, attachments and limits, and an

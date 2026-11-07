@@ -36,6 +36,9 @@ def isolate_workbench_db(
     monkeypatch.setenv("WORKBENCH_ACCESS_AUDIENCE", "")
     # The Claude key from a developer .env must not leak into tests either.
     monkeypatch.setattr(settings, "anthropic_api_key", "")
+    # Generated workspaces (templates, SDK projects) go to the test's own directory, never the
+    # checkout's ./workspaces, so a test cannot depend on what an earlier run left behind.
+    monkeypatch.setattr(settings, "workspace_dir", tmp_path / "workspaces")
     test_db = data_dir / "workbench.db"
 
     with db_session(test_db) as conn:
