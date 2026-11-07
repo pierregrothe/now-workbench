@@ -7,34 +7,36 @@ Python Version: `3.14.10`
 
 ## Current Focus
 
-`main` -- ready for the first container deploy on srv01chambly behind Cloudflare Access
-(ADR-016/017, runbook `docs/deploy.md`). Otto-style UI alignment (PRD-002) built; deep-fix
-review findings merged.
+`main` -- deployed and live at https://workbench.grothe.ca (srv01chambly, Cloudflare Access).
+Per-user data, groups and approved sharing, impersonation, attachments and limits, and an
+autonomous Otto are all verified end to end against a real instance (Alectri, Australia).
+The pre-push gate passes (100% coverage); nothing has been pushed yet.
 
 ## Recent Changes
 
 (no merge commits; last 5 commits on `main`)
-- e51f974 feat(deploy): first-run setup code, team roles in the database, hardened container
-- b2a71a6 feat(auth): Cloudflare Access sign-in with admin and consultant roles; Otto-style icons
-- 380778d feat(profile): profile picture, built-in avatars and servicenow.com email-code approval
-- e881792 feat(ui): settings left menu, detail side panel, live home tiles, shared tile chrome
-- b7d3d71 feat(ui): align chat, tiles and areas to the observed Otto look and feel
+- 369e35a fix(ui): conversation counters show questions asked against the admin limit
+- 1296d73 feat(pipeline): deploy a demo's Fluent app into the instance's vendor scope
+- 24b16f9 test: 100% coverage for the pre-push gate; drop two unreachable branches
+- 7963245 fix(chat): long Otto replies no longer hit Cloudflare's 100-second limit (HTTP 524)
+- 85ce0c4 fix(pipeline): SDK deploy uses the SDK's CI credentials; skip deploy without a project
 
 ## Open Blockers
 
-1. Pre-push gate fails: coverage 93% vs required 100%, so `main` cannot be pushed yet.
-2. The container image was never built or run (Docker is not installed on the dev Mac); the
-   first `docker compose up` on srv01chambly is its first real test.
-3. Cloudflare Access is not configured yet (owner: Google/Apple login methods, Access app for
-   the `workbench` hostname, tunnel public hostname, `.env` on the server).
-4. A placeholder `.env` (copy of `.env.example`) sits in the repo root; locally it switches
-   `workbench serve` into Cloudflare mode. The owner should delete it on the Mac.
+None. `main` passes the pre-push gate; pushing waits only for the owner's go-ahead.
 
 ## Next Steps
 
-1. Owner deploys per `docs/deploy.md`; read the setup code from `docker logs`, become admin,
-   enter the Claude key and instances in the UI. Fix whatever the first build reveals.
-2. Raise coverage to the 100% pre-push floor, then push `main`.
-3. ADR-015 (proposed): settle its open questions, accept, restructure in small green steps
+1. Push `main` when the owner approves.
+2. ADR-015 (proposed): settle its open questions, accept, restructure in small green steps
    (held findings reuse-001/002, rules-003 belong there).
-4. PRD-002 leftovers: chat feedback row (needs backend storage), check off its acceptance list.
+3. PRD-002 leftovers: chat feedback row (needs backend storage); restyle Synthesizer, Media
+   Capture, Fluent Explorer and the Artifact library cards to ADR-019 measurements.
+4. Per-user Claude usage limits for outside testers (only question/age/file caps exist).
+5. Scheduled `workbench backup` on srv01chambly.
+
+## Live-instance notes
+
+- Alectri now holds the deployed demo app "GenAI Agentic Incident Router" (scope
+  `x_snc_97de30`, table `x_snc_97de30_ai_routing_log`); every test seed was rolled back.
+- Server bundles live in the `workbench-bundles` volume: deploying code does not update them.
