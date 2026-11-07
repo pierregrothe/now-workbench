@@ -7,7 +7,7 @@ Python Version: `3.14.10`
 
 ## Current Focus
 
-Story in progress: `.primer/epics/2026.11a-tester-safeguards/01-usage-caps-enforced.story.md` (EPIC-017, STORY-054).
+Story in progress: `.primer/epics/2026.11a-tester-safeguards/02-usage-allowance-settings.story.md` (EPIC-017, STORY-055).
 
 `main` -- deployed and live at https://workbench.grothe.ca (srv01chambly, Cloudflare Access).
 Per-user data, groups and approved sharing, impersonation, attachments and limits, and an

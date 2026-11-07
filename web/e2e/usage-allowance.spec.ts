@@ -37,3 +37,36 @@ test('a spent allowance is refused with the reason', async ({ page }) => {
   await ask(page);
   await expect(page.getByText(`Could not send message: ${REFUSAL}`)).toBeVisible();
 });
+
+test('administrators set a person allowance on the Team screen', async ({ page, request }) => {
+  const sc = 'allowance-sc@example.com';
+  expect((await request.put(`/api/team/${sc}`, { data: { solution_consultant: true } })).ok()).toBeTruthy();
+  try {
+    await page.goto('/#admin/team');
+    const card = page.locator('now-usage-allowances');
+    const row = card.locator('.usage-row', { hasText: sc });
+    await expect(row).toContainText('0 of 10,000,000 tokens (0%)');
+
+    await row.getByLabel(`Monthly allowance for ${sc}`).fill('500000');
+    await row.getByRole('button', { name: 'Set' }).click();
+    await expect(row).toContainText('0 of 500,000 tokens (0%) - own allowance');
+    await expect(card.getByRole('status')).toHaveText(`Allowance saved for ${sc}.`);
+
+    await row.getByRole('button', { name: 'Use default' }).click();
+    await expect(row).toContainText('0 of 10,000,000 tokens (0%)');
+    await expect(row).not.toContainText('own allowance');
+  } finally {
+    await request.delete(`/api/usage/allowances/${sc}`).catch(() => undefined);
+    await request.delete(`/api/team/${sc}`);
+  }
+});
+
+test('everyone sees their own usage on the Profile screen', async ({ page }) => {
+  await page.goto('/#admin/profile');
+  await expect(page.getByTestId('own-usage')).toContainText('tokens (administrator, no limit).');
+});
+
+test('the default allowance is a conversation limit', async ({ page }) => {
+  await page.goto('/#admin/limits');
+  await expect(page.getByLabel('Monthly Claude allowance per person (tokens; administrators exempt)')).toHaveValue('10000000');
+});

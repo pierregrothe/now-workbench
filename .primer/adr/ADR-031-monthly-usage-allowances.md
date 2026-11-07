@@ -19,7 +19,9 @@ Owner decisions (2026-11-07): a monthly allowance, administrators exempt.
   conversation budget counts them: input + output + 1.25 x cache writes + 0.1 x cache reads.
   The weights now live in the telemetry domain, and the conversation budget imports them.
 - **Allowance:** `monthly_allowance_tokens` in the conversation limits (default 10,000,000,
-  at least 100,000). Per-person overrides and the settings screen are story 02.
+  at least 100,000), with per-person overrides (`usage_allowances`, schema v14) set by
+  administrators on Settings > Team or through Otto (`usage_allowances`,
+  `set_usage_allowance`, confirmed in words). Everyone sees their own use on Profile.
 - **Rule:** below 80% nothing is said; from 80% the answer carries a warning (percentage,
   tokens, reset date); at 100% no Claude call is made. The HTTP API answers 429, and the
   WebSocket sends an error. Administrators are exempt. Under "view as" the person viewed is

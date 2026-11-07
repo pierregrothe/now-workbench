@@ -147,4 +147,29 @@ export const profileSettingsStyles = css`
     font-size: 12px;
     color: var(--now-text-secondary, #6b7280);
   }
+  .usage-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .usage-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 12px;
+    padding-top: 10px;
+    border-top: 1px solid rgba(0, 0, 0, 0.06);
+  }
+  .usage-who {
+    font-weight: 600;
+    font-size: 13px;
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  .usage-row input[type='number'] {
+    width: 9.5em;
+  }
 `;

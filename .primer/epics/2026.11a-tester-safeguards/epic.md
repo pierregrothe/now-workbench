@@ -4,7 +4,7 @@ Phase: 2026.11a
 Date: 2026-11-07
 Source: owner backlog review 2026-11-07 (.primer/active.md Next Steps and Known Issues)
 Board: EPIC-017
-Progress: 1/7 stories done
+Progress: 2/7 stories done
 
 ## Goal
 
@@ -37,7 +37,7 @@ Cap what outside testers can spend, close the remaining security gaps (CLI IDs, 
 | Requirement | Story | Status |
 |-------------|-------|--------|
 | FR1 | 01-usage-caps-enforced | done |
-| FR2 | 02-usage-allowance-settings | backlog |
+| FR2 | 02-usage-allowance-settings | done |
 | FR3 | 03-cli-bundle-id-guard | backlog |
 | FR4 | 04-capture-tls-verified | backlog |
 | FR5 | 05-no-fabricated-fallbacks | backlog |
@@ -49,7 +49,7 @@ Cap what outside testers can spend, close the remaining security gaps (CLI IDs, 
 | # | Title | Dependencies | Status |
 |---|-------|--------------|--------|
 | 01 | Monthly Claude usage allowance per person, enforced | none | done |
-| 02 | Admin settings for usage allowances | 2026.11a.01 | backlog |
+| 02 | Admin settings for usage allowances | 2026.11a.01 | done |
 | 03 | CLI rejects bundle IDs that escape the bundles folder | none | backlog |
 | 04 | Capture verifies instance TLS certificates | none | backlog |
 | 05 | ADR-013 audit: no component shows made-up data when offline | none | backlog |

@@ -16,12 +16,25 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
-from now_workbench.domains.identity import AuthUser, is_admin
+from now_workbench.domains.identity import AuthUser, Role, is_admin, list_team, require_admin
 from now_workbench.domains.telemetry.repository import TelemetryRepository
+from now_workbench.platform.errors import InvalidInputError, NotFoundError
 
-__all__ = ["check_allowance", "Allowance", "WARN_AT_PERCENT"]
+__all__ = [
+    "allowance_for",
+    "check_allowance",
+    "set_allowance_override",
+    "team_allowances",
+    "Allowance",
+    "PersonAllowance",
+    "MAX_ALLOWANCE",
+    "MIN_ALLOWANCE",
+    "WARN_AT_PERCENT",
+]
 
 WARN_AT_PERCENT = 80
+MIN_ALLOWANCE = 100_000
+MAX_ALLOWANCE = 1_000_000_000
 
 AllowanceState = Literal["exempt", "ok", "warn", "refused"]
 
@@ -66,32 +79,109 @@ class Allowance(BaseModel):
 
 def _month_bounds(now: datetime) -> tuple[str, date]:
     """This UTC month's first instant (as stored timestamps read) and next month's first day."""
-    since = f"{now.year:04d}-{now.month:02d}-01T00:00:00.000Z"
-    return since, date(now.year + now.month // 12, now.month % 12 + 1, 1)
+    utc = now.astimezone(UTC)
+    since = f"{utc.year:04d}-{utc.month:02d}-01T00:00:00.000Z"
+    return since, date(utc.year + utc.month // 12, utc.month % 12 + 1, 1)
+
+
+def _state(used: int, allowance: int, admin: bool) -> AllowanceState:
+    if admin:
+        return "exempt"
+    if used >= allowance:
+        return "refused"
+    if used * 100 >= allowance * WARN_AT_PERCENT:
+        return "warn"
+    return "ok"
+
+
+def allowance_for(conn: sqlite3.Connection, email: str, default: int) -> int:
+    """The person's monthly allowance: an administrator's override, else the default."""
+    override = TelemetryRepository(conn).allowance_override(email)
+    return default if override is None else override
 
 
 def check_allowance(
-    conn: sqlite3.Connection, user: AuthUser, allowance: int, now: datetime
+    conn: sqlite3.Connection, user: AuthUser, default: int, now: datetime
 ) -> Allowance:
     """Where `user` stands this month (the owner scope must be `user`'s).
 
     Args:
         conn: Open connection.
         user: The person asking (after "view as").
-        allowance: Monthly allowance in billable tokens.
+        default: The allowance for people without an override (billable tokens a month).
         now: The current time (UTC).
 
     Returns:
         The person's standing; administrators are always `exempt`.
     """
-    since, resets_on = _month_bounds(now.astimezone(UTC))
+    since, resets_on = _month_bounds(now)
     used = TelemetryRepository(conn).billable_since(since)
-    if is_admin(user):
-        state: AllowanceState = "exempt"
-    elif used >= allowance:
-        state = "refused"
-    elif used * 100 >= allowance * WARN_AT_PERCENT:
-        state = "warn"
-    else:
-        state = "ok"
-    return Allowance(state=state, used=used, allowance=allowance, resets_on=resets_on)
+    allowance = allowance_for(conn, user.email, default)
+    return Allowance(
+        state=_state(used, allowance, is_admin(user)),
+        used=used,
+        allowance=allowance,
+        resets_on=resets_on,
+    )
+
+
+class PersonAllowance(Allowance):
+    """One team member's standing, for the administrators' team view.
+
+    Attributes:
+        email: The person.
+        overridden: An administrator set this person's allowance (else the default applies).
+    """
+
+    email: str
+    overridden: bool
+
+
+def team_allowances(
+    conn: sqlite3.Connection, actor: AuthUser, default: int, now: datetime
+) -> list[PersonAllowance]:
+    """Every team member's use and allowance this month (administrators only).
+
+    Raises:
+        ForbiddenError: The actor is not an administrator.
+    """
+    members = list_team(conn, actor)
+    repo = TelemetryRepository(conn)
+    since, resets_on = _month_bounds(now)
+    used = repo.billable_by_person(since)
+    overrides = repo.allowance_overrides()
+    rows = []
+    for m in members:
+        spent = used.get(m.email, 0)
+        allowance = overrides.get(m.email, default)
+        rows.append(
+            PersonAllowance(
+                email=m.email,
+                overridden=m.email in overrides,
+                state=_state(spent, allowance, Role.ADMIN in m.roles),
+                used=spent,
+                allowance=allowance,
+                resets_on=resets_on,
+            )
+        )
+    return rows
+
+
+def set_allowance_override(
+    conn: sqlite3.Connection, actor: AuthUser, email: str, tokens: int | None
+) -> None:
+    """Set a person's monthly allowance, or with None return them to the default.
+
+    Raises:
+        ForbiddenError: The actor is not an administrator.
+        InvalidInputError: The amount is outside 100,000 to 1,000,000,000.
+        NotFoundError: The person is not on the team.
+    """
+    require_admin(actor)
+    if tokens is not None and not MIN_ALLOWANCE <= tokens <= MAX_ALLOWANCE:
+        raise InvalidInputError(
+            f"An allowance must be between {MIN_ALLOWANCE:,} and {MAX_ALLOWANCE:,} tokens."
+        )
+    if email not in {m.email for m in list_team(conn, actor)}:
+        raise NotFoundError(f"{email} is not on the team.")
+    TelemetryRepository(conn).put_allowance_override(email, tokens, actor.real_email or actor.email)

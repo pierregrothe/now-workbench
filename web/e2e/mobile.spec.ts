@@ -72,6 +72,12 @@ test.describe('phone portrait (iPhone size)', () => {
     await expectNoSidewaysScroll(page);
   });
 
+  test('the Team usage list fits the width of the phone', async ({ page }) => {
+    await page.goto('/#admin/team');
+    await expect(page.locator('now-usage-allowances').getByRole('heading', { name: 'Claude usage this month' })).toBeVisible();
+    await expectNoSidewaysScroll(page);
+  });
+
   test('a chosen action shows its form above the list', async ({ page }) => {
     await page.goto('/#actions');
     await page.getByRole('button', { name: 'List conversations' }).tap();

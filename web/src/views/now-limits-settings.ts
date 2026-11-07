@@ -14,6 +14,7 @@ interface Limits {
   max_file_mb: number;
   max_conversation_mb: number;
   max_files: number;
+  monthly_allowance_tokens: number;
 }
 
 const FIELDS: { key: keyof Limits; label: string; min: number; max: number }[] = [
@@ -23,6 +24,12 @@ const FIELDS: { key: keyof Limits; label: string; min: number; max: number }[] =
   { key: 'max_file_mb', label: 'Largest file (MB)', min: 1, max: 32 },
   { key: 'max_conversation_mb', label: 'Files per conversation, total (MB)', min: 1, max: 100 },
   { key: 'max_files', label: 'Files per conversation', min: 1, max: 50 },
+  {
+    key: 'monthly_allowance_tokens',
+    label: 'Monthly Claude allowance per person (tokens; administrators exempt)',
+    min: 100000,
+    max: 1000000000,
+  },
 ];
 
 type Notice = { kind: 'ok' | 'error'; text: string } | null;

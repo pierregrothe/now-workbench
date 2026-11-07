@@ -394,6 +394,16 @@ CREATE INDEX ix_action_events_owner ON action_events (owner_email, created_at);
 CREATE INDEX ix_action_events_created ON action_events (created_at);
 """
 
+# v14 -- ADR-031: per-person monthly allowance overrides (the default is in the limits).
+_V14 = f"""
+CREATE TABLE usage_allowances (
+    email          TEXT PRIMARY KEY,
+    monthly_tokens INTEGER NOT NULL CHECK (monthly_tokens BETWEEN 100000 AND 1000000000),
+    updated_by     TEXT NOT NULL,
+    updated_at     TEXT NOT NULL DEFAULT {_NOW}
+) STRICT;
+"""
+
 MIGRATIONS: tuple[str, ...] = (
     _V1,
     _V2,
@@ -408,6 +418,7 @@ MIGRATIONS: tuple[str, ...] = (
     _V11,
     _V12,
     _V13,
+    _V14,
 )
 SCHEMA_VERSION = len(MIGRATIONS)
 

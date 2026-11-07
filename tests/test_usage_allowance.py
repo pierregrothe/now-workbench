@@ -226,3 +226,147 @@ def test_every_question_entry_point_passes_the_allowance_gate() -> None:
         if path.name == "attachments.py":  # uploads files; it never calls Claude
             continue
         assert "enforce_allowance(" in path.read_text(), path
+
+
+# --------------------------------------------------------------------------- overrides and API
+
+
+def test_get_allowance_shows_your_own_standing(team: TestClient) -> None:
+    _usage(ANA, _this_month(), inp=25_000)
+    own = team.get("/api/usage/allowance", headers=as_user(ANA)).json()
+    assert {k: own[k] for k in ("state", "used", "allowance", "percent")} == {
+        "state": "ok",
+        "used": 25_000,
+        "allowance": ALLOWANCE,
+        "percent": 25,
+    }
+    assert re.fullmatch(r"\d{4}-\d{2}-01", own["resets_on"])
+    assert team.get("/api/usage/allowance", headers=as_user(ADMIN)).json()["state"] == "exempt"
+
+
+def test_team_allowances_are_for_administrators(team: TestClient) -> None:
+    assert team.get("/api/usage/allowances", headers=as_user(ANA)).status_code == 403
+    put = team.put(
+        f"/api/usage/allowances/{BEN}", json={"monthly_tokens": 500_000}, headers=as_user(ANA)
+    )
+    assert put.status_code == 403
+
+
+def test_set_allowance_override_changes_one_person_and_the_gate(team: TestClient) -> None:
+    _usage(ANA, _this_month(), inp=150_000)
+    assert _ask(team, ANA).status_code == 429
+    rows = team.put(
+        f"/api/usage/allowances/{ANA}", json={"monthly_tokens": 300_000}, headers=as_user(ADMIN)
+    ).json()
+    by_email = {r["email"]: r for r in rows}
+    assert {k: by_email[ANA][k] for k in ("used", "allowance", "percent", "overridden")} == {
+        "used": 150_000,
+        "allowance": 300_000,
+        "percent": 50,
+        "overridden": True,
+    }
+    assert by_email[ANA]["state"] == "ok"  # under its own allowance, not the default's
+    ben = by_email[BEN]
+    assert (ben["used"], ben["allowance"], ben["overridden"], ben["state"]) == (
+        0,
+        ALLOWANCE,
+        False,
+        "ok",
+    )
+    assert by_email[ADMIN]["state"] == "exempt"
+    assert _ask(team, ANA).status_code == 200
+
+    _usage(BEN, _this_month(), inp=ALLOWANCE)
+    listed = team.get("/api/usage/allowances", headers=as_user(ADMIN)).json()
+    assert {r["email"]: r["state"] for r in listed} == {
+        ADMIN: "exempt",
+        ANA: "ok",
+        BEN: "refused",
+    }
+
+    back = team.put(
+        f"/api/usage/allowances/{ANA}", json={"monthly_tokens": None}, headers=as_user(ADMIN)
+    ).json()
+    assert {r["email"]: r["overridden"] for r in back}[ANA] is False
+    assert _ask(team, ANA).status_code == 429
+
+
+@pytest.mark.parametrize(
+    ("email", "tokens", "status", "detail"),
+    [
+        (ANA, 99_999, 422, "An allowance must be between 100,000 and 1,000,000,000 tokens."),
+        (ANA, 1_000_000_001, 422, "An allowance must be between 100,000 and 1,000,000,000 tokens."),
+        ("nobody@example.com", 500_000, 404, "nobody@example.com is not on the team."),
+    ],
+)
+def test_set_allowance_override_refuses_bad_amounts_and_strangers(
+    team: TestClient, email: str, tokens: int, status: int, detail: str
+) -> None:
+    res = team.put(
+        f"/api/usage/allowances/{email}", json={"monthly_tokens": tokens}, headers=as_user(ADMIN)
+    )
+    assert (res.status_code, res.json()["detail"]) == (status, detail)
+
+
+def test_set_allowance_override_accepts_the_bounds(team: TestClient) -> None:
+    for tokens in (100_000, 1_000_000_000):
+        res = team.put(
+            f"/api/usage/allowances/{ANA}", json={"monthly_tokens": tokens}, headers=as_user(ADMIN)
+        )
+        assert {r["email"]: r["allowance"] for r in res.json()}[ANA] == tokens
+
+
+def test_set_allowance_override_records_the_real_administrator_behind_view_as(
+    team: TestClient,
+) -> None:
+    from now_workbench.domains.telemetry import set_allowance_override
+
+    admin_as_ben = AuthUser(
+        email=BEN,
+        roles=frozenset(Role),
+        mode="cloudflare",
+        real_email=ADMIN,
+        real_roles=frozenset(Role),
+    )
+    with db_session() as conn:
+        set_allowance_override(conn, admin_as_ben, ANA, 400_000)
+        row = conn.execute("SELECT updated_by FROM usage_allowances WHERE email = ?", (ANA,))
+        assert row.fetchone()[0] == ADMIN
+
+
+# --------------------------------------------------------------------------- Otto's tools
+
+
+def test_usage_allowances_tool_lists_everyone(team: TestClient) -> None:
+    from now_workbench.interfaces.ai.tools import execute_tool
+    from now_workbench.interfaces.ai.tools.base import ToolContext
+
+    _usage(ANA, _this_month(), inp=50_000)
+    with db_session() as conn:
+        result = execute_tool(ToolContext(conn=conn, user=ADMIN_USER), "usage_allowances", {})
+    people = {p["email"]: p for p in result.data["people"]}
+    assert (people[ANA]["used"], people[ANA]["percent"]) == (50_000, 50)
+    assert result.tiles[0].props["rows"][0][0] in {ADMIN, ANA, BEN}
+    assert result.summary == "Claude usage this month for 3 people (billable tokens)."
+
+
+def test_set_usage_allowance_tool_confirms_then_sets(team: TestClient) -> None:
+    from now_workbench.interfaces.ai.tools import execute_tool
+    from now_workbench.interfaces.ai.tools.base import ToolContext
+
+    args = {"email": ANA, "monthly_tokens": 2_500_000}
+    with db_session() as conn:
+        pending = execute_tool(ToolContext(conn=conn, user=ADMIN_USER), "set_usage_allowance", args)
+        assert pending.pending
+        assert "Set ana@example.com's monthly allowance to 2,500,000." in pending.summary
+        done = execute_tool(
+            ToolContext(conn=conn, user=ADMIN_USER), "set_usage_allowance", args, confirmed=True
+        )
+        reset = execute_tool(
+            ToolContext(conn=conn, user=ADMIN_USER),
+            "set_usage_allowance",
+            {"email": ANA, "monthly_tokens": None},
+            confirmed=True,
+        )
+    assert done.summary == "ana@example.com now has 2,500,000 tokens a month."
+    assert reset.summary == "ana@example.com now has the default."

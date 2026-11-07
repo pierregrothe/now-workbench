@@ -46,6 +46,7 @@ from now_workbench.interfaces.api.sharing import approvals_router, artifacts_rou
 from now_workbench.interfaces.api.team import router as team_router
 from now_workbench.interfaces.api.templates import router as templates_router
 from now_workbench.interfaces.api.threads import router as threads_router
+from now_workbench.interfaces.api.usage import router as usage_router
 from now_workbench.platform.config.origins import is_origin_allowed
 from now_workbench.platform.config.settings import settings
 from now_workbench.platform.db.session import db_session
@@ -217,6 +218,7 @@ def create_app(
     app.include_router(captures_router)
     app.include_router(properties_router)
     app.include_router(threads_router)
+    app.include_router(usage_router)
     app.include_router(settings_router)
     app.include_router(profile_router)
     app.include_router(setup_router)

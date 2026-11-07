@@ -4,6 +4,8 @@ import '../views/now-groups-settings.js';
 import '../views/now-approvals-settings.js';
 import '../views/now-impersonation.js';
 import '../views/now-limits-settings.js';
+import '../views/now-usage-allowances.js';
+import '../views/now-usage-card.js';
 import { LitElement, html, type PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import './now-admin-panel.js';
@@ -247,9 +249,9 @@ export class NowWorkbenchSettings extends LitElement {
         </nav>
         <div class="pref-content">
       ${this.activeSection === 'profile'
-        ? html`<div class="scroll-body"><div class="settings-container"><now-profile-settings></now-profile-settings></div></div>`
+        ? html`<div class="scroll-body"><div class="settings-container"><now-profile-settings></now-profile-settings><now-usage-card></now-usage-card></div></div>`
         : this.activeSection === 'team'
-        ? html`<div class="scroll-body"><div class="settings-container"><now-team-settings></now-team-settings></div></div>`
+        ? html`<div class="scroll-body"><div class="settings-container"><now-team-settings></now-team-settings><now-usage-allowances></now-usage-allowances></div></div>`
         : this.activeSection === 'groups'
         ? html`<div class="scroll-body"><div class="settings-container"><now-groups-settings .admin=${isAdmin(this.store.state.profile)} .email=${this.store.state.profile?.email ?? ''}></now-groups-settings></div></div>`
         : this.activeSection === 'approvals'

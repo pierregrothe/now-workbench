@@ -1,8 +1,8 @@
 # src/now_workbench/interfaces/ai/tools/admin.py
-# Otto's administration tools: the team and the conversation limits (administrators only).
+# Otto's administration tools: the team, conversation limits and usage allowances (admins).
 # Author: Pierre Grothe
 # Date: 2026-11-07
-"""Administration tools (ADR-017, ADR-021, ADR-025).
+"""Administration tools (ADR-017, ADR-021, ADR-025, ADR-031).
 
 The services refuse anyone who is not an administrator, so these tools are inert for
 everyone else. Impersonation has no tool by the owner's decision: it stays a UI action.
@@ -10,9 +10,10 @@ everyone else. Impersonation has no tool by the owner's decision: it stays a UI 
 
 from typing import Any
 
-from now_workbench.domains import conversations, identity
+from now_workbench.domains import conversations, identity, telemetry
 from now_workbench.domains.conversations import ConversationLimits
 from now_workbench.domains.identity import TeamMember
+from now_workbench.domains.telemetry import PersonAllowance
 from now_workbench.interfaces.ai.tools.base import (
     ToolContext,
     ToolResult,
@@ -20,6 +21,7 @@ from now_workbench.interfaces.ai.tools.base import (
     register,
     table_tile,
 )
+from now_workbench.platform.clock import utc_now
 
 __all__: list[str] = []
 
@@ -81,6 +83,51 @@ def _set_limits(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
         summary="Limits saved; they apply to everyone now.",
         data=limits.model_dump(),
         tiles=[_limits_tile(limits)],
+    )
+
+
+def _allowances_tile(rows: list[PersonAllowance]) -> Any:
+    table = [
+        [
+            r.email,
+            f"{r.used:,}",
+            "exempt" if r.state == "exempt" else f"{r.allowance:,}",
+            "-" if r.state == "exempt" else f"{r.percent}%",
+            "override" if r.overridden else "default",
+        ]
+        for r in rows
+    ]
+    return table_tile(
+        "tile-allowances",
+        "Claude usage this month",
+        ["Email", "Used", "Allowance", "Used %", "Set by"],
+        table,
+    )
+
+
+def _team_allowances(ctx: ToolContext) -> list[PersonAllowance]:
+    default = conversations.get_limits(ctx.conn).monthly_allowance_tokens
+    return telemetry.team_allowances(ctx.conn, ctx.actor(), default, utc_now())
+
+
+def _usage_allowances(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
+    rows = _team_allowances(ctx)
+    return ToolResult(
+        summary=f"Claude usage this month for {len(rows)} people (billable tokens).",
+        data={"people": [r.model_dump(mode="json") | {"percent": r.percent} for r in rows]},
+        tiles=[_allowances_tile(rows)],
+    )
+
+
+def _set_usage_allowance(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
+    tokens = args.get("monthly_tokens")
+    telemetry.set_allowance_override(
+        ctx.conn, ctx.actor(), str(args["email"]), None if tokens is None else int(tokens)
+    )
+    what = "the default" if tokens is None else f"{int(tokens):,} tokens a month"
+    return ToolResult(
+        summary=f"{args['email']} now has {what}.",
+        tiles=[_allowances_tile(_team_allowances(ctx))],
     )
 
 
@@ -151,6 +198,42 @@ register(
         destructive=True,
         plan=lambda ctx, a: (
             "Set limits: " + ", ".join(f"{k}={v}" for k, v in a.items() if k in _LIMIT_FIELDS) + "."
+        ),
+    )
+)
+register(
+    ToolSpec(
+        name="usage_allowances",
+        description=(
+            "Show everyone's billable Claude tokens this month against their monthly "
+            "allowance (administrators; administrators themselves are exempt)."
+        ),
+        properties={},
+        handler=_usage_allowances,
+        admin_only=True,
+        category="admin",
+    )
+)
+register(
+    ToolSpec(
+        name="set_usage_allowance",
+        description=(
+            "Set one person's monthly Claude allowance in billable tokens (100,000 to "
+            "1,000,000,000), or null to return them to the default (administrators)."
+        ),
+        properties={
+            "email": _EMAIL,
+            "monthly_tokens": {"type": ["integer", "null"], "description": "Tokens a month"},
+        },
+        required=["email", "monthly_tokens"],
+        handler=_set_usage_allowance,
+        admin_only=True,
+        category="admin",
+        destructive=True,
+        plan=lambda ctx, a: (
+            f"Set {a.get('email')}'s monthly allowance to "
+            + ("the default" if a.get("monthly_tokens") is None else f"{a['monthly_tokens']:,}")
+            + "."
         ),
     )
 )

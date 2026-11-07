@@ -63,6 +63,19 @@ _BILLABLE_SINCE = (
     f" + {CACHE_WRITE_WEIGHT} * cache_write + {CACHE_READ_WEIGHT} * cache_read), 0) AS n"
     " FROM usage_events WHERE created_at >= ? {scope};"
 )
+_BILLABLE_BY_PERSON = (
+    "SELECT owner_email AS who, SUM(input_tokens + output_tokens"
+    f" + {CACHE_WRITE_WEIGHT} * cache_write + {CACHE_READ_WEIGHT} * cache_read) AS n"
+    " FROM usage_events WHERE created_at >= ? {scope} GROUP BY owner_email;"
+)
+_GET_OVERRIDE = "SELECT monthly_tokens FROM usage_allowances WHERE email = ?;"
+_LIST_OVERRIDES = "SELECT email, monthly_tokens FROM usage_allowances;"
+_PUT_OVERRIDE = (
+    "INSERT INTO usage_allowances (email, monthly_tokens, updated_by) VALUES (?, ?, ?) "
+    "ON CONFLICT (email) DO UPDATE SET monthly_tokens = excluded.monthly_tokens, "
+    "updated_by = excluded.updated_by, updated_at = excluded.updated_at;"
+)
+_DELETE_OVERRIDE = "DELETE FROM usage_allowances WHERE email = ?;"
 _ACTIONS_BY_PERSON = (
     "SELECT owner_email AS who, COUNT(*) AS n FROM action_events "
     "WHERE created_at >= ? {scope} GROUP BY owner_email;"
@@ -179,3 +192,24 @@ class TelemetryRepository(Repository):
     def actions_by_person(self, since: str) -> dict[str, int]:
         """Return every person's action runs from `since` on (team view, administrators)."""
         return {who: int(n) for who, n in self._all(_ACTIONS_BY_PERSON, since)}
+
+    def billable_by_person(self, since: str) -> dict[str, int]:
+        """Return everyone's billable tokens from `since` on (team view, administrators)."""
+        return {who: round(float(n)) for who, n in self._all(_BILLABLE_BY_PERSON, since)}
+
+    def allowance_override(self, email: str) -> int | None:
+        """Return the person's monthly allowance override, if an administrator set one."""
+        row = self.conn.execute(_GET_OVERRIDE, (email,)).fetchone()
+        return None if row is None else int(row[0])
+
+    def allowance_overrides(self) -> dict[str, int]:
+        """Return every monthly allowance override, by email."""
+        return {email: int(n) for email, n in self.conn.execute(_LIST_OVERRIDES)}
+
+    def put_allowance_override(self, email: str, tokens: int | None, updated_by: str) -> None:
+        """Set (or, with None, remove) a person's monthly allowance override."""
+        with self.conn:
+            if tokens is None:
+                self.conn.execute(_DELETE_OVERRIDE, (email,))
+            else:
+                self.conn.execute(_PUT_OVERRIDE, (email, tokens, updated_by))
