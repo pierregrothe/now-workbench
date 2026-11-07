@@ -2,6 +2,7 @@
 Evaluation, module setup, seed, testing, and video proof.
 """
 
+import asyncio
 import json
 import sqlite3
 from pathlib import Path
@@ -335,9 +336,12 @@ class DemoPipelineEngine:
         fake_mode: bool = False,
         record_video: bool = True,
     ) -> DemoPipelineSummary:
-        """Execute the full end-to-end demo lifecycle and record video proof."""
+        """Execute the full end-to-end demo lifecycle and record video proof.
+
+        The plugin steps make blocking HTTP queries, so they run in a worker thread.
+        """
         # 0. Evaluate platform release compatibility
-        eval_res = self.evaluate_bundle(bundle_id, instance, fake_mode=fake_mode)
+        eval_res = await asyncio.to_thread(self.evaluate_bundle, bundle_id, instance, fake_mode)
         if not eval_res.release_compatible:
             return DemoPipelineSummary(
                 bundle_id=bundle_id,
@@ -348,7 +352,9 @@ class DemoPipelineEngine:
             )
 
         # 1. Evaluate & install modules
-        installed_plugins = self.install_required_modules(bundle_id, instance, fake_mode=fake_mode)
+        installed_plugins = await asyncio.to_thread(
+            self.install_required_modules, bundle_id, instance, fake_mode
+        )
 
         # 2. Configure properties
         prop_result = await self.configure_properties(bundle_id, instance, fake_mode=fake_mode)
@@ -403,7 +409,9 @@ class DemoPipelineEngine:
                 video_url, video_filename = proof.url, proof.filename
                 video_note = f"Video proof recorded: {video_filename}"
 
-        still_missing = self.evaluate_bundle(bundle_id, instance, fake_mode=fake_mode)
+        still_missing = await asyncio.to_thread(
+            self.evaluate_bundle, bundle_id, instance, fake_mode
+        )
         missing = still_missing.missing_plugins
         n_props = prop_result.applied_count
         n_rec = len(seed_result.created_records)

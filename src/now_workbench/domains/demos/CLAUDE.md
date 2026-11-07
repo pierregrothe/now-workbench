@@ -63,11 +63,12 @@ the Table API itself, or build SDK projects (`platform/sdk/project.py`).
   table map renames seed tables and runbook `target_table`s.
 - The video proof is a placeholder whenever the instance is simulated.
 - `evaluate_bundle` runs twice per pipeline (start and end) and, like
-  `install_required_modules`, makes blocking `httpx.Client` plugin queries; inside the async
-  pipeline they stall the event loop.
+  `install_required_modules`, makes blocking `httpx.Client` plugin queries; `run_full_pipeline`
+  calls both through `asyncio.to_thread` so the event loop stays free. Any new async caller
+  must do the same.
 - Seed file parse errors are swallowed in `evaluate_bundle` (counts just drop).
 - An empty runbook counts as passed here (`all_passed=True`), unlike `test_runbook`.
-- `pipeline.py` is about 430 lines against the 500-line cap.
+- `pipeline.py` is about 445 lines against the 500-line cap.
 
 ## Do not reinvent
 
