@@ -3,35 +3,12 @@
 // Author: Pierre Grothe
 // Date: 2026-11-07
 
-import { LitElement, css, html } from 'lit';
-import { customElement, property } from 'lit/decorators.js';
-import type { WorkbenchPreferences } from './settings-model.js';
-import { workbenchSettingsStyles } from './now-workbench-settings-styles.js';
+import { html } from 'lit';
+import { customElement } from 'lit/decorators.js';
+import { PrefsSection } from './prefs-section.js';
 
-/** Edits part of the preferences; raises `prefs-change` with the changed fields (ADR-024). */
 @customElement('now-synthesis-prefs')
-export class NowSynthesisPrefs extends LitElement {
-  static styles = [
-    workbenchSettingsStyles,
-    css`
-      /* The settings stylesheet sizes the panel host; a section takes its content height. */
-      :host {
-        display: block;
-        height: auto;
-      }
-    `,
-  ];
-
-  @property({ attribute: false }) prefs!: WorkbenchPreferences;
-
-  private emit(change: Partial<WorkbenchPreferences>): void {
-    this.dispatchEvent(new CustomEvent('prefs-change', { detail: change }));
-  }
-
-  private change<K extends keyof WorkbenchPreferences>(key: K, value: WorkbenchPreferences[K]): void {
-    this.emit({ [key]: value } as Partial<WorkbenchPreferences>);
-  }
-
+export class NowSynthesisPrefs extends PrefsSection {
   render() {
     return html`
       <div class="section-card">

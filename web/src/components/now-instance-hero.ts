@@ -5,7 +5,8 @@
 
 import { LitElement, html } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
-import { PRESSURE_RANK, purposeLabel, type InstanceData } from './admin-instance-model.js';
+import { PRESSURE_RANK, purposeLabel } from './admin-instance-model.js';
+import type { InstanceData } from '../context/instance-model.js';
 import { adminSharedStyles } from './admin-shared-styles.js';
 import { instanceHeroStyles } from './now-instance-hero-styles.js';
 

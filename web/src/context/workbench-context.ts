@@ -4,27 +4,7 @@
 // Date: 2026-10-31
 
 import type { ProfileData } from '../profile/avatars.js';
-
-export interface InstanceData {
-  id: string;
-  name: string;
-  url: string;
-  username: string;
-  release: string;
-  is_default: boolean;
-  status: string;
-  last_checked: string | null;
-  purpose?: string;
-  profile?: {
-    installation_name?: string | null;
-    build_tag?: string | null;
-    datacenter?: string | null;
-    db_product?: string | null;
-    db_version?: string | null;
-    java_version?: string | null;
-    nodes?: unknown[];
-  } | null;
-}
+import type { InstanceData } from './instance-model.js';
 
 export interface DemoBundleItem {
   id: string;

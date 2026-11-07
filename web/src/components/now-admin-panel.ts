@@ -1,6 +1,7 @@
 import { LitElement, html } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
-import { purposeLabel, renderPurposeOptions, type InstanceData, type InstancePurpose } from './admin-instance-model.js';
+import { purposeLabel, renderPurposeOptions } from './admin-instance-model.js';
+import type { InstanceData, InstancePurpose } from '../context/instance-model.js';
 import { adminSharedStyles } from './admin-shared-styles.js';
 import { adminPanelStyles } from './now-admin-panel-styles.js';
 import './now-diagnostics-card.js';

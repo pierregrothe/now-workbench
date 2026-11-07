@@ -2,7 +2,7 @@
 // Builds the right-hand detail panel content for instance and bundle tiles from real data.
 // Author: Pierre Grothe
 // Date: 2026-11-06
-import type { InstanceData } from '../context/workbench-context.js';
+import type { InstanceData } from '../context/instance-model.js';
 
 export interface PanelItem {
   title: string;
@@ -16,7 +16,10 @@ const present = (rows: { label: string; value: string | number | null | undefine
     .filter((r) => r.value !== null && r.value !== undefined && String(r.value) !== '')
     .map((r) => ({ label: r.label, value: String(r.value) }));
 
-export function instancePanel(inst: InstanceData): PanelItem {
+/** An instance from the store, or one rebuilt from a tile whose purpose was not sent. */
+type PanelInstance = Omit<InstanceData, 'purpose'> & Partial<Pick<InstanceData, 'purpose'>>;
+
+export function instancePanel(inst: PanelInstance): PanelItem {
   const p = inst.profile;
   const db = [p?.db_product, p?.db_version].filter(Boolean).join(' ');
   return {

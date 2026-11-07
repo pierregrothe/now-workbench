@@ -5,7 +5,8 @@
 
 import { LitElement, html } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
-import { renderPurposeOptions, type InstancePurpose } from './admin-instance-model.js';
+import { renderPurposeOptions } from './admin-instance-model.js';
+import type { InstancePurpose } from '../context/instance-model.js';
 import { adminSharedStyles } from './admin-shared-styles.js';
 import { instanceAddFormStyles } from './now-instance-add-form-styles.js';
 
