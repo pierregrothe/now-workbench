@@ -80,3 +80,23 @@ export const test = base.extend<{ cleanState: void }>({
 });
 
 export { expect };
+
+/** Set activeThreadId on the chat view, searching through nested shadow roots. */
+export const selectThread = async (page: Page): Promise<void> => {
+  // The app renders after its access check; wait for it before reaching into the chat view.
+  await page.locator('now-nav-rail').waitFor();
+  await page.evaluate(() => {
+    const find = (root: Document | ShadowRoot): Element | null => {
+      const hit = root.querySelector('now-chat-view');
+      if (hit) return hit;
+      for (const el of Array.from(root.querySelectorAll('*'))) {
+        if (el.shadowRoot) {
+          const inner = find(el.shadowRoot);
+          if (inner) return inner;
+        }
+      }
+      return null;
+    };
+    (find(document) as any).activeThreadId = 'default-thread';
+  });
+};

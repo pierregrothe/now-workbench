@@ -322,6 +322,11 @@ export class NowChatView extends LitElement {
             );
       return;
     }
+    if (actionId === 'ask' && typeof props?.prompt === 'string') {
+      // A follow-up Otto offered on a tile (ADR-025): ask it as the person's next message.
+      void this.submitPrompt(props.prompt);
+      return;
+    }
     const name = props?.name ?? props?.title ?? 'this instance';
     const prompt = TILE_PROMPTS[actionId]?.(name);
     const tab = TILE_NAV[actionId];
