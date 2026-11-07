@@ -1,6 +1,6 @@
 # Review record -- fix/release-bump-subject
 
-- Head: a72570586576ae8b6ab53e7a669fa8133e4935fc
+- Head: c5c7e3baca8b466c0242fd2eec9e9ac7614d6968
 - Branch: `fix/release-bump-subject`
 - Date: 2026-11-07
 - Scope:
