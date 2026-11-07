@@ -73,8 +73,8 @@ cd web && npm run test:e2e
 
 ## Branch and PR Workflow (ADR-032)
 
-`main` changes only through a merged pull request; `guard-branch` and `guard-push` refuse
-commits and pushes to it. One story is one branch (`feature/`, `bugfix/`, `refactor/`, `docs/`)
+`main` changes only through a merged pull request: `guard-branch` and `guard-push` refuse
+commits and pushes to it locally, and a GitHub ruleset refuses direct pushes for everyone. One story is one branch (`feature/`, `bugfix/`, `refactor/`, `docs/`)
 in this one checkout (no worktrees).
 
 ```bash

@@ -157,7 +157,7 @@ def test_main_bump_prints_the_new_version(
 def test_changelog_roll_accepts_the_bumped_version(tmp_path: Path) -> None:
     """The engine that rolls the changelog takes the version bump produces."""
     (tmp_path / "CHANGELOG.md").write_text((ROOT / "CHANGELOG.md").read_text())
-    version = gate.bumped("0.1.0", date(2026, 11, 7))
+    version = gate.bumped("2099.01.4", date(2099, 1, 7))
     root = ["--root", str(tmp_path)]
     assert changelog.main(["roll", version, "--allow-empty", "--date", "2026-11-07", *root]) == 0
     assert f"## [{version}] - 2026-11-07" in (tmp_path / "CHANGELOG.md").read_text()
@@ -189,3 +189,12 @@ def test_changelog_engine_is_the_primer_template() -> None:
     if not template.exists():
         pytest.skip("primer skill not installed on this machine")
     assert (ROOT / "scripts/dev-tools/primer_changelog.py").read_bytes() == template.read_bytes()
+
+
+def test_release_workflow_lands_the_bump_through_a_pull_request() -> None:
+    """main is protected with no bypass, so the bot must never push to it directly."""
+    workflow = (ROOT / ".github/workflows/release.yml").read_text()
+    assert "push origin main" not in workflow
+    assert "--atomic" not in workflow
+    assert 'gh pr merge "$BRANCH" --squash' in workflow
+    assert "pull-requests: write" in workflow

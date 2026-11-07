@@ -18,8 +18,9 @@ on:
 
 permissions:
   contents: write
+  pull-requests: write
 
-# Serialize: two merges in a row must not race to push their bump commits.
+# Serialize: two merges in a row must not race to land their bump PRs.
 concurrency:
   group: release-main
   cancel-in-progress: false
@@ -62,20 +63,36 @@ jobs:
           python scripts/dev-tools/primer_changelog.py roll "$VERSION" --allow-empty
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
-      - name: Commit, tag and push
+      # main is protected (ruleset: pull requests only, no bypass), so the bump lands as its own
+      # PR, merged here. A PR opened with GITHUB_TOKEN triggers no workflow, so this cannot loop.
+      # Needs the repository setting "Allow GitHub Actions to create and approve pull requests".
+      - name: Land the bump through a pull request and tag it
         if: steps.gate.outputs.release == 'true'
         env:
+          GH_TOKEN: ${{ github.token }}
           VERSION: ${{ steps.bump.outputs.version }}
           PR: ${{ github.event.pull_request.number }}
           REASON: ${{ steps.gate.outputs.reason }}
         run: |
+          BRANCH="release/v$VERSION"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          git switch -c "$BRANCH"
           git add pyproject.toml uv.lock web/package.json web/package-lock.json CHANGELOG.md
           git commit -m "chore(release): v$VERSION" -m "Release after PR #$PR ($REASON)."
-          git tag "v$VERSION"
-          # Atomic: main and the tag move together or not at all (a moved main rejects both).
-          git push --atomic origin main "v$VERSION"
+          git push origin "$BRANCH"
+          gh pr create --base main --head "$BRANCH" --title "chore(release): v$VERSION" \
+            --body "Release after PR #$PR ($REASON). Opened and merged by the release workflow."
+          # GitHub computes mergeability asynchronously; retry briefly.
+          for attempt in 1 2 3 4 5 6; do
+            gh pr merge "$BRANCH" --squash --delete-branch && break
+            [ "$attempt" = 6 ] && exit 1
+            sleep 10
+          done
+          SHA="$(gh pr view "$BRANCH" --json mergeCommit --jq .mergeCommit.oid)"
+          git fetch --quiet origin main
+          git tag "v$VERSION" "$SHA"
+          git push origin "v$VERSION"
 
       - name: Publish the GitHub release
         if: steps.gate.outputs.release == 'true'
