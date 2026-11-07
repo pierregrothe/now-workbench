@@ -381,3 +381,11 @@ a 1-hour cached tools+system prefix and automatic caching along the conversation
 compaction summarizes long conversations at an admin-set size. The question cap became a
 per-conversation token budget counted as billed. Usage is logged per reply.
 Details: `.primer/adr/ADR-023-prompt-caching-compaction-and-token-budgets.md`.
+
+### 2026-11-07 -- ADR-015 accepted: layered packages, per-domain repositories
+
+Code moves to `platform/` (no domain knowledge), `domains/<name>/` (public root per domain)
+and `interfaces/` (api, cli, ai), enforced by import-linter. Each domain owns its repository
+over a shared connection; the `DatabaseRepository` facade goes. The pipeline becomes
+`domains/demos`; `ai/actions.py` is deleted; web components wait for their own ADR.
+Details: `.primer/adr/ADR-015-domain-oriented-package-architecture.md`.

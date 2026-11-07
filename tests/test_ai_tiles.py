@@ -1,6 +1,5 @@
 """Tests for Generative UI Tile Catalog schemas and tool-calling models."""
 
-from now_workbench.ai.actions import execute_autonomous_action
 from now_workbench.ai.tiles import (
     RENDER_UI_TILES_TOOL,
     GenerativeUIResponse,
@@ -8,7 +7,6 @@ from now_workbench.ai.tiles import (
     build_instance_response,
     resolve_query_to_tiles,
 )
-from now_workbench.db import InstanceCreate, db_session
 
 
 def test_ui_tile_spec_model() -> None:
@@ -140,47 +138,3 @@ def test_resolve_query_to_tiles_typo_handling() -> None:
     gen_resp = resolve_query_to_tiles("hello world")
     assert gen_resp.layout == "1-col"
     assert gen_resp.tiles[0].type == "rich-text"
-
-
-def test_autonomous_actions_delete_and_verify() -> None:
-    """Verify Otto autonomously executes instance verification and cleanup from chat prompts."""
-    with db_session(":memory:") as repo:
-        repo.add_instance(
-            InstanceCreate(
-                id="inst-ok",
-                name="Primary Valid Instance",
-                url="fake://valid.service-now.com",
-                username="admin",
-                is_default=True,
-            )
-        )
-        repo.add_instance(
-            InstanceCreate(
-                id="inst-bad-1",
-                name="Broken Auth Instance",
-                url="fake://auth-failed.service-now.com",
-                username="admin",
-            )
-        )
-        repo.add_instance(
-            InstanceCreate(
-                id="inst-bad-2",
-                name="Unreachable Instance",
-                url="fake://unreachable.service-now.com",
-                username="admin",
-            )
-        )
-
-        # 1. Autonomous live authentication check
-        verify_resp = execute_autonomous_action("check authentication on my instances", repo)
-        assert verify_resp is not None
-        assert "1 Authenticated, 2 Unauthenticated/Unreachable" in verify_resp.summary
-
-        # 2. Chat never deletes on first request: it previews the targets and defers to
-        # the Admin panel confirmation (deep-review sec-105 / logic-004).
-        before = {i.id for i in repo.list_instances()}
-        del_resp = execute_autonomous_action("delete the unauthenticated instances", repo)
-        assert del_resp is not None
-        assert "Nothing was deleted" in del_resp.summary
-        assert "2 instance(s) match" in del_resp.summary
-        assert {i.id for i in repo.list_instances()} == before

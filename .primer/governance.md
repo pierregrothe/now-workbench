@@ -87,7 +87,7 @@ local git hooks and harness hooks are the primary gates.
 | 012 | Versioned SQLite Schema and AES-256-GCM Credential Sealing | architecture | accepted |
 | 013 | Playwright End-to-End UI Testing Against the Real Backend | hook | accepted |
 | 014 | Instance Platform Profile Detected at Connection | architecture | accepted |
-| 015 | Domain-Oriented Package Architecture with Enforced Layers | architecture | proposed |
+| 015 | Domain-Oriented Package Architecture with Enforced Layers | architecture | accepted |
 | 016 | Cloudflare Access Sign-in and Roles | architecture | accepted |
 | 017 | Container Deployment and First-Run Setup | architecture | accepted |
 | 018 | Owner-Scoped Repository, Groups and Versioned Sharing | architecture | accepted |

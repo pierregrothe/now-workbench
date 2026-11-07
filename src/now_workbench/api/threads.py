@@ -13,7 +13,6 @@ from typing import Any
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 
-from now_workbench.ai.actions import execute_autonomous_action
 from now_workbench.ai.agent import (
     ConversationFiles,
     _build_diagnostic_error_tiles,
@@ -249,17 +248,13 @@ def _build_contextual_reply(
     lower = user_text.lower()
     effective_query = _resolve_effective_query(user_text, history)
 
-    action_resp = execute_autonomous_action(effective_query, repo)
-    if action_resp is not None:
-        tile_resp = action_resp
-    else:
-        inst_dicts = _load_verified_instances_dict(repo)
-        bundle_dicts = _load_live_bundles_dict(repo)
-        tile_resp = resolve_query_to_tiles(
-            query=effective_query,
-            instances=inst_dicts or None,
-            bundles=bundle_dicts or None,
-        )
+    inst_dicts = _load_verified_instances_dict(repo)
+    bundle_dicts = _load_live_bundles_dict(repo)
+    tile_resp = resolve_query_to_tiles(
+        query=effective_query,
+        instances=inst_dicts or None,
+        bundles=bundle_dicts or None,
+    )
 
     active_inst = repo.get_default_instance()
     inst_label = f"{active_inst.name} ({active_inst.url})" if active_inst else "no active instance"

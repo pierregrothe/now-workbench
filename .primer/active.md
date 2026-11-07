@@ -28,7 +28,7 @@ None. `main` passes the pre-push gate; pushing waits only for the owner's go-ahe
 ## Next Steps
 
 1. Push `main` when the owner approves.
-2. ADR-015 (proposed): settle its open questions, accept, restructure in small green steps
+2. ADR-015 (accepted 2026-11-07): restructure in small green steps
    (held findings reuse-001/002, rules-003 belong there).
 3. PRD-002 leftovers: chat feedback row (needs backend storage); restyle Synthesizer, Media
    Capture, Fluent Explorer and the Artifact library cards to ADR-019 measurements.

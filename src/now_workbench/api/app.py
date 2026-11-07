@@ -13,7 +13,6 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict
 
-from now_workbench.ai.actions import execute_autonomous_action
 from now_workbench.ai.agent import AgentEventType, ClaudeAgentRunner, make_async_client
 from now_workbench.ai.client import OttoClient
 from now_workbench.ai.tiles import GenerativeUIResponse, resolve_query_to_tiles
@@ -281,9 +280,6 @@ def _register_ai_tiles(app: FastAPI) -> None:
     @app.post("/api/ai/tiles", response_model=GenerativeUIResponse)
     def query_generative_ui(req: GenerativeUIQueryRequest) -> GenerativeUIResponse:
         with db_session() as repo:
-            action_resp = execute_autonomous_action(req.query, repo)
-            if action_resp is not None:
-                return action_resp
             instances = _load_verified_instances_dict(repo)
         return resolve_query_to_tiles(req.query, instances=instances)
 

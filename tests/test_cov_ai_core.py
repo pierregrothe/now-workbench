@@ -5,10 +5,8 @@
 """Coverage tests for the Otto AI core using in-memory fakes only (no network, no mocks)."""
 
 import asyncio
-import shutil
 from collections.abc import Iterator
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import Any
 
 import anthropic
@@ -17,7 +15,6 @@ import pytest
 
 from now_workbench.ai import agent as agent_mod
 from now_workbench.ai import client as client_mod
-from now_workbench.ai.actions import execute_autonomous_action
 from now_workbench.ai.agent import (
     AgentEventType,
     AgentUnavailableError,
@@ -533,62 +530,6 @@ def test_instance_tools_rename_and_set_default() -> None:
 
 
 # -- actions.py ------------------------------------------------------------------
-def test_actions_verify_instances_reports_counts() -> None:
-    with db_session() as repo:
-        _add(repo, "bad", "Bad Box", "fake://auth-failed.service-now.com")
-        res = execute_autonomous_action("please test all instances in detail", repo)
-        assert res is not None
-        assert "Checked live authentication across 2 instance(s)" in res.summary
-        assert res.tiles[0].type == "instance-card"
-        brief = execute_autonomous_action("verify instance now", repo)
-        assert brief is not None and brief.tiles[0].type == "instance-kpi"
-
-
-def test_actions_delete_instances_previews_only() -> None:
-    with db_session() as repo:
-        _add(repo, "bad", "Bad Box", "fake://auth-failed.service-now.com")
-        named = execute_autonomous_action("delete the bad box instance", repo)
-        assert named is not None and "Nothing was deleted" in named.summary
-        assert "Bad Box" in named.summary
-        none = execute_autonomous_action("remove the zzz instances", repo)
-        assert none is not None and "No matching" in none.summary
-        assert repo.get_instance("bad") is not None
-        secondary = execute_autonomous_action("purge secondary instances", repo)
-        assert secondary is not None and "Bad Box" in secondary.summary
-        unauth = execute_autonomous_action("delete unreachable stuff", repo)
-        assert unauth is not None
-        assert execute_autonomous_action("delete the widgets", repo) is None
-
-
-def test_actions_switch_default_and_add_instance() -> None:
-    with db_session() as repo:
-        _add(repo, "sw", "Switchy", "fake://switchy.service-now.com")
-        sw = execute_autonomous_action("make default switchy", repo)
-        assert sw is not None and "Switched primary default target to 'Switchy'" in sw.summary
-        assert repo.get_default_instance().id == "sw"  # type: ignore[union-attr]
-        assert execute_autonomous_action("set default nothing-here", repo) is None
-
-        before = len(repo.list_instances())
-        add = execute_autonomous_action("add instance https://foo.service-now.com/", repo)
-        assert add is not None and "Nothing was registered" in add.summary
-        assert len(repo.list_instances()) == before
-        assert execute_autonomous_action("add instance please", repo) is None
-
-
-def test_actions_delete_bundle_preview_and_misses(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    sample = Path(__file__).resolve().parent.parent / "bundles" / "hr-onboarding-ai"
-    shutil.copytree(sample, tmp_path / "hr-onboarding-ai")
-    monkeypatch.setenv("WORKBENCH_BUNDLES_DIR", str(tmp_path))
-    with db_session() as repo:
-        res = execute_autonomous_action("delete the hr-onboarding-ai bundle", repo)
-        assert res is not None and "Nothing was deleted" in res.summary
-        assert (tmp_path / "hr-onboarding-ai").is_dir()
-        assert execute_autonomous_action("delete the demo nonexistent-xyz", repo) is None
-        assert execute_autonomous_action("tell me a joke", repo) is None
-
-
 # -- tiles.py --------------------------------------------------------------------
 def test_format_instance_status_known_fallback_and_default() -> None:
     assert format_instance_status("AUTH_FAILED") == "Auth Failed (HTTP 401/403)"

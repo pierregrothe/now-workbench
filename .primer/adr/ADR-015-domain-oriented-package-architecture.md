@@ -1,7 +1,7 @@
 # ADR-015: Domain-Oriented Package Architecture with Enforced Layers
 
-**Status:** proposed (layout decided by the owner 2026-11-06; details to be settled by the
-architecture review before any code moves)
+**Status:** accepted 2026-11-07 (open questions answered by the owner; see "Resolved
+questions")
 **Date:** 2026-11-06
 **Amends (once accepted):** ADR-005 (size and complexity limits), ADR-006 (repository
 composition)
@@ -28,7 +28,7 @@ contracts, tiered size limits), scaled down to this project's size.
 The project is expected to grow, so the structure should make new domains cheap to add
 and make wrong dependencies fail the commit.
 
-## Decision (proposed)
+## Decision
 
 ### 1. Three layers under `src/now_workbench/`
 
@@ -109,19 +109,33 @@ import and test path, and green pytest, mypy, ruff, ratchets and Playwright:
 7. Tighten the contracts to hard failures; apply the new size and complexity gates;
    update CLAUDE.md, governance and the policy registry.
 
-## Open questions for the architecture review
+## Packages added after the first draft
 
-1. **Repository composition.** Today one `DatabaseRepository` facade mixes every
-   table's methods and has about 66 call sites. A platform layer cannot import domain
-   repositories, so the facade cannot stay in `platform/db`. Recommendation: each domain
-   owns a `<Name>Repository(conn)`; `platform/db` provides only the connection and
-   migrations. Decide whether a small convenience bundle in `interfaces/` is worth it.
-2. **Orchestration.** Does `bundles/pipeline.py` become its own `domains/demos` (it
-   depends on many domains), or stay in `bundles`?
-3. **`ai/actions.py`.** A keyword-matching fallback that overlaps `ai/tools/` and the
-   agent loop. Delete, or keep behind the agent?
-4. **Web.** Components stay flat for now; a domain grouping and splitting of the
-   1,000+ line files is a separate ADR after the Python side lands.
+| Today | Destination |
+|-------|-------------|
+| `procs.py` (bounded child processes) | `platform/procs.py` |
+| `config/paths.py`, `config/origins.py` | `platform/config/` |
+| `auth/owner.py` (ambient owner, `LOCAL_EMAIL`) | `platform/owner.py` (every repository scopes by it) |
+| `auth/models.py`, `auth/impersonation.py`, `auth/setup.py`, users and groups repositories | `domains/identity/` |
+| `auth/access.py`, `auth/guard.py` (Cloudflare Access, FastAPI dependencies) | `interfaces/api/` |
+| `profile/`, profile repository | `domains/profile/` |
+| `chat/`, chat and thread repositories | `domains/conversations/` |
+| `sharing/`, artifacts repository | `domains/sharing/` |
+
+## Resolved questions (owner, 2026-11-07)
+
+1. **Repository composition: per-domain repositories, no bundle.** Each domain owns
+   `<Name>Repository(conn)`; `platform/db` provides only the connection (`db_session()`
+   yields a `sqlite3.Connection`) and migrations. A caller constructs the repositories it
+   needs, so a function's dependencies are visible in its signature. `DatabaseRepository`
+   is deleted.
+2. **Orchestration: `domains/demos`.** The pipeline sits at the top of the domain order, so
+   `bundles` stays a leaf.
+3. **`ai/actions.py`: deleted.** The agent answers these requests with real tools; the
+   keyword path ran in front of it, could answer wrongly and bypassed token accounting.
+   Without a Claude key the tile resolver remains the fallback.
+4. **Web: later, in its own ADR.** The 500-line limit is made blocking with the current
+   offenders baselined.
 
 ## Consequences (if accepted)
 
