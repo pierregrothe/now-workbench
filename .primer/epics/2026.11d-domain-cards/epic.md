@@ -4,7 +4,7 @@ Phase: 2026.11d
 Date: 2026-11-07
 Source: owner request 2026-11-07 -- port alphaseeker's domain cards (srv02chambly)
 Board: EPIC-020
-Progress: 3/4 stories done
+Progress: 4/4 stories done -- COMPLETE
 
 ## Goal
 
@@ -38,7 +38,7 @@ exist?" before writing a helper (lexically, or semantically through TypeSafe Jev
 | FR1 | 01-card-dead-reference-ratchet | done |
 | FR2 | 02-card-freshness-nudge | done |
 | FR3 | 03-domain-cards | done |
-| FR4 | 04-find-capability | backlog |
+| FR4 | 04-find-capability | done |
 
 ## Story List
 
@@ -47,7 +47,7 @@ exist?" before writing a helper (lexically, or semantically through TypeSafe Jev
 | 01 | Ratchet on dead identifiers in domain cards | none | done |
 | 02 | Advisory freshness nudge for domain cards | none | done |
 | 03 | A card for each of the 19 domains | 01 | done |
-| 04 | Capability search, lexical and Jev-backed | none | backlog |
+| 04 | Capability search, lexical and Jev-backed | none | done |
 
 ## Out of Scope
 

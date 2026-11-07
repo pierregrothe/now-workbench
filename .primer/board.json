@@ -488,7 +488,7 @@
     {
       "id": "EPIC-020",
       "title": "Domain Cards and Capability Search",
-      "status": "in-progress",
+      "status": "done",
       "stories": [
         {
           "id": "STORY-068",
@@ -508,7 +508,7 @@
         {
           "id": "STORY-071",
           "title": "Capability search, lexical and Jev-backed",
-          "status": "backlog"
+          "status": "done"
         }
       ]
     }
