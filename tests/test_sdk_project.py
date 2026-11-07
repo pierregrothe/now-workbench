@@ -249,3 +249,21 @@ async def test_run_command_that_hangs_times_out(tmp_path: Path) -> None:
 
     with pytest.raises(SdkProjectError, match="timed out"):
         await project_mod._run(["sleep", "5"], tmp_path, timeout_s=0.2)
+
+
+async def test_prepare_project_links_the_global_toolchain_without_installing(
+    tmp_path: Path, tools: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """With the image's global SDK packages present, nothing is downloaded."""
+    global_modules = tmp_path / "global"
+    for pkg in ("@servicenow/sdk", "@servicenow/glide"):
+        (global_modules / pkg).mkdir(parents=True)
+        (global_modules / pkg / "package.json").write_text("{}", encoding="utf-8")
+    monkeypatch.setenv("WORKBENCH_SDK_NODE_MODULES", str(global_modules))
+    bundle = tmp_path / "bundle"
+    shutil.copytree(REPO / "bundles" / "sample-ai-assistant", bundle)
+    workspace = tmp_path / "ws"
+    project = await prepare_project(bundle, "sample-ai-assistant", "Demo", "snc", workspace)
+    assert (project.path / "node_modules").resolve() == global_modules.resolve()
+    assert not (workspace / "npm-calls.log").exists()
+    assert not (workspace / "sdk-toolchain").exists()

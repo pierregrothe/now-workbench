@@ -1,6 +1,5 @@
 """Playwright Playbook Driver: Executes demonstration playbooks."""
 
-import asyncio
 import json
 import shutil
 from datetime import UTC, datetime
@@ -16,6 +15,7 @@ from now_workbench.capture.playbook import (
 )
 from now_workbench.config.settings import settings
 from now_workbench.db.models import InstanceRecord
+from now_workbench.procs import ProcessTimeoutError, communicate_bounded, spawn
 
 
 def encode_stdin_credentials(username: str, password: str) -> bytes:
@@ -226,18 +226,21 @@ def _build_failure_result(
     )
 
 
+# A recorded walkthrough takes a few minutes at most; anything longer is stuck.
+_PLAYBOOK_TIMEOUT_S = 900.0
+
+
 async def _run_runner(cmd: list[str], instance: InstanceRecord) -> str | None:
     """Run the Node runner asynchronously; return an error description or None."""
     try:
-        proc = await asyncio.create_subprocess_exec(
-            *cmd,
-            stdin=asyncio.subprocess.PIPE,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
+        proc = await spawn(cmd, stdin=True)
+        _, stderr = await communicate_bounded(
+            proc,
+            _PLAYBOOK_TIMEOUT_S,
+            encode_stdin_credentials(instance.username, instance.password),
         )
-        _, stderr = await proc.communicate(
-            input=encode_stdin_credentials(instance.username, instance.password)
-        )
+    except ProcessTimeoutError as exc:
+        return f"playbook runner {exc}"
     except Exception as exc:
         return f"playbook runner could not be started: {exc}"
     if proc.returncode == 0:

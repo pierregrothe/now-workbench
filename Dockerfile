@@ -18,10 +18,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && mkdir -p /etc/apt/keyrings \
     && curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg \
     && echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_20.x nodistro main" | tee /etc/apt/sources.list.d/nodesource.list \
-    && apt-get update && apt-get install -y nodejs \
-    && npm install -g @servicenow/sdk \
+    && apt-get update && apt-get install -y --no-install-recommends nodejs \
+    && npm install -g @servicenow/sdk@4.14.0 @servicenow/glide@27.0.5 \
+    && npm cache clean --force \
     && apt-get install -y --no-install-recommends chromium fonts-liberation \
-    && rm -rf /var/lib/apt/lists/*
+    && apt-get purge -y gnupg && apt-get autoremove -y \
+    && rm -rf /var/lib/apt/lists/* /root/.npm /tmp/*
 
 # Install uv from official binary image
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
@@ -42,7 +44,7 @@ COPY --from=frontend-builder /app/web/dist ./web/dist
 # Live screenshots and demo videos (ADR-021 follow-up): the capture scripts drive Chromium
 # through puppeteer-core, which they import from web/node_modules.
 COPY web/package.json web/package-lock.json ./web/
-RUN cd web && npm ci --omit=dev --ignore-scripts --no-audit --no-fund
+RUN cd web && npm ci --omit=dev --ignore-scripts --no-audit --no-fund && npm cache clean --force
 COPY scripts/dev-tools/chrome_capture.mjs scripts/dev-tools/playbook_runner.mjs ./scripts/dev-tools/
 
 # Default demonstration bundles & workspace storage
@@ -63,6 +65,7 @@ ENV WORKBENCH_HOST="0.0.0.0" \
     WORKBENCH_PORT="8080" \
     WORKBENCH_STATIC_DIR="/app/web/dist" \
     CHROME_PATH="/usr/bin/chromium" \
+    WORKBENCH_SDK_NODE_MODULES="/usr/lib/node_modules" \
     WORKBENCH_BUNDLES_DIR="/app/bundles" \
     WORKBENCH_WORKSPACE_DIR="/app/workspaces" \
     WORKBENCH_CLAUDE_MODEL="claude-sonnet-5-5" \

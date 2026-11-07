@@ -44,6 +44,9 @@ services:
       - no-new-privileges:true
     cap_drop:
       - ALL
+    # Bounded resources: a runaway browser or SDK build cannot starve the host.
+    mem_limit: 2g
+    pids_limit: 512
     logging:
       driver: json-file
       options:
@@ -73,6 +76,8 @@ services:
       - no-new-privileges:true
     cap_drop:
       - ALL
+    mem_limit: 256m
+    pids_limit: 128
     logging:
       driver: json-file
       options:

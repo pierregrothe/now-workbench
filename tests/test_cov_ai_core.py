@@ -748,6 +748,10 @@ class _ValidateMessages:
 class _ValidateClient:
     def __init__(self, exc: Exception | None = None) -> None:
         self.messages = _ValidateMessages(exc)
+        self.closed = False
+
+    async def close(self) -> None:
+        self.closed = True
 
 
 def _status_error(cls: type[anthropic.APIStatusError], code: int) -> anthropic.APIStatusError:
@@ -780,13 +784,17 @@ async def test_validate_api_key_all_outcomes() -> None:
 async def test_validate_api_key_builds_default_client(monkeypatch: pytest.MonkeyPatch) -> None:
     built: list[str] = []
 
+    made: list[_ValidateClient] = []
+
     def fake_async(api_key: str) -> _ValidateClient:
         built.append(api_key)
-        return _ValidateClient()
+        made.append(_ValidateClient())
+        return made[-1]
 
     monkeypatch.setattr(client_mod.anthropic, "AsyncAnthropic", fake_async)
     ok, _ = await validate_api_key(" sk-ant-live ")
     assert ok and built == ["sk-ant-live"]
+    assert made[0].closed  # the client it created is closed (no leaked connection pool)
 
 
 def test_generative_ui_response_defaults() -> None:

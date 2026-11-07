@@ -35,8 +35,14 @@ class OttoClient:
         self.api_key = api_key
         self.model = model
         self.client: Any = client
-        if self.client is None and self.api_key:
+        self._owns_client = client is None and bool(self.api_key)
+        if self._owns_client:
             self.client = anthropic.AsyncAnthropic(api_key=self.api_key)
+
+    async def aclose(self) -> None:
+        """Close the HTTP pool of a client this object created."""
+        if self.client is not None and self._owns_client:
+            await self.client.close()
 
     def _simulate_response(self, last_msg: str) -> list[str]:
         """Generate deterministic simulated response chunks for offline mode."""
@@ -165,6 +171,7 @@ async def validate_api_key(
     if clean_key.startswith(("sk-ant-test", "sk-ant-mock", "sk-ant-dummy")):
         return True, "Key syntax valid (test mode)."
 
+    owned = client is None
     c = client or anthropic.AsyncAnthropic(api_key=clean_key)
     try:
         await c.messages.create(
@@ -182,3 +189,6 @@ async def validate_api_key(
         if any(w in err_msg.lower() for w in ("getaddrinfo", "connect", "network", "timeout")):
             return True, f"Key syntax valid (probe offline: {err_msg})"
         return False, f"Validation failed: {err_msg}"
+    finally:
+        if owned:
+            await c.close()

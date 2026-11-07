@@ -53,6 +53,12 @@ class _FakeClient:
     def __init__(self, messages: Any) -> None:
         self.messages = messages
 
+    async def __aenter__(self) -> _FakeClient:
+        return self
+
+    async def __aexit__(self, *_exc: object) -> None:
+        return None
+
 
 def _no_client(_key: str) -> Any:
     raise RuntimeError("claude is down")

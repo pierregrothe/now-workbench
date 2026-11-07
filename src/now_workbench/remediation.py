@@ -1,6 +1,5 @@
 """Automated environment and toolchain remediation for now-workbench."""
 
-import asyncio
 import os
 import shutil
 from pathlib import Path
@@ -8,6 +7,7 @@ from pathlib import Path
 from pydantic import BaseModel, ConfigDict
 
 from now_workbench.config.settings import settings
+from now_workbench.procs import communicate_bounded, spawn
 from now_workbench.sdk.runner import NowSdkRunner
 
 
@@ -141,13 +141,8 @@ async def remediate_sdk(
         desc = "Installed @servicenow/sdk globally"
 
     try:
-        proc = await asyncio.create_subprocess_exec(
-            *cmd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-            env=os.environ.copy(),
-        )
-        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=float(timeout_seconds))
+        proc = await spawn(cmd, env=os.environ.copy())
+        stdout, stderr = await communicate_bounded(proc, float(timeout_seconds))
         if proc.returncode == 0:
             return RemediationAction(
                 component="ServiceNow SDK",

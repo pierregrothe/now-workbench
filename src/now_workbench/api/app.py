@@ -461,18 +461,19 @@ async def _handle_ws_otto_message(websocket: WebSocket, data: dict[str, Any]) ->
         fake_mode = prefs.sdk_fake_mode
 
     if prompt and active_key:
-        with db_session() as repo:
-            runner = ClaudeAgentRunner(
-                client=make_async_client(active_key),
-                model=model,
-                repo=repo,
-                fake_mode=fake_mode,
-            )
-            await _stream_agent_to_ws(websocket, runner, str(prompt), thread_id, repo)
+        async with make_async_client(active_key) as claude:
+            with db_session() as repo:
+                runner = ClaudeAgentRunner(
+                    client=claude, model=model, repo=repo, fake_mode=fake_mode
+                )
+                await _stream_agent_to_ws(websocket, runner, str(prompt), thread_id, repo)
     else:
         live_client = OttoClient(api_key=active_key, model=model)
-        async for chunk in live_client.stream_chat(messages, context=context):
-            await websocket.send_json({"type": "chunk", "text": chunk})
+        try:
+            async for chunk in live_client.stream_chat(messages, context=context):
+                await websocket.send_json({"type": "chunk", "text": chunk})
+        finally:
+            await live_client.aclose()
         await websocket.send_json({"type": "done"})
 
 

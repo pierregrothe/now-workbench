@@ -8,6 +8,8 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict
 
+from now_workbench.procs import spawn, stop
+
 
 class SdkExecutionResult(BaseModel):
     """Result of an SDK execution command."""
@@ -24,9 +26,10 @@ class SdkExecutionResult(BaseModel):
 async def _stream_lines(
     stream: asyncio.StreamReader,
     callback: Callable[[str], Awaitable[None]] | None,
+    lines: list[str] | None = None,
 ) -> list[str]:
-    """Read lines from async stream and invoke callback."""
-    lines: list[str] = []
+    """Read lines from an async stream into ``lines`` (kept even if cancelled midway)."""
+    lines = [] if lines is None else lines
     while True:
         line_bytes = await stream.readline()
         if not line_bytes:
@@ -48,11 +51,14 @@ class NowSdkRunner:
         fake_mode: bool = False,
         sdk_candidates: tuple[str, ...] = ("snc", "now-sdk"),
         user_local_dir: Path | None = None,
+        timeout_s: float = 1200.0,
     ) -> None:
         self.now_sdk_bin = now_sdk_bin
         self.node_bin = node_bin
         self.fake_mode = fake_mode
         self.sdk_candidates = sdk_candidates
+        # An install of a large app can take minutes; a stuck one must not live forever.
+        self.timeout_s = timeout_s
         self.user_local_dir = (
             user_local_dir
             if user_local_dir is not None
@@ -126,27 +132,38 @@ class NowSdkRunner:
             )
 
         proc_env = {**os.environ, "CI": "1", **(extra_env or {})}
-        proc = await asyncio.create_subprocess_exec(
-            resolved_bin,
-            *args,
-            cwd=str(cwd),
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.STDOUT,
-            env=proc_env,
-        )
+        return await self._run_bounded([resolved_bin, *args], cwd, proc_env, stream_callback)
 
+    async def _run_bounded(
+        self,
+        cmd: list[str],
+        cwd: Path,
+        env: dict[str, str],
+        stream_callback: Callable[[str], Awaitable[None]] | None,
+    ) -> SdkExecutionResult:
+        """Run the SDK with the runner's deadline; on timeout stop it and keep its output."""
+        cmd_str = " ".join(cmd)
+        proc = await spawn(cmd, cwd=cwd, env=env, merge_stderr=True)
         output_lines: list[str] = []
-        if proc.stdout:
-            output_lines = await _stream_lines(proc.stdout, stream_callback)
 
-        await proc.wait()
+        async def _drain() -> None:
+            if proc.stdout:
+                await _stream_lines(proc.stdout, stream_callback, output_lines)
+            await proc.wait()
+
+        try:
+            await asyncio.wait_for(_drain(), timeout=self.timeout_s)
+        except TimeoutError:
+            await stop(proc)
+            output_lines.append(f"\n[error] now-sdk stopped after {self.timeout_s:.0f}s\n")
+            return SdkExecutionResult(
+                command=cmd_str, exit_code=124, output="".join(output_lines), success=False
+            )
         exit_code = proc.returncode or 0
-        full_output = "".join(output_lines)
-
         return SdkExecutionResult(
             command=cmd_str,
             exit_code=exit_code,
-            output=full_output,
+            output="".join(output_lines),
             success=exit_code == 0,
         )
 

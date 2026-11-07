@@ -1,5 +1,6 @@
 """Otto agent loop: Async Claude tool-calling over the shared action registry (ADR-011)."""
 
+import functools
 import inspect
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
@@ -69,13 +70,18 @@ class AgentUnavailableError(RuntimeError):
     """Raised when the Claude agent cannot run (no key, API failure)."""
 
 
+@functools.lru_cache(maxsize=2)
 def make_client(api_key: str) -> Any:
-    """Create a synchronous Anthropic client."""
+    """Return the shared synchronous client for a key (one connection pool, reused).
+
+    A new client per request opened a new HTTP pool every time and never closed it. The sync
+    client is thread-safe; at most two keys are kept (the current one and a rotated one).
+    """
     return anthropic.Anthropic(api_key=api_key)
 
 
 def make_async_client(api_key: str) -> Any:
-    """Create an asynchronous Anthropic client."""
+    """Create an asynchronous Anthropic client; use it with ``async with`` so it is closed."""
     return anthropic.AsyncAnthropic(api_key=api_key)
 
 

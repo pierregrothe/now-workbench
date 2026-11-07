@@ -1,10 +1,14 @@
 """API routes for demonstration bundles and transactional seed operations."""
 
+import os
+import tempfile
+from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, ConfigDict, Field
+from starlette.background import BackgroundTask
 
 from now_workbench.auth.owner import current_owner
 from now_workbench.bundles.manager import BundleManager
@@ -192,19 +196,27 @@ def update_demo_bundle(bundle_id: str, req: DemoBundleUpdateRequest) -> DemoBund
 
 @router.get("/{bundle_id}/export")
 def export_demo(bundle_id: str) -> FileResponse:
-    """Export a demonstration package as a portable .sn-demo.zip archive."""
+    """Export a demonstration package as a portable .sn-demo.zip archive.
+
+    The archive is built in a private temporary file and deleted once it has been sent, so
+    exports never pile up on the server.
+    """
     access = _access(bundle_id)
     mgr = BundleManager(storage_dir=access.root)
-    output_file = settings.workspace_dir / f"{bundle_id}.sn-demo.zip"
+    fd, tmp_name = tempfile.mkstemp(suffix=".sn-demo.zip")
+    os.close(fd)
+    output_file = Path(tmp_name)
     try:
         mgr.export_bundle(bundle_id, output_file)
-        return FileResponse(
-            path=output_file,
-            filename=f"{bundle_id}.sn-demo.zip",
-            media_type="application/zip",
-        )
     except Exception as e:
+        output_file.unlink(missing_ok=True)
         raise HTTPException(status_code=400, detail=str(e))
+    return FileResponse(
+        path=output_file,
+        filename=f"{bundle_id}.sn-demo.zip",
+        media_type="application/zip",
+        background=BackgroundTask(output_file.unlink, missing_ok=True),
+    )
 
 
 @router.post("/{bundle_id}/seed", response_model=SeedOperationRecord)

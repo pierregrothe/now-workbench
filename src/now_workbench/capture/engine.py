@@ -1,6 +1,5 @@
 """Async Playwright runner for capturing ServiceNow screenshots and videos."""
 
-import asyncio
 import base64
 import json
 import shutil
@@ -19,7 +18,11 @@ from now_workbench.capture.driver import (
 from now_workbench.capture.models import CaptureArtifact, CaptureRequest
 from now_workbench.config.paths import safe_child
 from now_workbench.db.models import InstanceRecord
+from now_workbench.procs import ProcessTimeoutError, communicate_bounded, spawn
 from now_workbench.releases import translate_workspace_url
+
+# A screenshot signs in, loads a list and waits for it; anything slower is stuck.
+_CAPTURE_TIMEOUT_S = 240.0
 
 _HEADER = [3, 45, 66]  # ServiceNow header (#032d42)
 _NAV = [11, 31, 48]  # Nav rail (#0b1f30)
@@ -129,13 +132,12 @@ async def _run_chrome_capture(
         "--credentials-stdin",
     ]
     try:
-        proc = await asyncio.create_subprocess_exec(
-            *cmd,
-            stdin=asyncio.subprocess.PIPE,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
+        proc = await spawn(cmd, stdin=True)
+        _out, err = await communicate_bounded(
+            proc, _CAPTURE_TIMEOUT_S, encode_stdin_credentials(username, password)
         )
-        _out, err = await proc.communicate(input=encode_stdin_credentials(username, password))
+    except ProcessTimeoutError as exc:  # before OSError: TimeoutError is an OSError
+        return False, f"the browser {exc}"
     except OSError as exc:
         return False, f"could not start the browser: {exc}"
     if proc.returncode == 0 and output_file.exists() and output_file.stat().st_size > 500:

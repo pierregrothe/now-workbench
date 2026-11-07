@@ -16,12 +16,14 @@ generated per bundle and instance vendor:
   install is hundreds of megabytes.
 """
 
-import asyncio
 import hashlib
 import json
+import os
 import re
 from dataclasses import dataclass
 from pathlib import Path
+
+from now_workbench.procs import ProcessTimeoutError, communicate_bounded, spawn
 
 __all__ = [
     "SdkProject",
@@ -87,17 +89,11 @@ def _rename(text: str, table_map: dict[str, str]) -> str:
 
 async def _run(cmd: list[str], cwd: Path, timeout_s: float = 600.0) -> str:
     """Run a command and return its output; raise with the tail of it on failure."""
-    proc = await asyncio.create_subprocess_exec(
-        *cmd,
-        cwd=str(cwd),
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.STDOUT,
-    )
+    proc = await spawn(cmd, cwd=cwd, merge_stderr=True)
     try:
-        out, _ = await asyncio.wait_for(proc.communicate(), timeout=timeout_s)
-    except TimeoutError as exc:
-        proc.kill()
-        raise SdkProjectError(f"'{' '.join(cmd[:2])}' timed out after {timeout_s:.0f}s") from exc
+        out, _ = await communicate_bounded(proc, timeout_s)
+    except ProcessTimeoutError as exc:
+        raise SdkProjectError(f"'{' '.join(cmd[:2])}' timed out: {exc}") from exc
     text = out.decode("utf-8", "replace")
     if proc.returncode != 0:
         tail = " | ".join(line for line in text.strip().splitlines()[-4:])
@@ -105,11 +101,22 @@ async def _run(cmd: list[str], cwd: Path, timeout_s: float = 600.0) -> str:
     return text
 
 
+def _has_toolchain(modules: Path) -> bool:
+    return all((modules / pkg / "package.json").exists() for pkg in _TOOLCHAIN_PACKAGES)
+
+
 async def _ensure_toolchain(workspace: Path, package_json: Path) -> Path:
-    """Install the SDK packages once and return the shared node_modules directory."""
+    """Return a node_modules directory holding the SDK packages, installing them once.
+
+    The container image installs them globally (``WORKBENCH_SDK_NODE_MODULES``); projects link
+    to that copy instead of downloading a second one into the workspace volume.
+    """
+    global_modules = os.environ.get("WORKBENCH_SDK_NODE_MODULES", "")
+    if global_modules and _has_toolchain(Path(global_modules)):
+        return Path(global_modules)
     toolchain = workspace / "sdk-toolchain"
     modules = toolchain / "node_modules"
-    if all((modules / pkg / "package.json").exists() for pkg in _TOOLCHAIN_PACKAGES):
+    if _has_toolchain(modules):
         return modules
     toolchain.mkdir(parents=True, exist_ok=True)
     project_pkg = json.loads(package_json.read_text(encoding="utf-8"))
