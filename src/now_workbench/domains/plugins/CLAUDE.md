@@ -57,15 +57,15 @@ attribute).
   unauthenticated.
 - Calls are synchronous httpx, one request per plugin, each with a 40 s timeout (unknown ids
   can take tens of seconds on the instance). Do not call from async code without moving it
-  off the event loop.
+  off the event loop. Every current path does: `run_full_pipeline` (`asyncio.to_thread`), the
+  sync API evaluate route (threadpool), and Otto's tools on `/ws/otto` (`stream_run` runs
+  tools via `asyncio.to_thread`), the thread reply worker and the sync actions route.
 - `evaluate_plugins` strips ids and skips empty ones. `KNOWN_PLUGIN_NAMES` gives display names
   for four ids; unknown ids are recorded under the bare id by `evaluate_plugins` and as
   'Plugin <id>' by `install_plugin`.
 
 ## Known gaps
 
-- `run_full_pipeline` (async, demos domain) calls `evaluate_bundle` and
-  `install_required_modules` directly, so the blocking plugin queries run on the event loop.
 - `models.py` and `manager.py` lack the file header and `__all__`.
 
 ## Do not reinvent

@@ -7,7 +7,7 @@ Python Version: `3.14.10`
 
 ## Current Focus
 
-EPIC-021 story 03 (capture uses the detected release) landing; EPIC-021/02 and /04 in review; EPIC-022/01 (memory store) in progress.
+EPIC-021 story 04 (pipeline and /ws/otto off the event loop) landing; EPIC-021/02 and EPIC-022/01 finishing review fixes.
 
 `main` -- deployed and live at https://workbench.grothe.ca (srv01chambly, Cloudflare Access).
 Per-user data, groups and approved sharing, impersonation, attachments and limits, and an
