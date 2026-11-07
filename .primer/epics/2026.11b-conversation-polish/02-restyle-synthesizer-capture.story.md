@@ -56,7 +56,8 @@ Reference: ADR-019 measurements and the screens already in the Otto look (chat v
 Settings cards, fields, pill buttons and dark-chip section menu). Both views shared these gaps:
 
 - **CSS inline in the component** (ADR-024): `static styles` held 110-170 lines, and the markup
-  carried eleven `style=` attributes (result header, titles, badges, empty states, play glyph).
+  carried 17 `style=` attributes, 7 in the synthesizer and 10 in capture (result header,
+  titles, badges, empty states, the capture button, the play glyph).
 - **Field labels** 11.5-12px, uppercase, letter-spaced, secondary grey; Otto/Settings use
   12.5px semibold sentence case in the primary text colour.
 - **Fields** radius 6px, 13px text, 8px/12px padding, no focus colour; Settings uses radius
@@ -74,6 +75,12 @@ Synthesizer only:
 
 - The use-case objective is the screen's prompt but was 13px text in a 6px box; ADR-019 gives
   16px/24px text in a softly rounded box with the warm `#f4f3f0` ring.
+- Deliberate deviation: the objective box takes the chat view's phone prompt-box variant
+  (radius 16px, a 4px ring, as `chat-view-styles.ts` uses at the phone breakpoint) rather than
+  ADR-019's desktop 32px radius and 8px ring. ADR-019's values belong to a 768px-wide,
+  single-line prompt; here the box is a multi-line field in a 420px form column, inside a
+  16px-radius card, where a 32px radius clips the corners of the text and an 8px ring crowds
+  the neighbouring fields and labels.
 - Result tabs were underline tabs in navy; Otto's selectors are warm chips with a dark
   (`#1a1a1a`) chosen item, as the Settings menu.
 - Code preview used a hard-coded colour and generic `monospace`, radius 8px, instead of
@@ -94,10 +101,18 @@ Media Capture only:
 - CSS moved to `now-synthesizer-view-styles.ts` and `now-capture-studio-styles.ts` and
   restyled to the points above. The rules both forms share (labels, fields, segmented chips
   `.seg`/`.seg-item`, the `.btn-primary` pill) live in `web/src/styles/form-styles.ts`
-  (ADR-024 rule 1); Settings keeps its own, since its fields and button padding differ; inline `style=` attributes became classes. No markup structure,
-  text, accessible name, event handler or API call changed.
+  (ADR-024 rule 1). Settings keeps its own rules, since its fields and button padding differ.
+- Inline `style=` attributes became classes. No markup structure, text, accessible name, event
+  handler or API call changed.
+- The primary pill meets WCAG AA text contrast: `--now-text-primary` on the brand green is
+  5.5:1, and on hover white on `--now-color-brand-green-hover` is 4.57:1, with the border
+  following the background.
+- Fields are at least 40px tall on phones (ADR-030).
 - `web/e2e/mobile.spec.ts`: one phone test asserts the synthesizer and capture buttons are at
-  least 40px tall and the objective field is 16px.
+  least 40px tall and every form field of both screens is 16px text and at least 40px tall; a
+  second one loads a capture gallery with one long-labelled card (the captures list answered
+  by `page.route`, as the demo-pipeline spec does) and checks the phone does not scroll
+  sideways.
 
 ### Modules Affected
 

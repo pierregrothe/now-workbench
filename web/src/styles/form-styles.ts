@@ -65,12 +65,14 @@ export const formStyles = css`
         color: #ffffff;
       }
 
-      /* The primary action: a brand-green pill, as the settings primary button. */
+      /* The primary action: a brand-green pill, as the settings primary button.
+         Text contrast (WCAG AA, 4.5:1): #0f172a on #23a17e is 5.5:1; on hover white on #1b8567
+         is 4.57:1. */
       .btn-primary {
         min-height: 36px;
         padding: 8px 18px;
         background: var(--now-color-brand-green, #23a17e);
-        color: #032d42;
+        color: var(--now-text-primary, #0f172a);
         font: inherit;
         font-weight: 600;
         font-size: 13px;
@@ -87,6 +89,8 @@ export const formStyles = css`
 
       .btn-primary:hover:not(:disabled) {
         background: var(--now-color-brand-green-hover, #1b8567);
+        border-color: var(--now-color-brand-green-hover, #1b8567);
+        color: #ffffff;
       }
 
       .btn-primary:disabled {
@@ -94,10 +98,13 @@ export const formStyles = css`
         cursor: not-allowed;
       }
 
-      /* Phones (ADR-030): 40px touch targets. */
+      /* Phones (ADR-030): 40px touch targets, fields included. */
       @media (max-width: 768px), (max-height: 500px) {
         .seg-item,
-        .btn-primary {
+        .btn-primary,
+        .text-input,
+        .select-input,
+        .textarea-input {
           min-height: 40px;
         }
       }

@@ -96,18 +96,54 @@ test.describe('phone portrait (iPhone size)', () => {
     expect(size).toBeGreaterThanOrEqual(16);
   });
 
-  test('synthesizer and capture buttons are touch-sized and fields are 16px', async ({ page }) => {
+  test('synthesizer and capture buttons and fields are touch-sized, fields 16px', async ({ page }) => {
     const height = async (name: string) =>
       (await page.getByRole('button', { name, exact: true }).boundingBox())?.height ?? 0;
+    /** Every form field of the screen: [font size, height] in px. */
+    const fields = (form: string) =>
+      page
+        .locator(form)
+        .locator('input, select, textarea')
+        .evaluateAll((els) => els.map((el) => [parseFloat(getComputedStyle(el).fontSize), el.getBoundingClientRect().height]));
+    const expectTouchFields = (found: number[][], count: number) => {
+      expect(found).toHaveLength(count);
+      for (const [size, tall] of found) {
+        expect(size).toBeGreaterThanOrEqual(16);
+        expect(tall).toBeGreaterThanOrEqual(40);
+      }
+    };
+
     await page.goto('/#synthesizer');
     expect(await height('Synthesize Demo Bundle')).toBeGreaterThanOrEqual(40);
-    const size = await page
-      .locator('now-synthesizer-view textarea')
-      .evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
-    expect(size).toBeGreaterThanOrEqual(16);
+    expectTouchFields(await fields('now-synthesizer-view .synth-grid'), 4);
     await page.goto('/#capture');
     expect(await height('Video Walkthrough')).toBeGreaterThanOrEqual(40);
     expect(await height('Capture Screenshot')).toBeGreaterThanOrEqual(40);
+    expectTouchFields(await fields('now-capture-studio .studio-grid'), 3);
+  });
+
+  test('a capture gallery with a long-labelled card fits the width of the phone', async ({ page }) => {
+    const card = {
+      id: 'c1',
+      bundle_id: 'sample-ai-assistant',
+      instance_url: 'fake://dev',
+      target_path: '/now/nav/ui/classic/params/target/incident_list.do',
+      media_type: 'screenshot',
+      label: 'A very long capture caption that must ellipsize instead of widening the card'.repeat(2),
+      filename: 'c1.png',
+      file_path: 'c1.png',
+      url: 'data:image/gif;base64,R0lGODlhAQABAAAAACw=',
+      engine: 'playwright',
+      created_at: '2026-11-07T00:00:00Z',
+    };
+    await page.route('**/api/demos/*/captures', async (route) => {
+      if (route.request().method() !== 'GET') return route.fallback();
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([card]) });
+    });
+    await page.goto('/#capture');
+    await expect(page.getByRole('heading', { name: 'Captured Proofs (1)' })).toBeVisible();
+    expect(await page.getByRole('button', { name: 'Rename', exact: true }).boundingBox()).not.toBeNull();
+    await expectNoSidewaysScroll(page);
   });
 
   test('the top bar opens the command palette and a command navigates', async ({ page }) => {

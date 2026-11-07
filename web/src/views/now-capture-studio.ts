@@ -99,7 +99,7 @@ export class NowCaptureStudio extends LitElement {
             <div class="card">
               <div class="form-group">
                 <label class="form-label">Capture Mode</label>
-                <div class="seg mode-toggle">
+                <div class="seg">
                   <button
                     class="seg-item mode-btn ${this.captureMode === 'screenshot' ? 'active' : ''}"
                     @click=${() => (this.captureMode = 'screenshot')}
