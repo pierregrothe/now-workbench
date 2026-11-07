@@ -1,0 +1,86 @@
+# .github/workflows/release.yml
+# On a merge to main: decide whether it is a release; if so bump, roll the changelog, tag, publish.
+# Author: Pierre Grothe
+# Date: 2026-11-07
+#
+# A release marks a delivered epic (ADR-032): a merge that flips an epic.md to complete, or a PR
+# labelled `release`, cuts the next CalVer version (YYYY.MM.N); every other merge ends after the
+# decision.
+# This workflow never gates a push or a PR -- the local hooks do that. `pr_gate.py land` waits
+# for this run before it pulls main, so local main never sits behind the bump commit.
+
+name: Release
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+
+permissions:
+  contents: write
+
+# Serialize: two merges in a row must not race to push their bump commits.
+concurrency:
+  group: release-main
+  cancel-in-progress: false
+
+jobs:
+  release:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version-file: .python-version
+
+      - name: Decide whether this merge is a release
+        id: gate
+        env:
+          LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
+          MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+        run: python scripts/dev-tools/release_gate.py decide "$MERGE_SHA" --labels "$LABELS" --github-output "$GITHUB_OUTPUT"
+
+      - name: Install uv
+        if: steps.gate.outputs.release == 'true'
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: '0.13.7'
+
+      - name: Bump the version and roll the changelog
+        if: steps.gate.outputs.release == 'true'
+        id: bump
+        run: |
+          VERSION="$(python scripts/dev-tools/release_gate.py bump)"
+          uv lock
+          python scripts/dev-tools/primer_changelog.py roll "$VERSION" --allow-empty
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Commit, tag and push
+        if: steps.gate.outputs.release == 'true'
+        env:
+          VERSION: ${{ steps.bump.outputs.version }}
+          PR: ${{ github.event.pull_request.number }}
+          REASON: ${{ steps.gate.outputs.reason }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add pyproject.toml uv.lock web/package.json web/package-lock.json CHANGELOG.md
+          git commit -m "chore(release): v$VERSION" -m "Release after PR #$PR ($REASON)."
+          git tag "v$VERSION"
+          git push origin main "v$VERSION"
+
+      - name: Publish the GitHub release
+        if: steps.gate.outputs.release == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.bump.outputs.version }}
+        run: |
+          awk -v v="$VERSION" '$0 ~ "^## \\[" v "\\]" {on=1; next} /^## \[/ {on=0} on' CHANGELOG.md > notes.md
+          gh release create "v$VERSION" --title "v$VERSION" --notes-file notes.md

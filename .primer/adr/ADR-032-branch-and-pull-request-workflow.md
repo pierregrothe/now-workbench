@@ -36,8 +36,10 @@ and already apply.
   `chore(merge): Merge ...` so local merges pass the strict commit-msg gate.
 - **Releases (story 02):** a merge that flips an `epic.md` to complete, or that carries the
   `release` label, bumps the version, rolls `CHANGELOG.md`, tags and publishes a release from
-  GitHub Actions. The bump is minor for an epic and patch for a label. Each PR adds one
-  changelog line per user-visible change.
+  GitHub Actions. Versions are CalVer `YYYY.MM.N` (N counts a UTC month's releases from 0),
+  the primer changelog engine's scheme and alphaseeker's; the owner chose it over SemVer
+  (2026-11-07), so the first release turns 0.1.0 into 2026.11.0. Each PR adds one changelog
+  line per user-visible change.
 - **No GitHub Action gates a push or a PR.** The local hooks are the enforcement, as on srv02.
 
 ## Consequences

@@ -1,7 +1,8 @@
 # Story 2026.11c.01: Branch guard, PR gate stamp, review records and land
 
-Status: in-progress
+Status: done
 Started: 2026-11-07
+Done: 2026-11-07
 Spec-Clarity: high
 Depends-On: none
 Board: STORY-066
@@ -46,19 +47,19 @@ AC5:
 
 ## Tasks / Subtasks
 
-- [ ] `scripts/dev-tools/pr_gate.py` (check, run-unless-proven, guard-branch, land) (AC: 1-4)
-- [ ] `scripts/hooks/prepare_merge_commit_msg.py` (AC: 5)
-- [ ] `.pre-commit-config.yaml` wiring + registry policies (AC: 1,3,5)
-- [ ] `.primer/reviews/`, PR template, CLAUDE.md workflow section (AC: 4)
-- [ ] Tests on real git repositories (AC: 1-5)
+- [x] `scripts/dev-tools/pr_gate.py` (check, run-unless-proven, guard-branch, land) (AC: 1-4)
+- [x] `scripts/hooks/prepare_merge_commit_msg.py` (AC: 5)
+- [x] `.pre-commit-config.yaml` wiring + registry policies (AC: 1,3,5)
+- [x] `.primer/reviews/`, PR template, CLAUDE.md workflow section (AC: 4)
+- [x] Tests on real git repositories (AC: 1-5)
 
 ## Definition of Done
 
-- [ ] All acceptance criteria verified
-- [ ] Tests added or updated and passing (pytest 100% coverage; Playwright where UI changes)
-- [ ] Ruff clean (zero violations), mypy strict, tsc clean
-- [ ] No changes outside the story's stated scope
-- [ ] References section links verified
+- [x] All acceptance criteria verified
+- [x] Tests added or updated and passing (pytest 100% coverage; Playwright where UI changes)
+- [x] Ruff clean (zero violations), mypy strict, tsc clean
+- [x] No changes outside the story's stated scope
+- [x] References section links verified
 
 ## Existing Code
 

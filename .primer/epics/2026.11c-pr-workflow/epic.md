@@ -4,7 +4,7 @@ Phase: 2026.11c
 Date: 2026-11-07
 Source: owner request 2026-11-07 -- reproduce the srv02chambly (alphaseeker) workflow here
 Board: EPIC-019
-Progress: 0/2 stories done
+Progress: 2/2 stories done -- COMPLETE
 
 ## Goal
 
@@ -37,19 +37,19 @@ merge closes an epic.
 
 | Requirement | Story | Status |
 |-------------|-------|--------|
-| FR1 | 01-pr-gate-and-land | backlog |
-| FR2 | 01-pr-gate-and-land | backlog |
-| FR3 | 01-pr-gate-and-land | backlog |
-| FR4 | 01-pr-gate-and-land | backlog |
-| FR5 | 02-release-bot-and-changelog | backlog |
-| FR6 | 02-release-bot-and-changelog | backlog |
+| FR1 | 01-pr-gate-and-land | done |
+| FR2 | 01-pr-gate-and-land | done |
+| FR3 | 01-pr-gate-and-land | done |
+| FR4 | 01-pr-gate-and-land | done |
+| FR5 | 02-release-bot-and-changelog | done |
+| FR6 | 02-release-bot-and-changelog | done |
 
 ## Story List
 
 | # | Title | Dependencies | Status |
 |---|-------|--------------|--------|
-| 01 | Branch guard, PR gate stamp, review records and land | none | backlog |
-| 02 | Release bot, changelog and dependency audit | 01 | backlog |
+| 01 | Branch guard, PR gate stamp, review records and land | none | done |
+| 02 | Release bot, changelog and dependency audit | 01 | done |
 
 ## Out of Scope
 
