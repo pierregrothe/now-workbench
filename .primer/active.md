@@ -7,7 +7,7 @@ Python Version: `3.14.10`
 
 ## Current Focus
 
-EPIC-019 (branch and PR workflow, ADR-032) complete on `feature/pr-workflow`, landing as the first PR; next: EPIC-018 `.primer/epics/2026.11b-conversation-polish/`.
+EPIC-020 (domain cards and capability search) stories 01-02 in progress on `feature/domain-card-checks`; EPIC-018 waits.
 
 `main` -- deployed and live at https://workbench.grothe.ca (srv01chambly, Cloudflare Access).
 Per-user data, groups and approved sharing, impersonation, attachments and limits, and an

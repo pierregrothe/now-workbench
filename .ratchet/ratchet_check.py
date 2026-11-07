@@ -31,6 +31,9 @@ from pathlib import Path
 RATCHET_DIR = Path(__file__).parent
 BASELINES_FILE = RATCHET_DIR / "baselines.json"
 REPO_ROOT = RATCHET_DIR.parent
+# The card ratchet tells installed packages from project names, so it needs the locked venv.
+_VENV = REPO_ROOT / ".venv" / "bin" / "python"
+_VENV_PYTHON = str(_VENV) if _VENV.exists() else sys.executable
 
 VALIDATORS = {
     "no-mocks": {
@@ -60,6 +63,10 @@ VALIDATORS = {
     "async-subprocess": {
         "cmd": [sys.executable, str(RATCHET_DIR / "count_async_subprocess.py")],
         "description": "ADR-005 non-blocking async subprocess execution",
+    },
+    "card-dead-references": {
+        "cmd": [_VENV_PYTHON, str(RATCHET_DIR / "count_card_dead_references.py")],
+        "description": "ADR-033 every identifier a domain card names exists in src/now_workbench",
     },
 }
 

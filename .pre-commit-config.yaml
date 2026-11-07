@@ -105,6 +105,15 @@ repos:
         always_run: true
         stages: [pre-commit]
 
+      - id: domain-card-freshness
+        name: Domain cards that fell behind their domain (pre-push, advisory, ADR-033)
+        entry: python scripts/hooks/check_domain_card_freshness.py
+        language: system
+        pass_filenames: false
+        always_run: true
+        verbose: true
+        stages: [pre-push]
+
       - id: pytest-pre-push
         name: pytest -- full suite + 100% coverage floor (pre-push)
         entry: python scripts/dev-tools/pr_gate.py run-unless-proven pytest-pre-push -- python .claude/hooks/_venv_run.py pytest -q --tb=short --cov=src/now_workbench --cov-fail-under=100

@@ -1,0 +1,3 @@
+# .ratchet/card_reference_allowlist.txt
+# Names a domain card may give that are real but are not code in src/now_workbench (ADR-033).
+# One per line: NAME  # reason. An entry without a reason is reported and suppresses nothing.
