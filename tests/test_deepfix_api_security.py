@@ -79,7 +79,7 @@ def test_deploy_default_instance_reports_target(client: TestClient) -> None:
     """Deploying to the default instance names the target in the response."""
     with db_session() as conn:
         inst = InstanceRepository(conn).add_instance(
-            InstanceCreate(name="dev-one", url="https://dev1.service-now.com", is_default=True)
+            InstanceCreate(name="dev-one", url="fake://dev1.service-now.com", is_default=True)
         )
     res = client.post(f"/api/demos/{BUNDLE}/deploy", json={})
     assert res.status_code == 200

@@ -23,7 +23,7 @@ releases (`releases`, which it imports), or hold the workbench-wide fake-mode pr
   Aggregate API counts, a few requests at a time.
 - `seed_default_instance_if_empty(conn)` -- first-run seeding from settings.
 - `is_simulated(inst, fake_mode)` -- THE simulated-instance rule: True when `fake_mode` is
-  passed, `settings.fake_mode` is set, or the URL starts `fake://` or `http://fake`.
+  passed or the URL starts `fake://` or `http://fake`.
 - Models: `InstanceRecord` (decrypted credentials, backend only), `InstancePublic` (API
   view, `has_password` instead of the password; build it with `to_public`),
   `InstanceCreate`, `InstanceUpdate`, `InstanceProfile`, `InstanceNode`, `InstancePurpose`
@@ -65,7 +65,7 @@ releases (`releases`, which it imports), or hold the workbench-wide fake-mode pr
 - An empty password in `InstanceUpdate` keeps the stored one; credentials are always
   re-sealed with a per-instance GCM context (`instance:<id>`), never stored plain (ADR-012).
 - Never return `InstanceRecord` from a route; use `to_public`.
-- Simulated means: `fake_mode` passed, `settings.fake_mode`, or a URL starting `fake://` or
+- Simulated means `is_simulated`: `fake_mode` passed, or a URL starting `fake://` or
   `http://fake`. A simulated test fakes the outcome from the URL (`auth-failed`,
   `unreachable`) and never collects a profile. `count_records` / `daily_created` raise
   `ValueError` on a simulated instance rather than invent figures.
@@ -81,8 +81,11 @@ releases (`releases`, which it imports), or hold the workbench-wide fake-mode pr
 - Use `InstanceRepository.resolve` for "this id or the default". Otto's fuzzy lookup (id,
   name, or a unique URL fragment) is `resolve_instance` in `interfaces/ai/tools/base.py`.
 - Live table counts: `count_records` / `daily_created`, not a new stats client.
-- Fake detection: `is_simulated`. Every caller (plugins, properties, runbooks, demos, the seed
-  and capture APIs, the Otto tools) uses it; never re-check a URL prefix yourself.
+- Fake detection: `is_simulated`; never re-check a URL prefix yourself. The seed, plugins,
+  properties and runbooks engines apply it to the instance they are given, so their callers
+  pass only their fake-mode flags. Callers that hold just a URL apply it themselves: the
+  pipeline deploy, `POST /api/demos/{id}/deploy`, the capture endpoint, Otto's
+  `capture_media` and `get_properties`, and `demo capture`.
 
 ## Known gaps
 

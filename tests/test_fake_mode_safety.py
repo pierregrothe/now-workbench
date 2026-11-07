@@ -4,8 +4,8 @@
 # Date: 2026-11-07
 """Tests for the exported ``is_simulated`` predicate and every caller that relies on it.
 
-No test contacts a network: the seed engine's record calls, the SDK runner, the capture engine
-and the plugin query transport are replaced by in-memory recorders.
+No test contacts a network: every ``httpx.AsyncClient`` request, the SDK runner, the capture
+engine and the plugin query transport are replaced by in-memory recorders.
 """
 
 import json
@@ -16,6 +16,7 @@ from typing import Any
 import httpx
 import pytest
 from fastapi.testclient import TestClient
+from typer.testing import CliRunner
 
 from now_workbench.domains.capture import CaptureFailedError, CaptureRequest
 from now_workbench.domains.capture import engine as capture_engine_mod
@@ -23,11 +24,12 @@ from now_workbench.domains.demos import pipeline as pipeline_mod
 from now_workbench.domains.demos.pipeline import DemoPipelineEngine
 from now_workbench.domains.instances import InstanceCreate, InstanceRepository, is_simulated
 from now_workbench.domains.plugins.manager import PluginManager
-from now_workbench.domains.seed import SeedEngine
+from now_workbench.domains.seed import SeedEngine, SeedRepository
 from now_workbench.interfaces.ai.tools.base import ToolContext, execute_tool
 from now_workbench.interfaces.api.app import create_app
+from now_workbench.interfaces.cli.main import app as cli_app
 from now_workbench.platform.db.session import db_session
-from now_workbench.platform.sdk.runner import SdkExecutionResult
+from now_workbench.platform.sdk.runner import NowSdkRunner, SdkExecutionResult
 
 REPO = Path(__file__).resolve().parents[1]
 REAL_URL = "https://real.service-now.com"
@@ -41,18 +43,20 @@ def _instance(inst_id: str, url: str) -> None:
         )
 
 
-def _record_posts(monkeypatch: pytest.MonkeyPatch) -> list[str]:
-    """Replace the seed engine's live POST with a recorder that refuses to post."""
-    posted: list[str] = []
+def _guard_network(monkeypatch: pytest.MonkeyPatch) -> list[str]:
+    """Record, and refuse, every async HTTP call (the seed engine's only way out)."""
+    calls: list[str] = []
 
-    async def no_post(self: SeedEngine, client: object, inst: object, table: str, f: object) -> str:
-        if self.fake_mode:
-            return "fake_sys_recorded"
-        posted.append(table)
-        raise RuntimeError("a live POST was attempted")
+    def refuse(method: str) -> Any:
+        async def call(self: httpx.AsyncClient, url: str, **_kwargs: object) -> httpx.Response:
+            calls.append(f"{method} {url}")
+            raise httpx.ConnectError("a live call was attempted")
 
-    monkeypatch.setattr(SeedEngine, "_post_record", no_post)
-    return posted
+        return call
+
+    for method in ("get", "post", "delete"):
+        monkeypatch.setattr(httpx.AsyncClient, method, refuse(method))
+    return calls
 
 
 def _record_captures(monkeypatch: pytest.MonkeyPatch) -> list[bool]:
@@ -92,7 +96,7 @@ def test_is_simulated_is_exported_from_the_instances_root(
 
 def test_otto_seed_treats_http_fake_as_simulated(monkeypatch: pytest.MonkeyPatch) -> None:
     """Otto's seed tool simulates on an ``http://fake`` instance even with fake mode off."""
-    posted = _record_posts(monkeypatch)
+    posted = _guard_network(monkeypatch)
     _instance("hf", HTTP_FAKE_URL)
     with db_session() as conn:
         res = execute_tool(
@@ -109,48 +113,67 @@ def test_otto_seed_operation_tools_treat_http_fake_as_simulated(
     tool: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Verify and roll back a seed run on an ``http://fake`` instance in simulation."""
+    calls = _guard_network(monkeypatch)
     _instance("hf", HTTP_FAKE_URL)
-    seen: list[bool] = []
-
-    async def verify(self: SeedEngine, operation_id: str) -> list[Any]:
-        seen.append(self.fake_mode)
-        return []
-
-    async def rollback(self: SeedEngine, operation_id: str) -> tuple[int, list[str]]:
-        seen.append(self.fake_mode)
-        return 0, []
-
     with db_session() as conn:
         seeded = execute_tool(
             ToolContext(conn=conn, fake_mode=True),
             "seed_bundle",
             {"bundle_id": "sample-ai-assistant", "instance": "hf"},
         )
-        monkeypatch.setattr(SeedEngine, "verify", verify)
-        monkeypatch.setattr(SeedEngine, "rollback", rollback)
-        execute_tool(
+        res = execute_tool(
             ToolContext(conn=conn),
             tool,
             {"operation_id": seeded.data["operation_id"]},
             confirmed=True,
         )
-    assert seen == [True]
+    assert calls == []
+    assert res.ok
 
 
-def test_otto_seed_operation_tool_on_unknown_operation_uses_the_context_flag(
+# -- The seed engine applies the rule itself, so no caller can forget it -----------------------
+
+
+async def test_seed_engine_never_calls_a_simulated_instance(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """With no recorded operation, only the context's fake mode decides."""
-    seen: list[bool] = []
-
-    async def verify(self: SeedEngine, operation_id: str) -> list[Any]:
-        seen.append(self.fake_mode)
-        return []
-
-    monkeypatch.setattr(SeedEngine, "verify", verify)
+    """Seed, verify and rollback on the ``fake://`` default instance with fake mode off."""
+    calls = _guard_network(monkeypatch)
     with db_session() as conn:
-        execute_tool(ToolContext(conn=conn), "verify_seed_operation", {"operation_id": "seed-x"})
-    assert seen == [False]
+        engine = SeedEngine(conn, fake_mode=False)
+        op = await engine.load_and_seed(
+            "sample-ai-assistant", REPO / "bundles" / "sample-ai-assistant"
+        )
+        checks = await engine.verify(op.id)
+        deleted, errors = await engine.rollback(op.id)
+    assert calls == []
+    assert [d for _i, _ok, d in checks] == ["simulated", "simulated"]
+    assert (deleted, errors) == (2, [])
+
+
+def test_reset_api_never_calls_a_simulated_instance(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The demo reset rolls back a ``fake://`` instance's seed runs without a live DELETE."""
+    calls = _guard_network(monkeypatch)
+    client = TestClient(create_app())
+    assert client.post("/api/demos/sample-ai-assistant/seed", json={}).status_code == 200
+    res = client.post("/api/demos/sample-ai-assistant/reset", json={})
+    assert res.status_code == 200
+    assert calls == [] and res.json()["seed_records_rolled_back"] == 2
+
+
+def test_cli_seed_and_rollback_never_call_a_simulated_instance(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """``demo seed`` and ``demo rollback`` without ``--fake`` stay offline on ``fake://``."""
+    calls = _guard_network(monkeypatch)
+    runner = CliRunner()
+    seeded = runner.invoke(cli_app, ["demo", "seed", "sample-ai-assistant"])
+    assert seeded.exit_code == 0, seeded.output
+    with db_session() as conn:
+        op_id = SeedRepository(conn).list_seed_operations(limit=1)[0].id
+    rolled = runner.invoke(cli_app, ["demo", "rollback", op_id])
+    assert rolled.exit_code == 0 and "Deleted 2" in rolled.output
+    assert calls == []
 
 
 def test_plugin_checks_treat_http_fake_as_simulated() -> None:
@@ -190,6 +213,14 @@ def test_otto_capture_simulates_on_a_simulated_instance(monkeypatch: pytest.Monk
     assert seen == [True]
 
 
+def test_cli_capture_simulates_on_a_simulated_instance(monkeypatch: pytest.MonkeyPatch) -> None:
+    """``demo capture`` without ``--fake`` asks for a placeholder on a ``fake://`` instance."""
+    seen = _record_captures(monkeypatch)
+    res = CliRunner().invoke(cli_app, ["demo", "capture", "sample-ai-assistant"])
+    assert res.exit_code == 1
+    assert seen == [True]
+
+
 async def test_pipeline_video_proof_simulates_on_a_simulated_instance(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -226,7 +257,7 @@ async def test_deploy_and_seed_sdk_project_on_simulated_instance_never_deploys(
             return SdkExecutionResult(command="deploy", exit_code=0, output="", success=True)
 
     monkeypatch.setattr(pipeline_mod, "NowSdkRunner", _RecordingRunner)
-    posted = _record_posts(monkeypatch)
+    posted = _guard_network(monkeypatch)
     with db_session(tmp_path / "t.db") as conn:
         inst = InstanceRepository(conn).add_instance(
             InstanceCreate(id="f", name="Fake", url="fake://f.service-now.com", password="p")
@@ -239,12 +270,35 @@ async def test_deploy_and_seed_sdk_project_on_simulated_instance_never_deploys(
     assert seed.status == "completed"
 
 
+def test_deploy_api_never_deploys_to_a_simulated_instance(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """``POST /deploy`` simulates for the ``fake://`` default instance; a real one deploys."""
+    deploys: list[object] = []
+
+    async def deploy(self: NowSdkRunner, *args: object, **kwargs: object) -> SdkExecutionResult:
+        deploys.append(kwargs.get("instance_url"))
+        return SdkExecutionResult(command="deploy", exit_code=0, output="", success=True)
+
+    monkeypatch.setattr(NowSdkRunner, "deploy", deploy)
+    res = TestClient(create_app()).post("/api/demos/sample-ai-assistant/deploy", json={})
+    assert res.status_code == 200
+    assert deploys == []
+    assert res.json()["success"] is True and "simulated" in res.json()["output"]
+    _instance("real", REAL_URL)
+    live = TestClient(create_app()).post(
+        "/api/demos/sample-ai-assistant/deploy", json={"instance_id": "real"}
+    )
+    assert live.status_code == 200
+    assert deploys == [REAL_URL]
+
+
 # -- AC3: the seed API never takes less than the request flag, the preference or the URL -------
 
 
 def test_seed_api_honours_the_sdk_fake_mode_preference(monkeypatch: pytest.MonkeyPatch) -> None:
     """With ``sdk_fake_mode`` on, a real instance is not posted to even without the flag."""
-    posted = _record_posts(monkeypatch)
+    posted = _guard_network(monkeypatch)
     _instance("real", REAL_URL)
     client = TestClient(create_app())
     assert client.put("/api/settings", json={"sdk_fake_mode": True}).status_code == 200
@@ -255,7 +309,7 @@ def test_seed_api_honours_the_sdk_fake_mode_preference(monkeypatch: pytest.Monke
 
 def test_seed_api_simulates_on_a_simulated_instance(monkeypatch: pytest.MonkeyPatch) -> None:
     """The default ``fake://`` instance is simulated even with no flag and no preference."""
-    posted = _record_posts(monkeypatch)
+    posted = _guard_network(monkeypatch)
     res = TestClient(create_app()).post("/api/demos/sample-ai-assistant/seed", json={})
     assert res.status_code == 200, res.text
     assert posted == []
@@ -264,7 +318,7 @@ def test_seed_api_simulates_on_a_simulated_instance(monkeypatch: pytest.MonkeyPa
 
 def test_seed_api_keeps_the_request_flag(monkeypatch: pytest.MonkeyPatch) -> None:
     """The request flag alone still simulates on a real instance."""
-    posted = _record_posts(monkeypatch)
+    posted = _guard_network(monkeypatch)
     _instance("real", REAL_URL)
     res = TestClient(create_app()).post(
         "/api/demos/sample-ai-assistant/seed", json={"instance_id": "real", "fake_mode": True}
@@ -275,7 +329,7 @@ def test_seed_api_keeps_the_request_flag(monkeypatch: pytest.MonkeyPatch) -> Non
 
 def test_seed_api_unknown_instance_is_a_400(monkeypatch: pytest.MonkeyPatch) -> None:
     """An unknown instance still fails as before (there is no instance to judge)."""
-    _record_posts(monkeypatch)
+    _guard_network(monkeypatch)
     res = TestClient(create_app()).post(
         "/api/demos/sample-ai-assistant/seed", json={"instance_id": "nope"}
     )
@@ -286,20 +340,12 @@ def test_seed_rollback_api_simulates_on_a_simulated_instance(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Rolling back a run on the ``fake://`` instance never sends a live DELETE."""
+    calls = _guard_network(monkeypatch)
     client = TestClient(create_app())
     seeded = client.post("/api/demos/sample-ai-assistant/seed", json={"fake_mode": True})
-    deleted: list[str] = []
-
-    async def no_delete(self: SeedEngine, client: object, inst: object, t: str, s: str) -> bool:
-        if self.fake_mode:
-            return True
-        deleted.append(s)
-        raise RuntimeError("a live DELETE was attempted")
-
-    monkeypatch.setattr(SeedEngine, "_delete_record", no_delete)
     res = client.post(f"/api/demos/seed/{seeded.json()['id']}/rollback")
     assert res.status_code == 200
-    assert deleted == [] and res.json()["deleted_count"] == 2
+    assert calls == [] and res.json()["deleted_count"] == 2
 
 
 def test_seed_rollback_api_unknown_operation_is_a_400() -> None:

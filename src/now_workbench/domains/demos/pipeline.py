@@ -193,7 +193,7 @@ class DemoPipelineEngine:
         A bundle that is already an SDK project (package.json) is installed as is. A bundle
         with Fluent sources gets a generated project scoped to the instance's vendor prefix;
         its tables are renamed into that scope and the seed records follow the rename. A
-        simulated instance (``is_simulated``) is never deployed to and is seeded in fake mode.
+        simulated instance (``is_simulated``) is never deployed to.
 
         Returns:
             The seed operation, what happened to the deploy step, and the table rename map.
@@ -222,7 +222,7 @@ class DemoPipelineEngine:
                 f"({len(table_map)} table(s) created in that scope)."
             )
 
-        seed_engine = SeedEngine(self.conn, fake_mode=simulated)
+        seed_engine = SeedEngine(self.conn, fake_mode=fake_mode)
         seed = await seed_engine.load_and_seed(
             bundle_id=bundle_id,
             bundle_path=bundle_path,

@@ -1,7 +1,6 @@
 """API routes for demonstration bundles and transactional seed operations."""
 
 import os
-import sqlite3
 import tempfile
 from pathlib import Path
 from typing import Any
@@ -18,7 +17,6 @@ from now_workbench.domains.demos import (
     DemoPipelineSummary,
 )
 from now_workbench.domains.fluent import FluentEngine
-from now_workbench.domains.instances import InstanceRepository, is_simulated
 from now_workbench.domains.properties import PropertyEngine
 from now_workbench.domains.runbooks import RunbookEngine, RunbookGuide
 from now_workbench.domains.seed import SeedEngine, SeedOperationRecord, SeedRepository
@@ -189,22 +187,6 @@ def export_demo(bundle_id: str) -> FileResponse:
     )
 
 
-def _seed_fake_mode(conn: sqlite3.Connection, requested: bool, instance_id: str | None) -> bool:
-    """Fake mode for a seed call: the request flag, ``sdk_fake_mode`` or a simulated instance.
-
-    Args:
-        conn: Open database connection.
-        requested: The fake-mode flag the request carried.
-        instance_id: The target instance id, or None for the default instance.
-
-    Returns:
-        True unless the request, the preference and the instance all allow live calls.
-    """
-    fake = requested or PreferencesRepository(conn).get_workbench_preferences().sdk_fake_mode
-    inst = InstanceRepository(conn).resolve(instance_id)
-    return is_simulated(inst, fake) if inst else fake
-
-
 @router.post("/{bundle_id}/seed", response_model=SeedOperationRecord)
 async def seed_demo_records(
     bundle_id: str,
@@ -218,7 +200,9 @@ async def seed_demo_records(
     requested = bool(body.get("fake_mode", False))
 
     with db_session() as conn:
-        engine = SeedEngine(conn=conn, fake_mode=_seed_fake_mode(conn, requested, instance_id))
+        # SeedEngine itself simulates a simulated instance (is_simulated); this adds the flags.
+        prefs = PreferencesRepository(conn).get_workbench_preferences()
+        engine = SeedEngine(conn=conn, fake_mode=requested or prefs.sdk_fake_mode)
         try:
             return await engine.load_and_seed(bundle_id, bundle_path, instance_id=instance_id)
         except Exception as exc:
@@ -232,9 +216,8 @@ async def rollback_seed_records(
 ) -> dict[str, Any]:
     """Roll back (delete) all records created in a previous seed operation."""
     with db_session() as conn:
-        op = SeedRepository(conn).get_seed_operation(operation_id)
-        fake = _seed_fake_mode(conn, fake_mode, op.instance_id) if op else fake_mode
-        engine = SeedEngine(conn=conn, fake_mode=fake)
+        prefs = PreferencesRepository(conn).get_workbench_preferences()
+        engine = SeedEngine(conn=conn, fake_mode=fake_mode or prefs.sdk_fake_mode)
         try:
             deleted_count, errors = await engine.rollback(operation_id)
             return {

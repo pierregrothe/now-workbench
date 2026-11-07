@@ -57,8 +57,8 @@ the Table API itself, or build SDK projects (`platform/sdk/project.py`).
   simulated). The summary goes "partial" if any are still missing.
 - A `CaptureFailedError` is kept as a note (`status` "partial"), not raised.
 - Deploy order (ADR-022): no `package.json` and no `fluent/*.now.ts` skips deploy; a
-  simulated instance (`is_simulated`) never deploys, SDK project or not, and is seeded in
-  fake mode; otherwise a bundle with `package.json` is installed as is, or the vendor prefix
+  simulated instance (`is_simulated`) never deploys, SDK project or not (`SeedEngine` then
+  seeds it in simulation); otherwise a bundle with `package.json` is installed as is, or the vendor prefix
   "glide.appcreator.company.code" is read live and a project is generated. The returned
   table map renames seed tables and runbook `target_table`s.
 - The video proof is a placeholder whenever the instance is simulated.

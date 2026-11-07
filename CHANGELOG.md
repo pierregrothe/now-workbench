@@ -8,7 +8,7 @@ internal chores, docs, tests and CI are omitted, and the long-form entries are i
 ## [Unreleased]
 
 ### Fixed
-- demos: One exported is_simulated rule everywhere; a simulated instance never gets a real SDK deploy, seed post or capture; seed API honours sdk_fake_mode
+- demos: One exported is_simulated rule everywhere; a simulated instance never gets a real SDK deploy, seed call or capture; seed API honours sdk_fake_mode
 
 ## [2026.11.1] - 2026-11-07
 

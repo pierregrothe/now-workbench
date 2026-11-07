@@ -5,12 +5,14 @@
 
 from pathlib import Path
 
+import httpx
 import pytest
 
 from now_workbench.domains.demos import pipeline as pipeline_mod
 from now_workbench.domains.demos.pipeline import DemoPipelineEngine, PipelineStepError
 from now_workbench.domains.instances.models import InstanceCreate, InstanceProfile
 from now_workbench.domains.instances.repository import InstanceRepository
+from now_workbench.domains.plugins.manager import PluginManager
 from now_workbench.domains.properties.engine import PropertyEngine
 from now_workbench.domains.properties.models import PropertyApplyResult
 from now_workbench.domains.synthesizer.engine import UseCaseSynthesizer
@@ -32,8 +34,15 @@ class _FailingPropEngine(PropertyEngine):
         return PropertyApplyResult(success=False, applied_count=0, details=["Failed to update 'x'"])
 
 
-async def _failing_deploy(*_args: object, **_kwargs: object) -> None:
-    raise PipelineStepError("SDK deploy failed (exit code 2): boom")
+class _OkPropEngine(PropertyEngine):
+    async def apply_bundle_properties(self, **_kwargs: object) -> PropertyApplyResult:
+        return PropertyApplyResult(success=True, applied_count=0, details=[])
+
+
+def _active_plugins(request: httpx.Request) -> httpx.Response:
+    """In-memory v_plugin: every queried plugin is active."""
+    plugin_id = request.url.params["sysparm_query"].removeprefix("id=")
+    return httpx.Response(200, json={"result": [{"id": plugin_id, "active": "active"}]})
 
 
 def _setup(tmp_path: Path):
@@ -69,6 +78,7 @@ async def test_deploy_and_seed_deploy_failure_raises(tmp_path: Path, monkeypatch
 @pytest.mark.asyncio
 async def test_run_full_pipeline_deploy_failure_reports_failed(tmp_path: Path, monkeypatch):
     bundles_dir, bundle_id = _setup(tmp_path)
+    monkeypatch.setattr(pipeline_mod, "NowSdkRunner", _FailingRunner)
     with db_session(tmp_path / "t.db") as conn:
         instance_repo = InstanceRepository(conn)
         instance_repo.add_instance(
@@ -78,11 +88,11 @@ async def test_run_full_pipeline_deploy_failure_reports_failed(tmp_path: Path, m
         inst = instance_repo.get_instance("i1")
         assert inst is not None
         engine = DemoPipelineEngine(bundles_dir=bundles_dir, conn=conn)
-        # Fake mode never deploys (STORY-072), so the deploy step itself is made to fail.
-        monkeypatch.setattr(engine, "deploy_and_seed", _failing_deploy)
-        summary = await engine.run_full_pipeline(
-            bundle_id, inst, fake_mode=True, record_video=False
-        )
+        # A real instance (a simulated one is never deployed to): plugin checks and property
+        # apply are in memory, and the faked SDK runner fails the deploy.
+        engine.plugin_manager = PluginManager(conn, transport=httpx.MockTransport(_active_plugins))
+        engine.prop_engine = _OkPropEngine()
+        summary = await engine.run_full_pipeline(bundle_id, inst, record_video=False)
         assert summary.status == "failed"
         assert summary.seeded_records_count == 0
         assert "SDK deploy failed" in summary.message

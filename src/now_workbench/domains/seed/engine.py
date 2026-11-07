@@ -8,7 +8,7 @@ from typing import Any
 
 import httpx
 
-from now_workbench.domains.instances import InstanceRecord, InstanceRepository
+from now_workbench.domains.instances import InstanceRecord, InstanceRepository, is_simulated
 from now_workbench.domains.seed.date_wizard import transform_dataset_dates
 from now_workbench.domains.seed.models import SeedOperationRecord, SeedRecordItem
 from now_workbench.domains.seed.repository import SeedRepository
@@ -71,8 +71,8 @@ class SeedEngine:
         table: str,
         fields: dict[str, Any],
     ) -> str:
-        """Create a single record in ServiceNow Table API."""
-        if self.fake_mode:
+        """Create a single record in ServiceNow Table API (simulated per ``is_simulated``)."""
+        if is_simulated(inst, self.fake_mode):
             return f"fake_sys_{uuid.uuid4().hex[:16]}"
 
         url = f"{inst.url.rstrip('/')}/api/now/table/{table}"
@@ -101,8 +101,8 @@ class SeedEngine:
         table: str,
         sys_id: str,
     ) -> bool:
-        """Delete a single record from ServiceNow Table API during rollback."""
-        if self.fake_mode:
+        """Delete a single record from ServiceNow Table API (simulated per ``is_simulated``)."""
+        if is_simulated(inst, self.fake_mode):
             return True
 
         url = f"{inst.url.rstrip('/')}/api/now/table/{table}/{sys_id}"
@@ -184,9 +184,9 @@ class SeedEngine:
         op = self.seeds.get_seed_operation(operation_id)
         if not op:
             raise ValueError(f"Seed operation '{operation_id}' not found.")
-        if self.fake_mode:
+        inst = None if self.fake_mode else self._resolve_instance(op.instance_id)
+        if inst is None or is_simulated(inst, self.fake_mode):
             return [(item, True, "simulated") for item in op.created_records]
-        inst = self._resolve_instance(op.instance_id)
         auth: Any = (
             httpx.BasicAuth(inst.username, inst.password)
             if inst.auth_type == "basic"
