@@ -445,3 +445,18 @@ def test_cli_capture_uses_the_wait_preference(monkeypatch: pytest.MonkeyPatch) -
     res = CliRunner().invoke(cli_app, ["demo", "capture", BUNDLE])
     assert res.exit_code == 1
     assert seen == [4200]
+
+
+@pytest.mark.parametrize(("stored", "loaded"), [(99999, 30000), (-1, 0), (2500, 2500)])
+def test_stored_wait_preference_is_clamped_when_loaded(stored: int, loaded: int) -> None:
+    """A wait saved before the bound existed loads clamped to 0..30000 instead of failing."""
+    with db_session() as conn:
+        repo = PreferencesRepository(conn)
+        repo.get_workbench_preferences()  # writes the defaults row
+        row = conn.execute("SELECT payload FROM user_preferences;").fetchone()
+        payload = {**json.loads(row["payload"]), "capture_wait_timeout_ms": stored}
+        conn.execute("UPDATE user_preferences SET payload = ?;", (json.dumps(payload),))
+        conn.commit()
+        assert repo.get_workbench_preferences().capture_wait_timeout_ms == loaded
+        updated = repo.update_workbench_preferences(WorkbenchPreferencesUpdate(claude_model="m"))
+        assert updated.capture_wait_timeout_ms == loaded

@@ -63,7 +63,7 @@ export class NowCapturePrefs extends PrefsSection {
             <input
               type="number"
               min="0"
-              max="15000"
+              max="30000"
               step="250"
               .value=${String(this.prefs.capture_wait_timeout_ms)}
               @input=${(e: Event) =>

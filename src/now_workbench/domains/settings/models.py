@@ -9,9 +9,13 @@ from datetime import UTC, datetime
 from pydantic import BaseModel, ConfigDict, Field
 
 __all__ = [
+    "CAPTURE_WAIT_MAX_MS",
     "WorkbenchPreferences",
     "WorkbenchPreferencesUpdate",
 ]
+
+# Longest page settle a capture accepts; chrome_capture.mjs clamps --settle-ms to the same.
+CAPTURE_WAIT_MAX_MS = 30000
 
 
 class WorkbenchPreferences(BaseModel):
@@ -31,7 +35,7 @@ class WorkbenchPreferences(BaseModel):
     capture_viewport_width: int = 1440
     capture_viewport_height: int = 900
     capture_default_media_type: str = "screenshot"
-    capture_wait_timeout_ms: int = Field(default=1500, ge=0, le=30000)  # chrome_capture.mjs range
+    capture_wait_timeout_ms: int = Field(default=1500, ge=0, le=CAPTURE_WAIT_MAX_MS)
     capture_fake_mode: bool = False
 
     # 3. Solution Consultant & Synthesis Defaults
@@ -62,7 +66,7 @@ class WorkbenchPreferencesUpdate(BaseModel):
     capture_viewport_width: int | None = None
     capture_viewport_height: int | None = None
     capture_default_media_type: str | None = None
-    capture_wait_timeout_ms: int | None = Field(default=None, ge=0, le=30000)
+    capture_wait_timeout_ms: int | None = Field(default=None, ge=0, le=CAPTURE_WAIT_MAX_MS)
     capture_fake_mode: bool | None = None
 
     sc_author_name: str | None = None
