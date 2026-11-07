@@ -2,14 +2,15 @@
 # Decide whether a squash merge to main cuts a release, and bump the version when it does.
 # Author: Pierre Grothe
 # Date: 2026-11-07
-"""A release marks a delivered epic, not every merge (ADR-032).
+"""A release marks a shipped PRD, not every merge (ADR-032).
 
-A merge is a release when EITHER it flips some ``.primer/epics/<epic>/epic.md`` to complete
-(it reads as complete after the merge and did not before), OR the pull request carries the
-``release`` label. Versions are CalVer, ``YYYY.MM.N`` (the primer changelog engine's scheme):
-N counts the releases of a UTC month from 0. An ``epic.md`` reads as complete when its
-``Progress:`` line counts N/N stories done, or a ``Status:`` line says complete, done or closed.
-Comparing before with after means editing an epic that was already closed never releases again.
+A merge is a release when EITHER it flips some ``.primer/prd/PRD-*.md`` to shipped (its
+front-matter ``status:`` reads ``shipped`` after the merge and did not before -- what
+``/primer prd ship`` writes), OR the pull request carries the ``release`` label (a hotfix).
+Closing an epic no longer releases on its own: an epic is a slice of work, a PRD is the
+product commitment a release delivers (owner, 2026-11-07). Versions are CalVer, ``YYYY.MM.N``
+(the primer changelog engine's scheme): N counts the releases of a UTC month from 0. Comparing
+before with after means editing a PRD that already shipped never releases again.
 
 Commands::
 
@@ -29,50 +30,51 @@ import sys
 from datetime import UTC, date, datetime
 from pathlib import Path
 
-__all__ = ["bump", "bumped", "completed_epics", "decide", "is_complete", "main"]
+__all__ = ["bump", "bumped", "decide", "is_shipped", "main", "shipped_prds"]
 
-_PROGRESS = re.compile(r"^Progress:\s*(\d+)\s*/\s*(\d+)\s+stories done", re.M | re.I)
-_STATUS = re.compile(r"^Status:\s*(complete|done|closed)\b", re.M | re.I)
+_FRONT_MATTER = re.compile(r"\A---\n(.*?)\n---", re.S)
+_STATUS = re.compile(r"^status:\s*([A-Za-z-]+)\s*$", re.M)
 _PYPROJECT_VERSION = re.compile(r'^(version\s*=\s*")([^"]+)(")', re.M)
 
 
-def is_complete(epic_md: str) -> bool:
-    """Say whether an epic file reads as complete.
+def is_shipped(prd_md: str) -> bool:
+    """Say whether a PRD's front matter marks it shipped.
 
     Args:
-        epic_md: The text of an ``epic.md``.
+        prd_md: The text of a ``PRD-*.md``.
 
     Returns:
-        True when every story is done, or the status says complete, done or closed.
+        True when the front matter's ``status:`` is ``shipped``.
     """
-    if _STATUS.search(epic_md):
-        return True
-    match = _PROGRESS.search(epic_md)
-    return match is not None and match.group(1) == match.group(2) and int(match.group(2)) > 0
+    front = _FRONT_MATTER.match(prd_md)
+    status = _STATUS.search(front.group(1)) if front else None
+    return status is not None and status.group(1).lower() == "shipped"
 
 
 def _git(*args: str) -> str:
     return subprocess.run(["git", *args], capture_output=True, text=True, check=True).stdout
 
 
-def completed_epics(rev: str) -> set[str]:
-    """List the epics that read as complete at a revision.
+def shipped_prds(rev: str) -> set[str]:
+    """List the PRDs marked shipped at a revision.
 
     Args:
         rev: Any git revision.
 
     Returns:
-        The epic folder names whose ``epic.md`` is complete there.
+        The file stems (``PRD-004-otto-memory``) of the shipped PRDs there.
     """
     try:
-        listing = _git("ls-tree", "-r", "-z", "--name-only", rev, "--", ".primer/epics")
+        listing = _git("ls-tree", "-r", "-z", "--name-only", rev, "--", ".primer/prd")
     except subprocess.CalledProcessError:
         return set()  # no such revision: the parent of a root commit
     names = [name for name in listing.split("\0") if name]
     return {
-        Path(name).parent.name
+        Path(name).stem
         for name in names
-        if name.endswith("/epic.md") and is_complete(_git("show", f"{rev}:{name}"))
+        if Path(name).name.startswith("PRD-")
+        and name.endswith(".md")
+        and is_shipped(_git("show", f"{rev}:{name}"))
     }
 
 
@@ -86,12 +88,12 @@ def decide(sha: str, labels: set[str]) -> dict[str, str]:
     Returns:
         ``release`` (true/false) and ``reason``.
     """
-    closed = sorted(completed_epics(sha) - completed_epics(f"{sha}^"))
-    if closed:
-        return {"release": "true", "reason": f"closes {', '.join(closed)}"}
+    shipped = sorted(shipped_prds(sha) - shipped_prds(f"{sha}^"))
+    if shipped:
+        return {"release": "true", "reason": f"ships {', '.join(shipped)}"}
     if "release" in labels:
         return {"release": "true", "reason": "release label"}
-    return {"release": "false", "reason": "no epic closed, no release label"}
+    return {"release": "false", "reason": "no PRD shipped, no release label"}
 
 
 def bumped(version: str, today: date) -> str:

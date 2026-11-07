@@ -7,6 +7,9 @@ internal chores, docs, tests and CI are omitted, and the long-form entries are i
 
 ## [Unreleased]
 
+### Changed
+- governance: a release is cut when a merge ships a PRD, not when an epic closes; the bump commit says chore(version): bump to (ADR-032)
+
 ## [2026.11.1] - 2026-11-07
 
 ### Added

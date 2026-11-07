@@ -1,5 +1,5 @@
 # tests/test_release_workflow.py
-# Releases mark a delivered epic: the release gate, the version bump and the changelog contract.
+# Releases mark a shipped PRD: the release gate, the version bump and the changelog contract.
 # Author: Pierre Grothe
 # Date: 2026-11-07
 """Tests for STORY-067 (ADR-032), on a real git repository in tmp_path."""
@@ -38,80 +38,94 @@ def git(*args: str) -> str:
 
 @pytest.fixture
 def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    """A repository holding one complete epic and one in progress."""
+    """A repository holding one shipped PRD and one accepted PRD."""
     for var in ("AUTHOR", "COMMITTER"):
         monkeypatch.setenv(f"GIT_{var}_NAME", "Test")
         monkeypatch.setenv(f"GIT_{var}_EMAIL", "test@example.com")
     monkeypatch.chdir(tmp_path)
     git("init", "-q", "-b", "main")
     git("config", "commit.gpgsign", "false")
-    _epic("2026.11a-done", "Progress: 7/7 stories done -- COMPLETE")
-    _epic("2026.11c-open", "Progress: 1/2 stories done")
+    _prd("PRD-001-done", "shipped")
+    _prd("PRD-002-open", "accepted")
     return tmp_path
+
+
+def _prd(stem: str, status: str, body: str = "") -> str:
+    path = Path(".primer/prd") / f"{stem}.md"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(f"---\nid: {stem[:7]}\nstatus: {status}\n---\n\n# {stem}\n{body}")
+    git("add", ".")
+    git("commit", "-q", "-m", f"chore: {stem}")
+    return git("rev-parse", "HEAD")
 
 
 def _epic(name: str, progress: str) -> str:
     path = Path(".primer/epics") / name / "epic.md"
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(f"# Epic: {name}\n\nBoard: EPIC-1\n{progress}\n")
+    path.write_text(f"# Epic: {name}\n\n{progress}\n")
     git("add", ".")
     git("commit", "-q", "-m", f"chore: {name}")
     return git("rev-parse", "HEAD")
 
 
 @pytest.mark.parametrize(
-    ("text", "complete"),
+    ("text", "shipped"),
     [
-        ("Progress: 2/2 stories done", True),
-        ("Progress: 7/7 stories done -- COMPLETE", True),
-        ("Status: complete", True),
-        ("Status: done", True),
-        ("Progress: 1/2 stories done", False),
-        ("Progress: 0/0 stories done", False),
-        ("Status: in-progress\nProgress: 0/5 stories done", False),
-        ("no progress line", False),
+        ("---\nid: PRD-1\nstatus: shipped\n---\n", True),
+        ("---\nstatus: Shipped\ntitle: x\n---\nbody\n", True),
+        ("---\nstatus: accepted\n---\n", False),
+        ("---\nstatus: draft\n---\nstatus: shipped\n", False),  # only the front matter counts
+        ("status: shipped\n", False),  # no front matter
+        ("---\nstatus: shipped-ish\n---\n", False),
     ],
 )
-def test_is_complete_reads_the_progress_and_status_lines(text: str, complete: bool) -> None:
-    assert gate.is_complete(text) is complete
+def test_is_shipped_reads_only_the_front_matter_status(text: str, shipped: bool) -> None:
+    assert gate.is_shipped(text) is shipped
 
 
-def test_decide_releases_when_a_merge_closes_an_epic(repo: Path) -> None:
-    sha = _epic("2026.11c-open", "Progress: 2/2 stories done")
-    assert gate.decide(sha, set()) == {"release": "true", "reason": "closes 2026.11c-open"}
+def test_decide_releases_when_a_merge_ships_a_prd(repo: Path) -> None:
+    sha = _prd("PRD-002-open", "shipped")
+    assert gate.decide(sha, set()) == {"release": "true", "reason": "ships PRD-002-open"}
 
 
-def test_decide_treats_a_root_commit_as_closing_its_complete_epics(repo: Path) -> None:
+def test_decide_does_not_release_when_only_an_epic_closes(repo: Path) -> None:
+    sha = _epic("2026.11c-open", "Progress: 2/2 stories done -- COMPLETE")
+    assert gate.decide(sha, set())["release"] == "false"
+
+
+def test_decide_treats_a_root_commit_as_shipping_its_shipped_prds(repo: Path) -> None:
     root = git("rev-list", "--max-parents=0", "HEAD")
-    assert gate.decide(root, set()) == {"release": "true", "reason": "closes 2026.11a-done"}
+    assert gate.decide(root, set()) == {"release": "true", "reason": "ships PRD-001-done"}
 
 
-def test_completed_epics_reads_folder_names_with_spaces(repo: Path) -> None:
-    sha = _epic("2026.12 with space", "Progress: 1/1 stories done")
-    assert "2026.12 with space" in gate.completed_epics(sha)
+def test_shipped_prds_ignores_files_that_are_not_prds(repo: Path) -> None:
+    Path(".primer/prd/README.md").write_text("---\nstatus: shipped\n---\n")
+    git("add", ".")
+    git("commit", "-q", "-m", "chore: readme")
+    assert gate.shipped_prds("HEAD") == {"PRD-001-done"}
 
 
-def test_decide_does_not_release_an_edit_to_a_closed_epic(repo: Path) -> None:
-    sha = _epic("2026.11a-done", "Progress: 7/7 stories done -- COMPLETE (edited)")
+def test_decide_does_not_release_an_edit_to_a_shipped_prd(repo: Path) -> None:
+    sha = _prd("PRD-001-done", "shipped", body="edited\n")
     assert gate.decide(sha, set())["release"] == "false"
 
 
 def test_decide_releases_for_the_release_label_only(repo: Path) -> None:
-    sha = _epic("2026.11c-open", "Progress: 1/2 stories done (note)")
+    sha = _prd("PRD-002-open", "accepted", body="note\n")
     assert gate.decide(sha, {"release"}) == {"release": "true", "reason": "release label"}
     assert gate.decide(sha, {"bug"}) == {
         "release": "false",
-        "reason": "no epic closed, no release label",
+        "reason": "no PRD shipped, no release label",
     }
 
 
 def test_main_decide_writes_the_github_output(
     repo: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    sha = _epic("2026.11c-open", "Progress: 2/2 stories done")
+    sha = _prd("PRD-002-open", "shipped")
     out = tmp_path / "gh-output"
     assert gate.main(["decide", sha, "--labels", " release, ux ", "--github-output", str(out)]) == 0
-    assert out.read_text() == "release=true\nreason=closes 2026.11c-open\n"
+    assert out.read_text() == "release=true\nreason=ships PRD-002-open\n"
     assert "release=true" in capsys.readouterr().out
 
 
@@ -233,11 +247,11 @@ def _guard_matches(subjects: list[str], pr: str) -> bool:
 @pytest.mark.parametrize(
     ("subjects", "pr", "released"),
     [
-        (["chore(release): v2026.11.1 for PR #5 (#6)"], "5", True),
-        (["chore(release): v2026.11.1 for PR #5"], "5", True),
-        (["chore(release): v2026.11.1 for PR #50 (#51)"], "5", False),
-        (["chore(release): v2026.11.1 for PR #5 (#6)"], "50", False),
-        (["feat: something for PR #5 (#6)", "chore(release): v2026.11.0"], "5", False),
+        (["chore(version): bump to v2026.11.1 for PR #5 (#6)"], "5", True),
+        (["chore(version): bump to v2026.11.1 for PR #5"], "5", True),
+        (["chore(version): bump to v2026.11.1 for PR #50 (#51)"], "5", False),
+        (["chore(version): bump to v2026.11.1 for PR #5 (#6)"], "50", False),
+        (["feat: something for PR #5 (#6)", "chore(version): bump to v2026.11.0"], "5", False),
     ],
 )
 def test_release_guard_matches_only_this_prs_bump(
@@ -248,5 +262,5 @@ def test_release_guard_matches_only_this_prs_bump(
 
 def test_release_workflow_bump_subject_carries_the_guard_marker() -> None:
     land = _release_steps()["Land the bump through a pull request and tag it"]
-    assert 'git commit -m "chore(release): v$VERSION for PR #$PR"' in land
-    assert '--title "chore(release): v$VERSION for PR #$PR"' in land
+    assert 'git commit -m "chore(version): bump to v$VERSION for PR #$PR"' in land
+    assert '--title "chore(version): bump to v$VERSION for PR #$PR"' in land
