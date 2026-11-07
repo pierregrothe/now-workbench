@@ -393,6 +393,80 @@
           "status": "done"
         }
       ]
+    },
+    {
+      "id": "EPIC-017",
+      "title": "Tester Safeguards and Hardening",
+      "status": "in-progress",
+      "stories": [
+        {
+          "id": "STORY-054",
+          "title": "Monthly Claude usage allowance per person, enforced",
+          "status": "backlog"
+        },
+        {
+          "id": "STORY-055",
+          "title": "Admin settings for usage allowances",
+          "status": "backlog"
+        },
+        {
+          "id": "STORY-056",
+          "title": "CLI rejects bundle IDs that escape the bundles folder",
+          "status": "backlog"
+        },
+        {
+          "id": "STORY-057",
+          "title": "Capture verifies instance TLS certificates",
+          "status": "backlog"
+        },
+        {
+          "id": "STORY-058",
+          "title": "ADR-013 audit: no component shows made-up data when offline",
+          "status": "backlog"
+        },
+        {
+          "id": "STORY-059",
+          "title": "Otto's follow-ups know what tools he used",
+          "status": "backlog"
+        },
+        {
+          "id": "STORY-060",
+          "title": "Mechanical checks for the three unguarded policies",
+          "status": "backlog"
+        }
+      ]
+    },
+    {
+      "id": "EPIC-018",
+      "title": "Conversation Polish and Housekeeping",
+      "status": "backlog",
+      "stories": [
+        {
+          "id": "STORY-061",
+          "title": "Thumbs up/down and Get help under Otto's replies",
+          "status": "backlog"
+        },
+        {
+          "id": "STORY-062",
+          "title": "Synthesizer and Media Capture in the Otto look",
+          "status": "backlog"
+        },
+        {
+          "id": "STORY-063",
+          "title": "Fluent Explorer and Artifact library cards in the Otto look",
+          "status": "backlog"
+        },
+        {
+          "id": "STORY-064",
+          "title": "Remove a deployed demo app from an instance",
+          "status": "backlog"
+        },
+        {
+          "id": "STORY-065",
+          "title": "Tests mirror the platform / domains / interfaces layout",
+          "status": "backlog"
+        }
+      ]
     }
   ]
 }
