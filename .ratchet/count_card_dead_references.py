@@ -171,6 +171,7 @@ class Index:
     modules: set[str] = field(default_factory=set)
     open_classes: set[str] = field(default_factory=set)
     values: set[str] = field(default_factory=set)
+    class_attributes: set[str] = field(default_factory=set)
 
     def resolves(self, name: str) -> bool:
         """Say whether a (dotted) name is defined, each part a member of the part before it.
@@ -187,8 +188,10 @@ class Index:
         for parent, part in itertools.pairwise(parts):
             if parent in self.open_classes:
                 continue
-            if parent in self.values:  # a variable of unknown type: the member must exist somewhere
-                if part not in self.names:
+            if parent in self.values:
+                # Also a variable of unknown type: the member must belong to that module or to
+                # some class in src (`settings.get_data_dir` is a Settings attribute).
+                if part not in self.members.get(parent, set()) | self.class_attributes:
                     return False
                 continue
             known = self.members.get(parent)
@@ -226,17 +229,20 @@ def build_index(src: Path = SRC) -> Index:
         tree = ast.parse(path.read_text(encoding="utf-8"))
         package = rel[:-1] if rel[-1] == "__init__" else rel
         owner = package[-1] if package else src.name
-        parent = package[-2] if len(package) > 1 else src.name
         index.members.setdefault(owner, set()).update(_top_level(tree))
-        if package:
-            index.members.setdefault(parent, set()).add(owner)
+        # Link every directory on the path to its parent (a folder may have no __init__.py).
+        chain = (src.name, *package)
+        for up, down in itertools.pairwise(chain):
+            index.members.setdefault(up, set()).add(down)
         for node in ast.walk(tree):
             index.names |= _bound_names(node)
             match node:
                 case ast.Name(id=name, ctx=ast.Store()) | ast.arg(arg=name):
                     index.values.add(name)
             if isinstance(node, ast.ClassDef):
-                index.members.setdefault(node.name, set()).update(_class_members(node))
+                members = _class_members(node)
+                index.members.setdefault(node.name, set()).update(members)
+                index.class_attributes |= members
                 index.names |= _env_names(node)
                 bases.setdefault(node.name, set()).update(
                     ast.unparse(b).split("[")[0] for b in node.bases
