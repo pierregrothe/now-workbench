@@ -32,8 +32,10 @@ from pathlib import Path
 
 __all__ = ["bump", "bumped", "decide", "is_shipped", "main", "shipped_prds"]
 
-_FRONT_MATTER = re.compile(r"\A---\n(.*?)\n---", re.S)
-_STATUS = re.compile(r"^status:\s*([A-Za-z-]+)\s*$", re.M)
+# Tolerant of CRLF, a leading BOM, quoted values and a trailing comment, so an unusual PRD file
+# never silently skips a release.
+_FRONT_MATTER = re.compile(r"\A\ufeff?---\r?\n(.*?)\r?\n---\r?$", re.S | re.M)
+_STATUS = re.compile(r"^status:\s*[\"']?([A-Za-z-]+)[\"']?\s*(?:#.*)?\r?$", re.M)
 _PYPROJECT_VERSION = re.compile(r'^(version\s*=\s*")([^"]+)(")', re.M)
 
 

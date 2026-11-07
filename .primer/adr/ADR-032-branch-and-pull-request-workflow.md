@@ -35,7 +35,8 @@ and already apply.
 - **Merge subjects:** a prepare-commit-msg hook rewrites git's `Merge ...` subject to
   `chore(merge): Merge ...` so local merges pass the strict commit-msg gate.
 - **Releases (story 02; trigger revised 2026-11-07):** a merge that flips a PRD to
-  `status: shipped` (`/primer prd ship`), or that carries the `release` label, bumps the version, rolls `CHANGELOG.md`, tags and publishes a release from
+  `status: shipped` (`/primer prd ship`), or that carries the `release` label,
+  bumps the version, rolls `CHANGELOG.md`, tags and publishes a release from
   GitHub Actions. Versions are CalVer `YYYY.MM.N` (N counts a UTC month's releases from 0),
   the primer changelog engine's scheme and alphaseeker's; the owner chose it over SemVer
   (2026-11-07), so the first release turns 0.1.0 into 2026.11.0. Each PR adds one changelog

@@ -77,6 +77,11 @@ def _epic(name: str, progress: str) -> str:
         ("---\nstatus: draft\n---\nstatus: shipped\n", False),  # only the front matter counts
         ("status: shipped\n", False),  # no front matter
         ("---\nstatus: shipped-ish\n---\n", False),
+        ("---\r\nstatus: shipped\r\n---\r\n", True),
+        ("\ufeff---\nstatus: shipped\n---\n", True),
+        ('---\nstatus: "shipped"\n---\n', True),
+        ("---\nstatus: shipped  # done 2026-11-07\n---\n", True),
+        ("---\nstatus: shipped\n----\n", False),
     ],
 )
 def test_is_shipped_reads_only_the_front_matter_status(text: str, shipped: bool) -> None:
