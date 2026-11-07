@@ -1,14 +1,13 @@
 """CLI subcommands for system property management and demo reset."""
 
 import asyncio
-import sqlite3
 
 import typer
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
-from now_workbench.domains.instances import InstanceRecord, InstanceRepository
+from now_workbench.domains.instances import InstanceRepository
 from now_workbench.domains.properties import PropertyEngine
 from now_workbench.domains.seed import SeedEngine, SeedRepository
 from now_workbench.platform.config.settings import settings
@@ -19,16 +18,6 @@ properties_app = typer.Typer(
     help="Inspect, apply, and restore demonstration system properties",
 )
 console = Console()
-
-
-def _get_target_instance(
-    conn: sqlite3.Connection, instance_id: str | None
-) -> InstanceRecord | None:
-    """Resolve target instance from repository."""
-    instance_repo = InstanceRepository(conn)
-    if instance_id:
-        return instance_repo.get_instance(instance_id)
-    return instance_repo.get_default_instance()
 
 
 @properties_app.command("inspect")
@@ -72,7 +61,7 @@ def apply_properties(
         raise typer.Exit(code=1)
 
     with db_session() as conn:
-        inst = _get_target_instance(conn, instance)
+        inst = InstanceRepository(conn).resolve(instance)
     if not inst:
         console.print("[bold red]Error:[/bold red] Target instance not found.")
         raise typer.Exit(code=1)
@@ -110,7 +99,7 @@ def restore_properties(
 ) -> None:
     """Restore original system properties from snapshot."""
     with db_session() as conn:
-        inst = _get_target_instance(conn, instance)
+        inst = InstanceRepository(conn).resolve(instance)
     if not inst:
         console.print("[bold red]Error:[/bold red] Target instance not found.")
         raise typer.Exit(code=1)
@@ -151,7 +140,7 @@ def reset_demo_cmd(
         raise typer.Exit(code=1)
 
     with db_session() as conn:
-        inst = _get_target_instance(conn, instance)
+        inst = InstanceRepository(conn).resolve(instance)
         if not inst:
             console.print("[bold red]Error:[/bold red] Target instance not found.")
             raise typer.Exit(code=1)

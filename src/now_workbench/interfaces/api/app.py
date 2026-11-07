@@ -337,12 +337,7 @@ def _register_build_deploy(
         target = _accessible_bundle(bundle_id)
 
         with db_session() as conn:
-            instance_repo = InstanceRepository(conn)
-            target_inst = (
-                instance_repo.get_instance(req.instance_id)
-                if req.instance_id
-                else instance_repo.get_default_instance()
-            )
+            target_inst = InstanceRepository(conn).resolve(req.instance_id)
         if target_inst is None:
             if req.instance_id:
                 raise HTTPException(status_code=404, detail="Instance not found")

@@ -1,6 +1,7 @@
 """API routes for demonstration bundles and transactional seed operations."""
 
 import os
+import sqlite3
 import tempfile
 from pathlib import Path
 from typing import Any
@@ -23,7 +24,7 @@ from now_workbench.domains.demos import (
     DemoPipelineSummary,
 )
 from now_workbench.domains.fluent import FluentEngine
-from now_workbench.domains.instances import InstanceRepository
+from now_workbench.domains.instances import InstanceRecord, InstanceRepository
 from now_workbench.domains.properties import PropertyEngine
 from now_workbench.domains.runbooks import RunbookEngine, RunbookGuide
 from now_workbench.domains.seed import SeedEngine, SeedOperationRecord, SeedRepository
@@ -124,6 +125,16 @@ def _info(access: BundleAccess) -> DemoBundleInfo:
     return info.model_copy(
         update={"owner_email": access.owner, "access": access.kind.value, "version": access.version}
     )
+
+
+def _target_instance(
+    conn: sqlite3.Connection, instance_id: str | None, missing: str = "Target instance not found."
+) -> InstanceRecord:
+    """Return the requested (or default) instance; HTTP 400 with ``missing`` when there is none."""
+    inst = InstanceRepository(conn).resolve(instance_id)
+    if inst is None:
+        raise HTTPException(status_code=400, detail=missing)
+    return inst
 
 
 @router.get("", response_model=list[DemoBundleInfo])
@@ -304,14 +315,7 @@ async def verify_demo_stage(
         )
 
     with db_session() as conn:
-        instance_repo = InstanceRepository(conn)
-        inst = (
-            instance_repo.get_instance(req.instance_id)
-            if req.instance_id
-            else instance_repo.get_default_instance()
-        )
-    if not inst:
-        raise HTTPException(status_code=400, detail="Target instance not found.")
+        inst = _target_instance(conn, req.instance_id)
 
     ok, msg = await engine.verify_stage(matching_stage, inst, fake_mode=req.fake_mode)
     return {
@@ -331,12 +335,7 @@ def get_bundle_properties(bundle_id: str, instance_id: str | None = None) -> dic
     props = prop_engine.read_bundle_properties(target)
 
     with db_session() as conn:
-        instance_repo = InstanceRepository(conn)
-        inst = (
-            instance_repo.get_instance(instance_id)
-            if instance_id
-            else instance_repo.get_default_instance()
-        )
+        inst = InstanceRepository(conn).resolve(instance_id)
     snapshot = prop_engine.load_snapshot(bundle_id, inst.id) if inst else None
 
     return {
@@ -357,14 +356,7 @@ async def apply_bundle_properties(
     target = _access(bundle_id).path
 
     with db_session() as conn:
-        instance_repo = InstanceRepository(conn)
-        inst = (
-            instance_repo.get_instance(req.instance_id)
-            if req.instance_id
-            else instance_repo.get_default_instance()
-        )
-    if not inst:
-        raise HTTPException(status_code=400, detail="Target instance not found.")
+        inst = _target_instance(conn, req.instance_id)
 
     prop_engine = PropertyEngine()
     res = await prop_engine.apply_bundle_properties(
@@ -385,14 +377,7 @@ async def restore_bundle_properties(
     _access(bundle_id)
 
     with db_session() as conn:
-        instance_repo = InstanceRepository(conn)
-        inst = (
-            instance_repo.get_instance(req.instance_id)
-            if req.instance_id
-            else instance_repo.get_default_instance()
-        )
-    if not inst:
-        raise HTTPException(status_code=400, detail="Target instance not found.")
+        inst = _target_instance(conn, req.instance_id)
 
     prop_engine = PropertyEngine()
     res = await prop_engine.restore_properties(
@@ -412,14 +397,7 @@ async def reset_demo(
     _access(bundle_id)
 
     with db_session() as conn:
-        instance_repo = InstanceRepository(conn)
-        inst = (
-            instance_repo.get_instance(req.instance_id)
-            if req.instance_id
-            else instance_repo.get_default_instance()
-        )
-        if not inst:
-            raise HTTPException(status_code=400, detail="Target instance not found.")
+        inst = _target_instance(conn, req.instance_id)
 
         # 1. Roll back active seed records for this bundle and instance
         seed_engine = SeedEngine(conn=conn, fake_mode=req.fake_mode)
@@ -520,13 +498,8 @@ async def create_demo_capture(bundle_id: str, req: CaptureRequest) -> CaptureArt
     """Capture a screenshot or video of the target instance for this bundle (owner only)."""
     _access(bundle_id, write=True)
     with db_session() as conn:
-        instance_repo = InstanceRepository(conn)
         prefs = PreferencesRepository(conn).get_workbench_preferences()
-        inst = (
-            instance_repo.get_instance(req.instance_id)
-            if req.instance_id
-            else instance_repo.get_default_instance()
-        )
+        inst = InstanceRepository(conn).resolve(req.instance_id)
     if inst is None:
         if req.instance_id:
             raise HTTPException(status_code=404, detail="Instance not found.")
@@ -634,14 +607,7 @@ def evaluate_demo_prerequisites(
     """Evaluate demo bundle prerequisites against the target or default instance."""
     bundles_dir = _access(bundle_id).root
     with db_session() as conn:
-        instance_repo = InstanceRepository(conn)
-        inst = (
-            instance_repo.get_instance(instance_id)
-            if instance_id
-            else instance_repo.get_default_instance()
-        )
-        if not inst:
-            raise HTTPException(status_code=400, detail="No active instance configured.")
+        inst = _target_instance(conn, instance_id, "No active instance configured.")
         prefs = PreferencesRepository(conn).get_workbench_preferences()
         engine = DemoPipelineEngine(bundles_dir=bundles_dir, conn=conn)
         try:
@@ -662,14 +628,7 @@ async def run_demo_pipeline_endpoint(
     _access(bundle_id, write=True)
     bundles_dir = settings.get_bundles_dir()
     with db_session() as conn:
-        instance_repo = InstanceRepository(conn)
-        inst = (
-            instance_repo.get_instance(instance_id)
-            if instance_id
-            else instance_repo.get_default_instance()
-        )
-        if not inst:
-            raise HTTPException(status_code=400, detail="No active instance configured.")
+        inst = _target_instance(conn, instance_id, "No active instance configured.")
         prefs = PreferencesRepository(conn).get_workbench_preferences()
         engine = DemoPipelineEngine(bundles_dir=bundles_dir, conn=conn)
         try:

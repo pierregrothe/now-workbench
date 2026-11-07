@@ -397,12 +397,7 @@ def verify_stage_demo(
         raise typer.Exit(code=1)
 
     with db_session() as conn:
-        instance_repo = InstanceRepository(conn)
-        inst = (
-            instance_repo.get_instance(instance_id)
-            if instance_id
-            else instance_repo.get_default_instance()
-        )
+        inst = InstanceRepository(conn).resolve(instance_id)
     if not inst:
         console.print("[red]Target instance not found in registry.[/red]")
         raise typer.Exit(code=1)

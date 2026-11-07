@@ -131,6 +131,17 @@ class InstanceRepository(Repository):
             self.conn.execute("UPDATE instances SET is_default = 1 WHERE id = ?;", (first["id"],))
         return self.get_instance(first["id"])
 
+    def resolve(self, instance_id: str | None) -> InstanceRecord | None:
+        """Return the named instance, or the owner's default when no id is given.
+
+        Args:
+            instance_id: An instance id, or None/"" for the default instance.
+
+        Returns:
+            The instance, or None when it does not exist (or none is registered).
+        """
+        return self.get_instance(instance_id) if instance_id else self.get_default_instance()
+
     def add_instance(self, inst: InstanceCreate) -> InstanceRecord:
         """Register (or replace by id) an instance in the registry.
 

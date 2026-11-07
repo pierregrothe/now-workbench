@@ -77,12 +77,7 @@ def capture_demo_cmd(
 ) -> None:
     """Capture a Playwright screenshot (.png) or video (.webm) of the target instance."""
     with db_session() as conn:
-        instance_repo = InstanceRepository(conn)
-        inst = (
-            instance_repo.get_instance(instance)
-            if instance
-            else instance_repo.get_default_instance()
-        )
+        inst = InstanceRepository(conn).resolve(instance)
     if inst is None:
         target = (
             f"Instance '{instance}' not found" if instance else "No default instance registered"

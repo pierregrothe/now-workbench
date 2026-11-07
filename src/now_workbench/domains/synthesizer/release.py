@@ -42,11 +42,7 @@ def resolve_synthesis_release(
     instance_repo = InstanceRepository(conn)
     if explicit:
         return explicit
-    inst = (
-        instance_repo.get_instance(instance_id)
-        if instance_id
-        else instance_repo.get_default_instance()
-    )
+    inst = instance_repo.resolve(instance_id)
     if instance_id and inst is None:
         raise LookupError(f"Instance '{instance_id}' not found")
     if inst is not None:
