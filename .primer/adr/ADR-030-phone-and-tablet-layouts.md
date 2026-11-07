@@ -37,10 +37,12 @@ portrait (iPad 820), and desktop unchanged.
 
 ## Consequences
 
-- `web/e2e/mobile.spec.ts` (16 tests) covers it:
+- `web/e2e/mobile.spec.ts` (19 tests) covers it:
   - the drawer opens, closes and navigates;
   - no screen scrolls sideways at phone width, and in landscape;
   - the settings strip, the order of the action form, the 16px fields, and no tooltip on tap;
   - the tablet rail, and the desktop without the phone bar.
-- The command palette is keyboard-only (Cmd+K), so phones do not reach it. Its screens are
-  in the drawer; whether its other shortcuts need a touch entry is open.
+- The command palette opens by touch too (amended 2026-11-07): a search button in the phone
+  top bar and a "Command palette" item in the rail (iPads without a keyboard), through the
+  `open-command-palette` event. On phones it fills the width with a 16px search; keyboard
+  tips and shortcut letters are hidden on touch screens. Cmd+K is unchanged.

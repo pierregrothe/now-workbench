@@ -64,3 +64,11 @@ export const attachIcon = (size = 18): TemplateResult => html`
     <path d="M15.5 9.2 9.6 15.1a3.6 3.6 0 0 1-5.1-5.1l6.3-6.3a2.4 2.4 0 0 1 3.4 3.4l-6.2 6.2a1.2 1.2 0 0 1-1.7-1.7l5.6-5.6" />
   </svg>
 `;
+
+/** Magnifier, the command palette entry for touch and mouse. */
+export const searchIcon = (size = 18): TemplateResult => html`
+  <svg viewBox="0 0 24 24" width=${size} height=${size} aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
+    <circle cx="10.5" cy="10.5" r="6.5" />
+    <path d="m15.5 15.5 4.5 4.5" />
+  </svg>
+`;

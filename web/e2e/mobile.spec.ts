@@ -90,6 +90,17 @@ test.describe('phone portrait (iPhone size)', () => {
     expect(size).toBeGreaterThanOrEqual(16);
   });
 
+  test('the top bar opens the command palette and a command navigates', async ({ page }) => {
+    await page.goto('/#home');
+    await page.locator('now-mobile-bar').getByRole('button', { name: 'Open command palette' }).tap();
+    const search = page.locator('now-command-palette .search-input');
+    await expect(search).toBeVisible();
+    expect(await search.evaluate((el) => parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(16);
+    await page.locator('now-command-palette').getByText('Workbench Settings').tap();
+    await expect(search).toHaveCount(0);
+    await expect(page).toHaveURL(/#admin$/);
+  });
+
   test('a tap shows no tooltip', async ({ page }) => {
     await page.goto('/#artifacts');
     await page.locator('button[title="Clone Demonstration Bundle"]').first().tap();
@@ -119,6 +130,26 @@ test.describe('tablet portrait (iPad size)', () => {
     expect(strip?.height ?? 0).toBeLessThan(80);
     await expectNoSidewaysScroll(page);
   });
+});
+
+test.describe('tablet without a keyboard', () => {
+  test.use({ viewport: { width: 820, height: 1180 }, hasTouch: true });
+
+  test('the rail opens the command palette', async ({ page }) => {
+    await page.goto('/#home');
+    await page.locator('now-nav-rail').getByRole('button', { name: 'Command palette' }).tap();
+    await expect(page.locator('now-command-palette .search-input')).toBeVisible();
+  });
+});
+
+test('Cmd+K still opens and closes the command palette on a desktop', async ({ page }) => {
+  await page.goto('/#home');
+  await page.locator('now-nav-rail').waitFor();
+  const search = page.locator('now-command-palette .search-input');
+  await page.keyboard.press('ControlOrMeta+k');
+  await expect(search).toBeVisible();
+  await page.keyboard.press('ControlOrMeta+k');
+  await expect(search).toHaveCount(0);
 });
 
 test('a desktop keeps the rail and has no phone bar', async ({ page }) => {

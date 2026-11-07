@@ -42,6 +42,10 @@ export const mobileBarStyles = css`
     background: rgba(22, 24, 29, 0.08);
   }
 
+  button.palette {
+    margin-left: auto;
+  }
+
   h1 {
     margin: 0;
     font-size: 16px;

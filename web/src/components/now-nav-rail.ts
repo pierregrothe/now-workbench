@@ -1,7 +1,8 @@
 import { LitElement, html } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { workbenchStore } from '../context/workbench-context.js';
-import { libraryIcon, menuToggleIcon } from '../icons.js';
+import { libraryIcon, menuToggleIcon, searchIcon } from '../icons.js';
+import { OPEN_PALETTE_EVENT } from './now-command-palette.js';
 import { renderAvatar, roleSummary } from '../profile/avatars.js';
 import { StoreController } from '../controllers/store-controller.js';
 import { navRailStyles } from './now-nav-rail-styles.js';
@@ -369,6 +370,15 @@ export class NowNavRail extends LitElement {
         <div class="spacer"></div>
 
         <div class="bottom-utilities">
+          <button
+            class="nav-row"
+            title="Command palette (Cmd+K)"
+            @click=${() => this.dispatchEvent(new CustomEvent(OPEN_PALETTE_EVENT, { bubbles: true, composed: true }))}
+          >
+            <span class="nav-icon">${searchIcon()}</span>
+            ${!this.collapsed ? html`<span>Command palette</span>` : ''}
+          </button>
+
           <button
             class="nav-row"
             title="Welcome to Now Workbench"

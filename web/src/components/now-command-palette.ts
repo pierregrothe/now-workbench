@@ -80,6 +80,9 @@ const DEFAULT_COMMANDS: PaletteCommand[] = [
   },
 ]
 
+/** Fired (bubbling, composed) by any control that opens the palette by tap or click. */
+export const OPEN_PALETTE_EVENT = 'open-command-palette'
+
 @customElement('now-command-palette')
 export class NowCommandPalette extends LitElement {
   @property({ type: Boolean }) open = false
@@ -268,30 +271,76 @@ export class NowCommandPalette extends LitElement {
       font-size: 10.5px;
       box-shadow: 0 1px 1px rgba(0, 0, 0, 0.05);
     }
+
+    /* Phones (ADR-030): near the top, full width, 16px search so iOS does not zoom. */
+    @media (max-width: 768px), (max-height: 500px) {
+      .palette-backdrop {
+        padding: calc(8px + env(safe-area-inset-top, 0px)) 8px 8px;
+      }
+
+      .palette-window {
+        width: 100%;
+        max-width: none;
+        max-height: 100%;
+      }
+
+      .search-input {
+        font-size: 16px;
+      }
+
+      .results-list {
+        max-height: none;
+        flex: 1;
+      }
+
+      .command-item {
+        min-height: 44px;
+      }
+
+      /* The bracket tags crowd the titles on a narrow screen; the category stays. */
+      .search-icon,
+      .command-icon {
+        display: none;
+      }
+    }
+
+    /* Touch screens have no arrow keys or Enter to explain. */
+    @media (hover: none) {
+      .kbd-tips,
+      .shortcut-key {
+        display: none;
+      }
+    }
   `
 
   connectedCallback() {
     super.connectedCallback()
     window.addEventListener('keydown', this.handleGlobalKeyDown)
+    window.addEventListener(OPEN_PALETTE_EVENT, this.show)
   }
 
   disconnectedCallback() {
     window.removeEventListener('keydown', this.handleGlobalKeyDown)
+    window.removeEventListener(OPEN_PALETTE_EVENT, this.show)
     super.disconnectedCallback()
   }
 
   private handleGlobalKeyDown = (e: KeyboardEvent) => {
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
       e.preventDefault()
-      this.open = !this.open
-      if (this.open) {
-        this.query = ''
-        this.selectedIndex = 0
-        this.focusInput()
-      }
+      if (this.open) this.close()
+      else this.show()
     } else if (e.key === 'Escape' && this.open) {
       this.close()
     }
+  }
+
+  /** Open with an empty search and the first command selected (Cmd+K, a tap, a click). */
+  show = (): void => {
+    this.open = true
+    this.query = ''
+    this.selectedIndex = 0
+    this.focusInput()
   }
 
   private focusInput() {
