@@ -234,3 +234,17 @@ policies:
         id: guard-push
         stage: push
     status: enforced
+
+  - slug: domain-cards
+    name: Domain cards name only code that exists, and are nudged when they fall behind
+    category: architecture
+    constitutional: false
+    justifying_adrs: [ADR-033]
+    checks:
+      - kind: ratchet
+        id: card-dead-references
+        stage: commit
+      - kind: pre-commit-hook
+        id: domain-card-freshness
+        stage: push
+    status: enforced

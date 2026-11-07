@@ -67,3 +67,15 @@ and already apply.
   caught that way needs its run re-started by hand. The bump PR step is re-entrant (it
   force-updates a stale `release/vX` and reuses its open PR). A rerun after the bump already
   merged stops at a guard instead of cutting a second version; tag or publish that one by hand.
+
+## Repository settings (2026-11-07)
+
+Applied on the owner's request "prevent anyone from making any changes except for me":
+
+- A tag ruleset makes `v*` tags permanent.
+- Interactions are limited to collaborators until 2027-05-07 (GitHub's maximum; renew it).
+- Wiki and projects are off; merges are squash only, and branches are deleted on merge.
+- Actions: only GitHub-owned actions and `astral-sh/setup-uv`; workflows on any outside
+  contributor's PR need approval; Actions may open and merge pull requests (the release bot).
+- Secret scanning with push protection, Dependabot alerts and security updates, and private
+  vulnerability reporting are on.

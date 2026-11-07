@@ -484,6 +484,33 @@
           "status": "done"
         }
       ]
+    },
+    {
+      "id": "EPIC-020",
+      "title": "Domain Cards and Capability Search",
+      "status": "in-progress",
+      "stories": [
+        {
+          "id": "STORY-068",
+          "title": "Ratchet on dead identifiers in domain cards",
+          "status": "done"
+        },
+        {
+          "id": "STORY-069",
+          "title": "Advisory freshness nudge for domain cards",
+          "status": "done"
+        },
+        {
+          "id": "STORY-070",
+          "title": "A card for each of the 19 domains",
+          "status": "backlog"
+        },
+        {
+          "id": "STORY-071",
+          "title": "Capability search, lexical and Jev-backed",
+          "status": "backlog"
+        }
+      ]
     }
   ]
 }
