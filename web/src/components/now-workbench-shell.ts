@@ -17,13 +17,8 @@ import './now-command-palette.js';
 import { smartTooltip } from '../utils/tooltip.js';
 import { workbenchStore } from '../context/workbench-context.js';
 import { workbenchShellStyles } from './now-workbench-shell-styles.js';
-
-interface DetectedIntent {
-  tab: string;
-  menuLabel: string;
-  explanation: string;
-  isQuestion?: boolean;
-}
+import { ThreadListController } from '../controllers/thread-list-controller.js';
+import { detectIntent } from '../utils/intent-router.js';
 
 const VALID_SHELL_TABS = new Set([
   'home',
@@ -99,39 +94,12 @@ export class NowWorkbenchShell extends LitElement {
       }
     }
     void this.loadInitialPreferences();
-    void this.loadThreads();
   }
 
   disconnectedCallback(): void {
     super.disconnectedCallback();
     if (typeof window !== 'undefined') {
       window.removeEventListener('hashchange', this.handleWindowHashChange);
-    }
-  }
-
-  private async loadThreads(): Promise<void> {
-    try {
-      const res = await fetch('/api/threads?include_archived=true');
-      if (res.ok) {
-        const list = (await res.json()) as Array<{
-          id: string;
-          title: string;
-          archived?: boolean;
-          target_tab?: string;
-          tokens_used?: number;
-          max_tokens?: number;
-        }>;
-        this.recentThreads = list.map((t) => ({
-          id: t.id,
-          title: t.title,
-          targetTab: t.target_tab || 'home',
-          archived: Boolean(t.archived),
-          tokensUsed: t.tokens_used ?? 0,
-          maxTokens: t.max_tokens ?? 2000000,
-        }));
-      }
-    } catch {
-      // Offline preview keeps existing threads
     }
   }
 
@@ -158,137 +126,14 @@ export class NowWorkbenchShell extends LitElement {
   @state() private lastIntentExplanation =
     'AI Intent Router active. Describe an action below to switch menus or update the current workspace.';
 
-  @state() private recentThreads: NavThreadItem[] = [];
-  @state() private threadError = '';
-
-  private detectIntentFromPrompt(prompt: string): DetectedIntent {
-    const lower = prompt.toLowerCase().trim();
-
-    // 1. Informational Questions & Conversational Otto Sessions
-    const isQuestion =
-      lower.endsWith('?') ||
-      lower.startsWith('what') ||
-      lower.startsWith('how') ||
-      lower.startsWith('why') ||
-      lower.startsWith('where') ||
-      lower.startsWith('who') ||
-      lower.startsWith('when') ||
-      lower.startsWith('which') ||
-      lower.startsWith('can ') ||
-      lower.startsWith('could ') ||
-      lower.startsWith('would ') ||
-      lower.startsWith('tell me') ||
-      lower.startsWith('explain') ||
-      lower.startsWith('describe') ||
-      lower.startsWith('help') ||
-      lower.startsWith('is ') ||
-      lower.startsWith('are ') ||
-      lower.startsWith('does ') ||
-      lower.startsWith('do ') ||
-      lower.startsWith('show ') ||
-      lower.startsWith('review ') ||
-      lower.startsWith('investigate') ||
-      lower.includes('what is') ||
-      lower.includes('what are') ||
-      lower.includes('how do') ||
-      lower.includes('how can') ||
-      lower.includes('how to') ||
-      lower.includes('tell me about') ||
-      lower.includes('instande') ||
-      lower.includes('recipe') ||
-      lower.includes('update set') ||
-      lower.includes('demohub');
-
-    if (isQuestion) {
-      return {
-        tab: 'home',
-        menuLabel: 'Otto AI Copilot',
-        explanation: 'Conversational question -> Answered by Otto AI Copilot',
-        isQuestion: true,
-      };
-    }
-
-    // 2. Explicit Navigation Commands to Settings
-    const isExplicitSettings =
-      (lower.startsWith('go to') ||
-        lower.startsWith('open') ||
-        lower.startsWith('navigate to') ||
-        lower === 'settings' ||
-        lower === 'admin') &&
-      (lower.includes('setting') ||
-        lower.includes('admin') ||
-        lower.includes('config') ||
-        lower.includes('instance') ||
-        lower.includes('preference'));
-
-    if (isExplicitSettings) {
-      return {
-        tab: 'admin',
-        menuLabel: 'Instance Settings',
-        explanation: 'Explicit navigation -> Opening Workbench Settings',
-      };
-    }
-
-    // 3. Media Capture Intent
-    if (
-      lower.includes('screenshot') ||
-      lower.includes('video') ||
-      lower.includes('capture') ||
-      lower.includes('.webm') ||
-      lower.includes('.png') ||
-      lower.includes('record')
-    ) {
-      return {
-        tab: 'capture',
-        menuLabel: 'Media Capture',
-        explanation: `Detected media capture intent -> Routed to Media Capture for "${prompt.slice(0, 64)}"`,
-      };
-    }
-
-    // 4. Fluent SDK Schema Intent
-    if (
-      lower.includes('fluent') ||
-      lower.includes('schema') ||
-      lower.includes('.now.ts') ||
-      lower.includes('diff') ||
-      lower.includes('column')
-    ) {
-      return {
-        tab: 'fluent',
-        menuLabel: 'Fluent SDK Explorer',
-        explanation: 'Detected Fluent schema intent -> Routed to Fluent SDK Explorer',
-      };
-    }
-
-    // 5. Artifact Library / Demo Catalog Intent
-    if (
-      lower.includes('catalog') ||
-      lower.includes('artifact') ||
-      lower.includes('library') ||
-      lower.includes('rollback') ||
-      lower.includes('unseed')
-    ) {
-      return {
-        tab: 'artifacts',
-        menuLabel: 'Artifact Library',
-        explanation: 'Detected bundle catalog intent -> Routed to Artifact Library',
-      };
-    }
-
-    // 6. Default to Use-Case Synthesis
-    return {
-      tab: 'synthesizer',
-      menuLabel: 'Use-Case Synthesizer',
-      explanation: 'Detected use-case demo synthesis intent -> Routed to Use-Case Synthesizer & SC Narrative Studio',
-    };
-  }
+  private readonly threads = new ThreadListController(this);
 
   private async handleIntentPrompt(prompt: string, stayInOtto = false): Promise<void> {
     const clean = prompt.trim();
     if (!clean) {
       return;
     }
-    const detected = this.detectIntentFromPrompt(clean);
+    const detected = detectIntent(clean);
     const targetTab = stayInOtto || detected.isQuestion ? 'home' : detected.tab;
     const shortTitle = clean.length > 38 ? `${clean.slice(0, 38)}...` : clean;
 
@@ -336,51 +181,10 @@ export class NowWorkbenchShell extends LitElement {
     this.lastIntentExplanation = `Opened conversation "${thread.title}"`;
   }
 
-  private async requestThreadApi(
-    action: string,
-    url: string,
-    init: RequestInit
-  ): Promise<Response | null> {
-    try {
-      const res = await fetch(url, init);
-      if (res.ok) {
-        this.threadError = '';
-        return res;
-      }
-      this.threadError = `Could not ${action}: HTTP ${res.status}`;
-    } catch (err) {
-      this.threadError = `Could not ${action}: ${err instanceof Error ? err.message : String(err)}`;
-    }
-    return null;
-  }
-
   private async startOttoThread(title: string, firstMessage?: string): Promise<void> {
-    const createRes = await this.requestThreadApi('create conversation', '/api/threads', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title, target_tab: 'home' }),
-    });
-    if (!createRes) {
-      return;
-    }
-    const created = (await createRes.json()) as { id: string; title: string };
-    if (firstMessage !== undefined) {
-      const msgRes = await this.requestThreadApi(
-        'send message',
-        `/api/threads/${created.id}/messages`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ content: firstMessage, role: 'user' }),
-        }
-      );
-      if (!msgRes) {
-        await this.loadThreads();
-        return;
-      }
-    }
-    await this.loadThreads();
-    this.activeThreadId = created.id;
+    const id = await this.threads.create(title, firstMessage);
+    if (!id) return;
+    this.activeThreadId = id;
     this.setActiveTab('home');
   }
 
@@ -394,35 +198,16 @@ export class NowWorkbenchShell extends LitElement {
   private async handleThreadArchive(
     e: CustomEvent<{ threadId: string; archived: boolean }>
   ): Promise<void> {
-    const { threadId, archived } = e.detail;
-    const res = await this.requestThreadApi(
-      archived ? 'archive conversation' : 'unarchive conversation',
-      `/api/threads/${threadId}`,
-      {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ archived }),
-      }
-    );
-    if (!res) {
-      return;
-    }
-    await this.loadThreads();
+    await this.threads.setArchived(e.detail.threadId, e.detail.archived);
   }
 
   private async handleThreadDelete(e: CustomEvent<{ threadId: string }>): Promise<void> {
     const { threadId } = e.detail;
-    const res = await this.requestThreadApi('delete conversation', `/api/threads/${threadId}`, {
-      method: 'DELETE',
-    });
-    if (!res) {
-      return;
-    }
+    if (!(await this.threads.remove(threadId))) return;
     if (this.activeThreadId === threadId) {
       this.activeThreadId = '';
       this.routedPrompt = '';
     }
-    await this.loadThreads();
   }
 
   private handleOpenWalkthrough(e: CustomEvent<{ bundleId: string }>): void {
@@ -520,11 +305,11 @@ export class NowWorkbenchShell extends LitElement {
             @intent-submit=${(e: CustomEvent<{ prompt: string; stayInOtto?: boolean }>) =>
               this.handleIntentPrompt(e.detail.prompt, e.detail.stayInOtto ?? true)}
             @thread-created=${async (e: CustomEvent<{ threadId: string }>) => {
-              await this.loadThreads();
+              await this.threads.load();
               this.activeThreadId = e.detail.threadId;
             }}
             @threads-refresh=${async () => {
-              await this.loadThreads();
+              await this.threads.load();
             }}
             @new-session=${() => this.handleNewSession()}
             @thread-archive=${(e: CustomEvent<{ threadId: string; archived: boolean }>) =>
@@ -598,7 +383,7 @@ export class NowWorkbenchShell extends LitElement {
       <now-nav-rail
         .activeTab=${this.activeTab}
         .activeThreadId=${this.activeThreadId}
-        .threads=${this.recentThreads}
+        .threads=${this.threads.items}
         .collapsed=${this.railCollapsed}
         @nav-change=${this.handleNavChange}
         @thread-select=${this.handleThreadSelect}
@@ -610,9 +395,9 @@ export class NowWorkbenchShell extends LitElement {
 
       <main class="content-area">
         <now-impersonation-banner></now-impersonation-banner>
-        ${this.threadError
+        ${this.threads.error
           ? html`<div class="thread-error-banner" role="alert" data-testid="thread-error">
-              ${this.threadError}
+              ${this.threads.error}
             </div>`
           : ''}
         <div class="active-view-stage">
