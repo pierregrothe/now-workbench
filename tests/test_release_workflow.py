@@ -221,3 +221,32 @@ def test_release_workflow_refuses_a_second_release_for_one_merge() -> None:
 def test_release_workflow_step_scripts_parse_as_bash(name: str) -> None:
     script = _release_steps()[name]
     assert subprocess.run(["bash", "-n"], input=script, text=True).returncode == 0
+
+
+def _guard_matches(subjects: list[str], pr: str) -> bool:
+    step = _release_steps()["Refuse a second release for the same merge"]
+    pattern = step.split("grep -Eq ")[1].split(";")[0].strip().strip('"').replace("$PR", pr)
+    done = subprocess.run(["grep", "-Eq", pattern], input="\n".join(subjects) + "\n", text=True)
+    return done.returncode == 0
+
+
+@pytest.mark.parametrize(
+    ("subjects", "pr", "released"),
+    [
+        (["chore(release): v2026.11.1 for PR #5 (#6)"], "5", True),
+        (["chore(release): v2026.11.1 for PR #5"], "5", True),
+        (["chore(release): v2026.11.1 for PR #50 (#51)"], "5", False),
+        (["chore(release): v2026.11.1 for PR #5 (#6)"], "50", False),
+        (["feat: something for PR #5 (#6)", "chore(release): v2026.11.0"], "5", False),
+    ],
+)
+def test_release_guard_matches_only_this_prs_bump(
+    subjects: list[str], pr: str, released: bool
+) -> None:
+    assert _guard_matches(subjects, pr) is released
+
+
+def test_release_workflow_bump_subject_carries_the_guard_marker() -> None:
+    land = _release_steps()["Land the bump through a pull request and tag it"]
+    assert 'git commit -m "chore(release): v$VERSION for PR #$PR"' in land
+    assert '--title "chore(release): v$VERSION for PR #$PR"' in land

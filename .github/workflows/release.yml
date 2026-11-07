@@ -60,7 +60,8 @@ jobs:
         env:
           PR: ${{ github.event.pull_request.number }}
         run: |
-          if git log --format=%B origin/main | grep -q "^Release after PR #$PR ("; then
+          # The bump's subject (and so its squash subject) names the PR: "chore(release): vX for PR #N".
+          if git log --format=%s origin/main | grep -Eq "^chore\(release\): v[0-9.]+ for PR #$PR( |$)"; then
             echo "PR #$PR already has its release commit on main; tag or publish it by hand." >&2
             exit 1
           fi
@@ -93,11 +94,11 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git switch -c "$BRANCH"
           git add pyproject.toml uv.lock web/package.json web/package-lock.json CHANGELOG.md
-          git commit -m "chore(release): v$VERSION" -m "Release after PR #$PR ($REASON)."
+          git commit -m "chore(release): v$VERSION for PR #$PR" -m "Release after PR #$PR ($REASON)."
           # Re-entrant: a failed earlier run may have left this branch and its PR behind.
           git push --force origin "$BRANCH"
           if [ "$(gh pr view "$BRANCH" --json state --jq .state 2>/dev/null)" != "OPEN" ]; then
-            gh pr create --base main --head "$BRANCH" --title "chore(release): v$VERSION" \
+            gh pr create --base main --head "$BRANCH" --title "chore(release): v$VERSION for PR #$PR" \
               --body "Release after PR #$PR ($REASON). Opened and merged by the release workflow."
           fi
           # GitHub computes mergeability asynchronously; retry briefly.
@@ -108,7 +109,7 @@ jobs:
           done
           SHA=""
           for attempt in 1 2 3 4 5 6; do
-            SHA="$(gh pr view "$BRANCH" --json mergeCommit --jq '.mergeCommit.oid // empty')"
+            SHA="$(gh pr view "$BRANCH" --json mergeCommit --jq '.mergeCommit.oid // empty' || true)"
             [ -n "$SHA" ] && break
             sleep 5
           done
