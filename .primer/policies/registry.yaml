@@ -168,24 +168,33 @@ policies:
     category: architecture
     constitutional: false
     justifying_adrs: [ADR-002, ADR-011]
-    checks: []
-    status: unguarded
+    checks:
+      - kind: pre-commit-hook
+        id: pytest-pre-push
+        stage: push
+    status: enforced
 
   - slug: demo-bundles
     name: Declarative demo bundle specification (.sn-demo.zip)
     category: architecture
     constitutional: false
     justifying_adrs: [ADR-003, ADR-007, ADR-008, ADR-009]
-    checks: []
-    status: unguarded
+    checks:
+      - kind: pre-commit-hook
+        id: pytest-pre-push
+        stage: push
+    status: enforced
 
   - slug: sqlite-persistence
     name: Scoped SQLite WAL persistence and repository pattern
     category: architecture
     constitutional: true
     justifying_adrs: [ADR-006, ADR-012, ADR-014]
-    checks: []
-    status: unguarded
+    checks:
+      - kind: pre-commit-hook
+        id: pytest-pre-push
+        stage: push
+    status: enforced
 
   - slug: telemetry-recording
     name: Every action run and Claude call is recorded (architecture tests)

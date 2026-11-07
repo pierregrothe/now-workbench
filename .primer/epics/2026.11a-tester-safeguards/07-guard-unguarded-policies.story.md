@@ -1,6 +1,8 @@
 # Story 2026.11a.07: Mechanical checks for the three unguarded policies
 
-Status: backlog
+Status: done
+Done: 2026-11-07
+Started: 2026-11-07
 Spec-Clarity: medium
 Depends-On: none
 Board: STORY-060
@@ -30,17 +32,17 @@ AC2:
 
 ## Tasks / Subtasks
 
-- [ ] Define one checkable rule per policy (e.g. Claude only via interfaces/ai; bundle manifests validate against the model; SQL only in repositories) (AC: 1)
-- [ ] Write the guard tests (AC: 1)
-- [ ] Update registry.yaml and governance tables (AC: 2)
+- [x] Define one checkable rule per policy: the anthropic SDK only in interfaces/ai/{agent,client}.py; SQL only in repositories and platform/db, file databases in WAL; every shipped bundle manifest validates against DemoManifest (AC: 1)
+- [x] Write the guard tests (AC: 1)
+- [x] Update registry.yaml and governance tables (AC: 2)
 
 ## Definition of Done
 
-- [ ] All acceptance criteria verified
-- [ ] Tests added or updated and passing (pytest 100% coverage; Playwright where UI changes)
-- [ ] Ruff clean (zero violations), mypy strict, tsc clean
-- [ ] No changes outside the story's stated scope
-- [ ] References section links verified
+- [x] All acceptance criteria verified
+- [x] Tests added or updated and passing (pytest 100% coverage; Playwright where UI changes)
+- [x] Ruff clean (zero violations), mypy strict, tsc clean
+- [x] No changes outside the story's stated scope
+- [x] References section links verified
 
 ## Existing Code
 

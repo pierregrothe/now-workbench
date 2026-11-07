@@ -4,7 +4,7 @@ Phase: 2026.11a
 Date: 2026-11-07
 Source: owner backlog review 2026-11-07 (.primer/active.md Next Steps and Known Issues)
 Board: EPIC-017
-Progress: 5/7 stories done
+Progress: 6/7 stories done
 
 ## Goal
 
@@ -42,7 +42,7 @@ Cap what outside testers can spend, close the remaining security gaps (CLI IDs, 
 | FR4 | 04-capture-tls-verified | done |
 | FR5 | 05-no-fabricated-fallbacks | backlog |
 | FR6 | 06-otto-remembers-tool-use | done |
-| FR7 | 07-guard-unguarded-policies | backlog |
+| FR7 | 07-guard-unguarded-policies | done |
 
 ## Story List
 
@@ -54,7 +54,7 @@ Cap what outside testers can spend, close the remaining security gaps (CLI IDs, 
 | 04 | Capture verifies instance TLS certificates | none | done |
 | 05 | ADR-013 audit: no component shows made-up data when offline | none | backlog |
 | 06 | Otto's follow-ups know what tools he used | none | done |
-| 07 | Mechanical checks for the three unguarded policies | none | backlog |
+| 07 | Mechanical checks for the three unguarded policies | none | done |
 
 ## Out of Scope
 

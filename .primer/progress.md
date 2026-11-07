@@ -74,5 +74,3 @@ EPIC-001 to EPIC-016 are done; their story list is in `archive/progress-history.
 - Testers share the owner's Claude key; there is no per-user usage cap yet.
 - Removing a deployed demo app from an instance is manual (System Applications).
 - Capture scripts launch Chromium with `--ignore-certificate-errors`.
-- Architecture policies `otto-copilot`, `demo-bundles`, `sqlite-persistence` are `unguarded`
-  (no mechanical checks; agent-enforced via CLAUDE.md only).
