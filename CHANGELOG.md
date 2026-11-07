@@ -9,6 +9,7 @@ internal chores, docs, tests and CI are omitted, and the long-form entries are i
 
 ### Added
 - governance: domain cards: a ratchet on names a card gives that src lacks, and a pre-push freshness nudge (ADR-033)
+- docs: a CLAUDE.md card in each of the 19 domains: entry points, wiring, invariants, what not to reinvent (ADR-033)
 
 ### Changed
 - governance: main is protected by a GitHub ruleset (PRs only, no bypass); the release bot lands its bump as a PR (ADR-032)
