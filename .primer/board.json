@@ -467,6 +467,23 @@
           "status": "backlog"
         }
       ]
+    },
+    {
+      "id": "EPIC-019",
+      "title": "Branch and Pull-Request Workflow",
+      "status": "done",
+      "stories": [
+        {
+          "id": "STORY-066",
+          "title": "Branch guard, PR gate stamp, review records and land",
+          "status": "done"
+        },
+        {
+          "id": "STORY-067",
+          "title": "Release bot, changelog and dependency audit",
+          "status": "done"
+        }
+      ]
     }
   ]
 }

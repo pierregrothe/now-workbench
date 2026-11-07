@@ -217,3 +217,20 @@ policies:
         id: mutation-gate
         stage: push
     status: enforced
+
+  - slug: pr-workflow
+    name: Main changes only through a proven, reviewed pull request
+    category: process
+    constitutional: false
+    justifying_adrs: [ADR-032]
+    checks:
+      - kind: pre-commit-hook
+        id: guard-branch
+        stage: commit
+      - kind: pre-commit-hook
+        id: conventionalize-merge-msg
+        stage: commit
+      - kind: pre-commit-hook
+        id: guard-push
+        stage: push
+    status: enforced

@@ -71,6 +71,26 @@ cd web && npm run dev
 cd web && npm run test:e2e
 ```
 
+## Branch and PR Workflow (ADR-032)
+
+`main` changes only through a merged pull request; `guard-branch` and `guard-push` refuse
+commits and pushes to it. One story is one branch (`feature/`, `bugfix/`, `refactor/`, `docs/`)
+in this one checkout (no worktrees).
+
+```bash
+git switch -c feature/<slug>                          # after /primer story start
+python scripts/dev-tools/pr_gate.py check             # once per PR: pytest+coverage, mutation, e2e; stamps HEAD
+git push -u origin feature/<slug>                     # one branch per push; skips the stamped checks for that exact commit
+gh pr create --fill                                   # needs .primer/reviews/<branch-with-dashes>.md (Head: <sha>)
+python scripts/dev-tools/pr_gate.py land <pr>         # refuses an unstamped or unreviewed head; squash-merge, pull main
+```
+
+Write the review record (an adversarial review of the branch) and sync primer BEFORE `check`,
+so the stamped commit is the one the PR shows. A release is cut by the bot when a merge closes
+an epic or carries the `release` label; never hand-bump the version. Versions are CalVer
+(`YYYY.MM.N`, overriding the global SemVer default), matching the primer changelog engine.
+Add one line per user-visible change: `python scripts/dev-tools/primer_changelog.py add --section Added --scope <area> --message "..." --pr <n>`.
+
 ## Architectural Rules
 
 1. **Python Runtime**: Python 3.14.10 strictly pinned (`.python-version`).

@@ -1,0 +1,41 @@
+# .github/workflows/dependency-audit.yml
+# Weekly scan of the locked Python and web dependency trees for known vulnerabilities.
+# Author: Pierre Grothe
+# Date: 2026-11-07
+#
+# Advisory: a failure here is a signal to bump a dependency, it gates nothing (ADR-032).
+
+name: Dependency Audit
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 7 * * 1'
+
+permissions:
+  contents: read
+
+jobs:
+  python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version-file: .python-version
+      # uv is pinned: `uv audit` is a preview command, so its flags may change between releases.
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: '0.13.7'
+      - name: Audit uv.lock against OSV
+        run: uv audit --locked --preview-features audit-command
+
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Audit web/package-lock.json
+        run: npm --prefix web audit --omit=dev --audit-level=high
