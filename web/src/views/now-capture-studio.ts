@@ -41,6 +41,14 @@ export class NowCaptureStudio extends LitElement {
         align-items: start;
       }
 
+      /* Narrow screens (ADR-030): the form above its result. */
+      @media (max-width: 900px) {
+        .studio-grid {
+          grid-template-columns: minmax(0, 1fr);
+          gap: 16px;
+        }
+      }
+
       .form-group {
         margin-bottom: 14px;
       }

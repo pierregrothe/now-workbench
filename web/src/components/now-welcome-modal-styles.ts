@@ -395,4 +395,67 @@ export const welcomeModalStyles = css`
       font-weight: 600;
       color: var(--now-text-muted, #64748b);
     }
-  `;
+  
+    /* Phones (ADR-030): steps become a strip above the story; the preview art is dropped. */
+    @media (max-width: 768px), (max-height: 500px) {
+      .backdrop {
+        padding: calc(8px + env(safe-area-inset-top, 0px)) 8px calc(8px + env(safe-area-inset-bottom, 0px));
+      }
+
+      .modal {
+        width: 100%;
+        max-width: none;
+        height: 100%;
+        max-height: none;
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-rows: auto minmax(0, 1fr);
+      }
+
+      .modal-sidebar {
+        padding: 16px 16px 8px;
+        border-right: none;
+        border-bottom: 1px solid var(--now-border-subtle, #ececeb);
+      }
+
+      .modal-heading {
+        font-size: 19px;
+        margin-bottom: 10px;
+      }
+
+      .tab-list {
+        flex-direction: row;
+        overflow-x: auto;
+        scrollbar-width: none;
+      }
+
+      .tab-btn {
+        flex-shrink: 0;
+        white-space: nowrap;
+        border-left: none;
+        border-bottom: 3px solid transparent;
+        padding: 10px 12px;
+      }
+
+      .tab-btn.active {
+        border-bottom-color: var(--now-color-brand-green, #62d84e);
+      }
+
+      .visual-stage {
+        display: none;
+      }
+
+      .modal-body {
+        overflow-y: auto;
+      }
+
+      .narrative-pane {
+        border-top: none;
+        padding: 16px;
+        flex: 1;
+      }
+
+      .modal-nav-row {
+        flex-wrap: wrap;
+      }
+    }
+`;

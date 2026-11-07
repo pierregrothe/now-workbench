@@ -222,6 +222,16 @@ export const adminSharedStyles = css`
       .edit-grid {
         grid-template-columns: 1fr;
       }
+
+      /* Phones (ADR-030): headers wrap their badge under the title. */
+      .section-card {
+        padding: 16px;
+      }
+
+      .section-header {
+        flex-wrap: wrap;
+        gap: 8px;
+      }
     }
 
     .edit-actions {

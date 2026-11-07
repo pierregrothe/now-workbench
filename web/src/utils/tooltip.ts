@@ -21,6 +21,8 @@ class SmartTooltipManager {
       this.createTooltipElement();
     }
 
+    document.addEventListener('pointerdown', this.notePointer, true);
+    document.addEventListener('keydown', this.noteKeyboard, true);
     document.addEventListener('pointerover', this.handlePointerOver, true);
     document.addEventListener('pointerout', this.handlePointerOut, true);
     document.addEventListener('focusin', this.handleFocusIn, true);
@@ -76,7 +78,19 @@ class SmartTooltipManager {
     return null;
   }
 
+  /** How the person last interacted: tooltips are for mouse and keyboard, not touch. */
+  private lastInput: 'mouse' | 'touch' | 'keyboard' = 'mouse';
+
+  private notePointer = (event: PointerEvent): void => {
+    this.lastInput = event.pointerType === 'mouse' ? 'mouse' : 'touch';
+  };
+
+  private noteKeyboard = (): void => {
+    this.lastInput = 'keyboard';
+  };
+
   private handlePointerOver = (event: PointerEvent): void => {
+    if (event.pointerType !== 'mouse') return;
     const target = this.findTooltipTarget(event);
     if (!target) return;
     if (this.currentTarget === target) return;
@@ -93,6 +107,8 @@ class SmartTooltipManager {
   };
 
   private handleFocusIn = (event: FocusEvent): void => {
+    // A tap focuses the button too; a tooltip would then linger over the screen.
+    if (this.lastInput === 'touch') return;
     const target = this.findTooltipTarget(event);
     if (target) {
       this.showTooltip(target);

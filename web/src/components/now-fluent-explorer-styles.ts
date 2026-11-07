@@ -287,4 +287,57 @@ export const fluentExplorerStyles = css`
     .copy-btn:hover {
       background: rgba(255, 255, 255, 0.2);
     }
-  `;
+  
+    /* Narrow screens (ADR-030): tables become a scrolling strip above the schema. */
+    @media (max-width: 900px) {
+      .header-bar {
+        flex-wrap: wrap;
+        gap: 10px;
+        padding: 12px;
+      }
+
+      .title-group {
+        flex-wrap: wrap;
+        min-width: 0;
+      }
+
+      .actions-group {
+        flex-wrap: wrap;
+        max-width: 100%;
+      }
+
+      .actions-group select {
+        max-width: 100%;
+      }
+
+      .explorer-body {
+        flex-direction: column;
+        overflow-y: auto;
+      }
+
+      .tables-sidebar {
+        width: auto;
+        flex-direction: row;
+        flex-shrink: 0;
+        overflow-x: auto;
+        overflow-y: hidden;
+        border-right: none;
+        border-bottom: 1px solid var(--now-border-subtle, #e2e8f0);
+      }
+
+      .table-nav-btn {
+        flex-shrink: 0;
+        gap: 10px;
+      }
+
+      .schema-detail {
+        overflow: visible;
+        padding: 12px;
+        gap: 12px;
+      }
+
+      .table-card {
+        overflow-x: auto;
+      }
+    }
+`;

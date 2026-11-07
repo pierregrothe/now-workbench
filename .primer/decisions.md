@@ -436,3 +436,11 @@ survivors are never retried. Telemetry is purged past `WORKBENCH_TELEMETRY_RETEN
 (default 365, minimum 60, the longest chart), at startup and daily. `workbench backup --s3`
 uploads the snapshot to an S3-compatible bucket, signed with SigV4 over httpx (no AWS SDK).
 Details: `.primer/adr/ADR-029-mutation-gate-telemetry-retention-s3-backups.md`.
+
+### 2026-11-07 -- ADR-030: Phone and tablet layouts
+
+At `(max-width: 768px), (max-height: 500px)` the navigation rail becomes a drawer opened from a
+phone top bar; two-pane screens (Settings, Fluent, Synthesizer, Capture, Actions) stack at 900px
+or less. `100dvh`, safe areas, 16px fields (no iOS zoom), 40px touch targets, and no tooltips on
+touch. Plain CSS media queries, no dependency; 16 Playwright tests cover phone, landscape,
+tablet and desktop. Details: `.primer/adr/ADR-030-phone-and-tablet-layouts.md`.

@@ -4,6 +4,8 @@ import { customElement, state } from 'lit/decorators.js';
 import '../views/now-access-gate.js';
 import type { GateMode } from '../views/now-access-gate.js';
 import './now-nav-rail.js';
+import './now-mobile-bar.js';
+import { MobileNavController } from '../controllers/mobile-nav-controller.js';
 import type { NavThreadItem } from './now-nav-rail.js';
 import './now-conversational-workspace.js';
 import './now-demo-catalog.js';
@@ -140,6 +142,7 @@ export class NowWorkbenchShell extends LitElement {
     'AI Intent Router active. Describe an action below to switch menus or update the current workspace.';
 
   private readonly threads = new ThreadListController(this);
+  private readonly mobile = new MobileNavController(this);
 
   private async handleIntentPrompt(prompt: string, stayInOtto = false): Promise<void> {
     const clean = prompt.trim();
@@ -402,10 +405,13 @@ export class NowWorkbenchShell extends LitElement {
     }
     return html`
       <now-nav-rail
+        id="navigation"
+        ?drawer=${this.mobile.phone}
+        ?open=${this.mobile.open}
         .activeTab=${this.activeTab}
         .activeThreadId=${this.activeThreadId}
         .threads=${this.threads.items}
-        .collapsed=${this.railCollapsed}
+        .collapsed=${this.railCollapsed && !this.mobile.phone}
         @nav-change=${this.handleNavChange}
         @thread-select=${this.handleThreadSelect}
         @thread-archive=${this.handleThreadArchive}
@@ -414,7 +420,11 @@ export class NowWorkbenchShell extends LitElement {
         @toggle-otto=${this.handleToggleOtto}
       ></now-nav-rail>
 
-      <main class="content-area">
+      ${this.mobile.open ? html`<div class="drawer-scrim" @click=${this.mobile.close}></div>` : ''}
+      <main class="content-area" ?inert=${this.mobile.open}>
+        ${this.mobile.phone
+          ? html`<now-mobile-bar .tab=${this.activeTab} .open=${this.mobile.open} @menu-toggle=${this.mobile.toggle}></now-mobile-bar>`
+          : ''}
         <now-impersonation-banner></now-impersonation-banner>
         ${this.threads.error
           ? html`<div class="thread-error-banner" role="alert" data-testid="thread-error">
@@ -462,9 +472,7 @@ export class NowWorkbenchShell extends LitElement {
 
       <now-welcome-modal
         .open=${this.welcomeModalOpen}
-        @modal-close=${() => {
-          this.welcomeModalOpen = false;
-        }}
+        @modal-close=${() => (this.welcomeModalOpen = false)}
         @modal-navigate=${(e: CustomEvent<{ tab: string }>) => {
           this.welcomeModalOpen = false;
           this.setActiveTab(e.detail.tab);
@@ -479,9 +487,7 @@ export class NowWorkbenchShell extends LitElement {
       <now-presenter-hud
         .bundleId=${this.selectedBundleId}
         .visible=${this.presenterHudVisible}
-        @hud-close=${() => {
-          this.presenterHudVisible = false;
-        }}
+        @hud-close=${() => (this.presenterHudVisible = false)}
       ></now-presenter-hud>
 
       <now-command-palette

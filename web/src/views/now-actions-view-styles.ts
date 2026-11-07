@@ -175,8 +175,24 @@ export const actionsViewStyles = css`
     font-size: 13px;
   }
   @media (max-width: 900px) {
+    /* One column that scrolls as a whole; the chosen action's form comes first (ADR-030). */
     .actions-layout {
-      grid-template-columns: 1fr;
+      grid-template-columns: minmax(0, 1fr);
+      overflow-y: auto;
+      padding: 12px 12px 24px;
+    }
+    .catalog {
+      overflow: visible;
+    }
+    .actions-layout.picked .panel {
+      order: -1;
+    }
+    .actions-layout:not(.picked) .panel {
+      display: none;
+    }
+    .action-item {
+      min-height: 40px;
+      align-items: center;
     }
     .tiles > now-tile-renderer {
       grid-column: 1 / -1;

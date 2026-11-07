@@ -121,4 +121,19 @@ export const adminPanelStyles = css`
       font-size: 11px;
       color: var(--now-text-secondary, #6b7280);
     }
-  `;
+  
+    /* Phones (ADR-030): tighter gutters; the table scrolls sideways inside its frame. */
+    @media (max-width: 768px), (max-height: 500px) {
+      .instances-scroll {
+        padding: 12px 0 24px;
+      }
+
+      .table-wrapper {
+        overflow-x: auto;
+      }
+
+      .instances-table {
+        min-width: 640px;
+      }
+    }
+`;

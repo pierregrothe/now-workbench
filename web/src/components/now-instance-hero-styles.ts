@@ -239,4 +239,16 @@ export const instanceHeroStyles = css`
     .btn-hero-open:hover {
       background: #f1f5f9;
     }
-  `;
+  
+    /* Phones (ADR-030): badges wrap instead of running off the card. */
+    @media (max-width: 768px), (max-height: 500px) {
+      .active-hero-card {
+        padding: 18px 16px;
+      }
+
+      .hero-badge-group {
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+    }
+`;

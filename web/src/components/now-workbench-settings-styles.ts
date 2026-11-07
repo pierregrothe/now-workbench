@@ -421,4 +421,45 @@ export const workbenchSettingsStyles = css`
       padding: 6px 10px;
       border-radius: 8px;
     }
-  `;
+  
+    /* Narrow screens (ADR-030): sections become a scrolling strip above the content. */
+    @media (max-width: 900px) {
+      .top-bar {
+        padding: 12px 16px;
+      }
+
+      .prefs-layout {
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-rows: auto minmax(0, 1fr);
+        padding: 12px 12px 0;
+      }
+
+      .pref-nav {
+        flex-direction: row;
+        overflow-x: auto;
+        scrollbar-width: none;
+        padding: 6px;
+      }
+
+      .pref-nav-item {
+        flex-shrink: 0;
+        white-space: nowrap;
+        min-height: 40px;
+      }
+
+      .scroll-body {
+        padding: 16px 0 24px;
+      }
+
+      .section-card {
+        padding: 16px;
+      }
+    }
+
+    /* Phones: the top bar already says Workbench Settings. */
+    @media (max-width: 768px), (max-height: 500px) {
+      .top-bar {
+        display: none;
+      }
+    }
+`;

@@ -9,6 +9,7 @@ export const workbenchShellStyles = css`
     :host {
       display: flex;
       height: 100vh;
+      height: 100dvh;
       width: 100vw;
       overflow: hidden;
       background-color: var(--now-bg-surface-0, #ffffff);
@@ -18,12 +19,20 @@ export const workbenchShellStyles = css`
 
     .content-area {
       flex: 1;
-      height: 100vh;
+      min-width: 0;
+      height: 100%;
       overflow: hidden;
       position: relative;
       display: flex;
       flex-direction: column;
       background: var(--now-bg-canvas, #ffffff);
+    }
+
+    .drawer-scrim {
+      position: fixed;
+      inset: 0;
+      z-index: 999;
+      background: rgba(22, 24, 29, 0.4);
     }
 
     .thread-error-banner {
@@ -118,4 +127,36 @@ export const workbenchShellStyles = css`
       height: 16px;
       fill: currentColor;
     }
-  `;
+  
+    /* Phones (ADR-030): a slimmer prompt dock that clears the home indicator. */
+    @media (max-width: 768px), (max-height: 500px) {
+      .bottom-chat-dock {
+        padding: 6px 10px calc(8px + env(safe-area-inset-bottom, 0px));
+      }
+
+      .bottom-prompt-box {
+        width: 100%;
+        flex-direction: row;
+        align-items: center;
+        border-radius: 24px;
+        padding: 6px 6px 6px 16px;
+        margin: 4px 0 2px;
+        box-shadow: 0 0 0 4px #f4f3f0, 0 8px 16px rgba(0, 0, 0, 0.08);
+      }
+
+      .bottom-prompt-box input {
+        flex: 1;
+        min-width: 0;
+      }
+
+      .bottom-send-btn {
+        width: 40px;
+        height: 40px;
+        flex-shrink: 0;
+      }
+
+      .intent-route-caption {
+        display: none;
+      }
+    }
+`;

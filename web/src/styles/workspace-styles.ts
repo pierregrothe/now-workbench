@@ -196,4 +196,39 @@ export const workspaceStyles = css`
     background: #eff6ff;
     color: #1d4ed8;
   }
+
+  /* Phones (ADR-030): the top bar already names the screen; tighter gutters. */
+  @media (max-width: 768px), (max-height: 500px) {
+    .top-utility-bar {
+      padding: 8px 12px;
+      justify-content: flex-end;
+    }
+
+    .workspace-breadcrumb {
+      display: none;
+    }
+
+    .instance-picker-select {
+      max-width: 52vw;
+    }
+
+    /* iOS zooms the page into any field under 16px; keep every field at 16px on phones. */
+    input:not([type="checkbox"]):not([type="radio"]),
+    select,
+    textarea {
+      font-size: 16px !important;
+    }
+
+    .scroll-canvas {
+      padding: 16px 12px;
+    }
+
+    .card {
+      padding: 16px;
+    }
+
+    .section-title {
+      font-size: 20px;
+    }
+  }
 `;

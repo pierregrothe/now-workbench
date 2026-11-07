@@ -387,4 +387,52 @@ export const chatViewStyles = css`
         margin: 8px 0;
         color: var(--now-text-primary, #111827);
       }
+
+      /* Phones (ADR-030): a compact prompt that leaves room for the conversation. */
+      @media (max-width: 768px), (max-height: 500px) {
+        .hero {
+          margin: 3vh auto 16px;
+        }
+
+        .hero-title {
+          font-size: 24px;
+          margin-bottom: 14px;
+        }
+
+        .prompt-box {
+          gap: 4px;
+          border-radius: 24px;
+          padding: 10px 8px 6px 16px;
+          margin: 4px;
+          box-shadow: 0 0 0 4px #f4f3f0, 0 8px 16px rgba(0, 0, 0, 0.08);
+        }
+
+        .prompt-foot {
+          min-height: 32px;
+        }
+
+        .prompt-send-btn {
+          width: 40px;
+          height: 40px;
+        }
+
+        .attach-btn {
+          width: 40px;
+          height: 40px;
+        }
+
+        .dock {
+          padding: 6px 0 calc(4px + env(safe-area-inset-bottom, 0px));
+        }
+
+        .chip-btn {
+          min-height: 40px;
+        }
+      }
+
+      @media (max-height: 500px) {
+        .ai-footnote {
+          display: none;
+        }
+      }
 `;

@@ -41,7 +41,7 @@ export const profileSettingsStyles = css`
   }
   .grid {
     display: grid;
-    grid-template-columns: repeat(6, 48px);
+    grid-template-columns: repeat(auto-fill, 48px);
     gap: 10px;
   }
   .preset {
@@ -64,7 +64,7 @@ export const profileSettingsStyles = css`
   }
   .fields {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
     gap: 14px;
   }
   .field {

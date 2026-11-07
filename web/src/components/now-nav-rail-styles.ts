@@ -19,6 +19,43 @@ export const navRailStyles = css`
       transition: width 0.18s ease;
     }
 
+    /* Phones (ADR-030): an off-canvas drawer over the content, opened from the top bar. */
+    :host([drawer]) {
+      position: fixed;
+      inset: 0 auto 0 0;
+      z-index: 1000;
+      transform: translateX(-105%);
+      visibility: hidden;
+      transition: transform 0.22s ease, visibility 0s linear 0.22s;
+      padding-top: env(safe-area-inset-top, 0px);
+      padding-bottom: env(safe-area-inset-bottom, 0px);
+      padding-left: env(safe-area-inset-left, 0px);
+      box-sizing: border-box;
+    }
+
+    :host([drawer][open]) {
+      transform: none;
+      visibility: visible;
+      transition: transform 0.22s ease;
+      box-shadow: 0 0 40px rgba(0, 0, 0, 0.25);
+    }
+
+    :host([drawer]) .rail-container {
+      width: min(304px, 86vw) !important;
+    }
+
+    :host([drawer]) .resize-handle,
+    :host([drawer]) .top-chrome {
+      display: none;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      :host([drawer]),
+      :host([drawer][open]) {
+        transition: none;
+      }
+    }
+
     .rail-container {
       width: 248px;
       height: 100%;

@@ -100,6 +100,10 @@ export class NowActionsView extends LitElement {
     this.selected = action;
     this.values = { ...prefill };
     this.result = null;
+    // On a phone the form sits above the list (ADR-030); bring it into view.
+    void this.updateComplete.then(() =>
+      this.renderRoot.querySelector('.panel')?.scrollIntoView({ block: 'nearest' }),
+    );
   }
 
   private setValue(key: string, value: unknown): void {
@@ -231,7 +235,7 @@ export class NowActionsView extends LitElement {
     return html`
       <now-workspace-bar crumb="Actions"></now-workspace-bar>
       ${this.loadError ? html`<div class="badge error" role="alert" style="margin:12px 36px;display:block;">${this.loadError}</div>` : ''}
-      <div class="actions-layout">
+      <div class="actions-layout ${a ? 'picked' : ''}">
         ${this.renderCatalog()}
         <section class="panel" aria-label="Action">
           ${a

@@ -54,7 +54,7 @@ export const demoCatalogStyles = css`
 
     .cards-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(min(100%, 360px), 1fr));
       gap: 20px;
     }
 
@@ -392,4 +392,15 @@ export const demoCatalogStyles = css`
       max-height: 220px;
       object-fit: contain;
     }
-  `;
+  
+    /* Phones (ADR-030): tighter gutters. */
+    @media (max-width: 768px), (max-height: 500px) {
+      :host {
+        padding: 16px 12px;
+      }
+
+      .demo-card {
+        padding: 16px;
+      }
+    }
+`;
