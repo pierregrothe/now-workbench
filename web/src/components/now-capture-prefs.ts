@@ -7,6 +7,10 @@ import { html } from 'lit';
 import { customElement } from 'lit/decorators.js';
 import { PrefsSection } from './prefs-section.js';
 
+/** The settle wait the backend accepts: 0..30000 ms; an empty field means the 1500 default. */
+const settleMs = (value: number): number =>
+  Number.isNaN(value) ? 1500 : Math.min(30000, Math.max(0, Math.round(value)));
+
 @customElement('now-capture-prefs')
 export class NowCapturePrefs extends PrefsSection {
   private viewportPreset(preset: string): void {
@@ -69,7 +73,7 @@ export class NowCapturePrefs extends PrefsSection {
               @input=${(e: Event) =>
                 this.change(
                   'capture_wait_timeout_ms',
-                  Number((e.target as HTMLInputElement).value) || 1500
+                  settleMs((e.target as HTMLInputElement).valueAsNumber)
                 )}
             />
           </div>
