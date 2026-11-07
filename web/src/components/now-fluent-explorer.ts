@@ -1,5 +1,6 @@
 import { LitElement, html } from 'lit'
 import { customElement, property, state } from 'lit/decorators.js'
+import { formStyles } from '../styles/form-styles.js'
 import { fluentExplorerStyles } from './now-fluent-explorer-styles.js'
 
 export interface FluentColumn {
@@ -32,7 +33,7 @@ export class NowFluentExplorer extends LitElement {
   @state() private diffError = ''
   @state() private copySuccess = false
 
-  static styles = fluentExplorerStyles
+  static styles = [formStyles, fluentExplorerStyles]
 
   connectedCallback() {
     super.connectedCallback()
@@ -126,7 +127,7 @@ export class NowFluentExplorer extends LitElement {
           <span class="title-icon">[TS]</span>
           <div>
             <div class="title-text">ServiceNow Fluent SDK Studio</div>
-            <div style="font-size: 12px; color: var(--now-text-secondary); margin-top: 2px;">
+            <div class="title-sub">
               Declarative TypeScript Schema Models (*.now.ts)
             </div>
           </div>
@@ -140,7 +141,7 @@ export class NowFluentExplorer extends LitElement {
           ${this.availableBundles.length > 0
             ? html`
                 <select
-                  style="font-size: 12.5px; padding: 5px 10px; border-radius: 6px; border: 1px solid var(--now-border-subtle, #cbd5e1); background: var(--now-bg-surface-0, #ffffff); color: var(--now-text-primary, #0f172a); outline: none;"
+                  class="select-input bundle-select"
                   .value=${this.bundleId}
                   @change=${this.handleBundleChange}
                   title="Switch active bundle schema"
@@ -167,7 +168,7 @@ export class NowFluentExplorer extends LitElement {
       <div class="explorer-body">
         <!-- Tables List Sidebar -->
         <div class="tables-sidebar">
-          <div style="font-size: 11.5px; font-weight: 700; color: #64748b; margin-bottom: 8px; text-transform: uppercase;">
+          <div class="sidebar-label">
             Declared Tables (${this.tables.length})
           </div>
 
@@ -179,7 +180,7 @@ export class NowFluentExplorer extends LitElement {
               >
                 <div>
                   <div class="table-nav-name">${tbl.label}</div>
-                  <div style="font-size: 11px; color: #64748b; font-family: monospace;">${tbl.name}</div>
+                  <div class="table-nav-id">${tbl.name}</div>
                 </div>
                 <span class="table-col-count">${tbl.columns.length}</span>
               </button>
@@ -190,17 +191,17 @@ export class NowFluentExplorer extends LitElement {
         <!-- Schema Details -->
         <div class="schema-detail">
           ${this.showDiff && this.diffError
-            ? html`<div data-testid="diff-error" style="padding: 12px; color: #dc2626;">${this.diffError}</div>`
+            ? html`<div data-testid="diff-error" class="diff-error">${this.diffError}</div>`
             : ''}
           ${this.showDiff && this.diffResult
             ? html`
-                <div class="table-card" style="border-left: 4px solid #0284c7;">
-                  <div class="table-headline" style="font-size: 15px; margin-bottom: 8px;">
+                <div class="table-card diff-card">
+                  <div class="table-headline diff-headline">
                     Baseline Schema Diff (${this.bundleId})
                   </div>
-                  <div style="font-size: 13px; color: #334155;">
+                  <div class="diff-body">
                     ${this.diffResult.identical
-                      ? html`<span style="color: #15803d; font-weight: 600;">[OK] Working tree schema matches bundle baseline (0 drift).</span>`
+                      ? html`<span class="diff-ok">[OK] Working tree schema matches bundle baseline (0 drift).</span>`
                       : html`<span>Modified tables: ${Object.keys(this.diffResult.modified_tables || {}).join(', ')}</span>`}
                   </div>
                 </div>
@@ -214,13 +215,13 @@ export class NowFluentExplorer extends LitElement {
 
   private renderTableContent() {
     if (this.loading) {
-      return html`<div style="padding: 40px; text-align: center; color: #64748b;">Loading Fluent schema AST...</div>`
+      return html`<div class="state-msg">Loading Fluent schema AST...</div>`
     }
     if (this.error) {
-      return html`<div style="padding: 40px; text-align: center; color: #dc2626;">${this.error}</div>`
+      return html`<div class="state-msg state-error">${this.error}</div>`
     }
     if (this.tables.length === 0) {
-      return html`<div style="padding: 40px; text-align: center; color: #64748b;">No Fluent tables found in this bundle.</div>`
+      return html`<div class="state-msg">No Fluent tables found in this bundle.</div>`
     }
 
     const currentTable = this.tables[this.selectedTableIndex]
@@ -260,15 +261,15 @@ export class NowFluentExplorer extends LitElement {
                   </td>
                   <td>
                     ${col.reference
-                      ? html`<span class="col-name" style="color: #1d4ed8;">${col.reference}</span>`
-                      : html`<span style="color: #94a3b8;">-</span>`}
+                      ? html`<span class="col-name col-ref">${col.reference}</span>`
+                      : html`<span class="muted">-</span>`}
                   </td>
                   <td>
                     ${col.mandatory
                       ? html`<span class="mandatory-pill">Required</span>`
-                      : html`<span style="color: #94a3b8;">Optional</span>`}
+                      : html`<span class="muted">Optional</span>`}
                   </td>
-                  <td>${col.max_length ? col.max_length : html`<span style="color: #94a3b8;">-</span>`}</td>
+                  <td>${col.max_length ? col.max_length : html`<span class="muted">-</span>`}</td>
                 </tr>
               `
             )}
@@ -278,8 +279,8 @@ export class NowFluentExplorer extends LitElement {
 
       <!-- Raw Source Code -->
       <div class="table-card">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-          <div style="font-weight: 700; font-size: 14px; color: #0f172a;">Declarative TypeScript (*.now.ts)</div>
+        <div class="source-head">
+          <div class="source-title">Declarative TypeScript (*.now.ts)</div>
         </div>
         <div class="code-box">
           <button class="copy-btn" title="Copy Source Code" data-tooltip="Copy Code" @click=${() => this.copySource(currentTable.raw_source)}>
@@ -287,7 +288,7 @@ export class NowFluentExplorer extends LitElement {
               ? html`<svg viewBox="0 0 24 24"><path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z"/></svg>`
               : html`<svg viewBox="0 0 24 24"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>`}
           </button>
-          <pre style="margin: 0;"><code>${currentTable.raw_source}</code></pre>
+          <pre class="code-pre"><code>${currentTable.raw_source}</code></pre>
         </div>
       </div>
     `

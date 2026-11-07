@@ -45,6 +45,8 @@ requirements; this ADR records the presentation decisions so later work does not
 
 - Visual changes are checked against the live instance before they ship. When EmployeeWorks
   changes, this ADR is amended, not silently overridden.
-- Screens not yet restyled (Fluent Explorer, the Artifact library cards) are tracked in PRD-002
-  until they follow the same measurements. The Synthesizer and Media Capture were restyled on
-  2026-11-07 (story 2026.11b.02): pill buttons, 10px fields, warm segmented chips, 16px cards.
+- Every workbench screen now follows these measurements; PRD-002 records the restyles. The
+  Synthesizer and Media Capture were restyled on 2026-11-07 (story 2026.11b.02): pill buttons,
+  10px fields, warm segmented chips, 16px cards. The Fluent Explorer and the Artifact library
+  cards followed the same day (story 2026.11b.03): the Otto canvas, a Settings-style tables
+  menu, round icon buttons, warm chips and the shared form styles.

@@ -49,8 +49,8 @@ Solution Consultants and developers using Otto inside now-workbench.
   Lux tokens in `web/src/styles/lux-theme.css`.
 - Every tile button either works or is not rendered.
 - The other workbench screens follow the ADR-019 measurements. Restyled: Synthesizer and
-  Media Capture (story 2026.11b.02, 2026-11-07). Still to do: Fluent Explorer and the Artifact
-  library cards.
+  Media Capture (story 2026.11b.02, 2026-11-07); Fluent Explorer and the Artifact library
+  cards (story 2026.11b.03, 2026-11-07). None is left to do.
 
 ## Out of Scope (anti-creep fence)
 - We will NOT copy ServiceNow's text, logos, artwork or product screenshots; we align

@@ -9,6 +9,7 @@ internal chores, docs, tests and CI are omitted, and the long-form entries are i
 
 ### Changed
 - web: Synthesizer and Media Capture follow the Otto look (ADR-019): pill buttons, rounded fields, warm chips, 40px phone touch targets
+- web: Fluent Explorer and Artifact library cards follow the Otto look (ADR-019): Otto canvas, round icon buttons, warm chips, AA contrast, 40px phone targets
 
 ## [2026.11.1] - 2026-11-07
 

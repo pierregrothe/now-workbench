@@ -122,6 +122,36 @@ test.describe('phone portrait (iPhone size)', () => {
     expectTouchFields(await fields('now-capture-studio .studio-grid'), 3);
   });
 
+  test('fluent explorer and artifact library buttons are touch-sized and fit the phone', async ({ page }) => {
+    /** Every button of the screen: [width, height] in px. */
+    const buttons = (screen: string) =>
+      page
+        .locator(screen)
+        .locator('button')
+        .evaluateAll((els) => els.map((el) => [el.getBoundingClientRect().width, el.getBoundingClientRect().height]));
+    const expectTouchSized = (found: number[][]) => {
+      expect(found.length).toBeGreaterThan(0);
+      for (const [wide, tall] of found) {
+        expect(wide).toBeGreaterThanOrEqual(40);
+        expect(tall).toBeGreaterThanOrEqual(40);
+      }
+    };
+
+    await page.goto('/#fluent');
+    await expect(page.locator('now-fluent-explorer .columns-table')).toBeVisible();
+    const picker = page.locator('now-fluent-explorer select');
+    await expect(picker).toBeVisible();
+    expect(await picker.evaluate((el) => parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(16);
+    expect((await picker.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(40);
+    expectTouchSized(await buttons('now-fluent-explorer'));
+    await expectNoSidewaysScroll(page);
+
+    await page.goto('/#artifacts');
+    await expect(page.locator('now-demo-catalog .demo-card').first()).toBeVisible();
+    expectTouchSized(await buttons('now-demo-catalog'));
+    await expectNoSidewaysScroll(page);
+  });
+
   test('a capture gallery with a long-labelled card fits the width of the phone', async ({ page }) => {
     const card = {
       id: 'c1',
