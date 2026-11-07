@@ -293,6 +293,24 @@ def test_deploy_api_never_deploys_to_a_simulated_instance(
     assert deploys == [REAL_URL]
 
 
+def test_deploy_api_honours_the_sdk_fake_mode_preference(monkeypatch: pytest.MonkeyPatch) -> None:
+    """With ``sdk_fake_mode`` on, a real instance is not deployed to: the result is simulated."""
+    deploys: list[object] = []
+
+    async def deploy(self: NowSdkRunner, *args: object, **kwargs: object) -> SdkExecutionResult:
+        deploys.append(kwargs.get("instance_url"))
+        return SdkExecutionResult(command="deploy", exit_code=0, output="", success=True)
+
+    monkeypatch.setattr(NowSdkRunner, "deploy", deploy)
+    _instance("real", REAL_URL)
+    client = TestClient(create_app())
+    assert client.put("/api/settings", json={"sdk_fake_mode": True}).status_code == 200
+    res = client.post("/api/demos/sample-ai-assistant/deploy", json={"instance_id": "real"})
+    assert res.status_code == 200
+    assert deploys == []
+    assert res.json()["success"] is True and "simulated" in res.json()["output"]
+
+
 # -- AC3: the seed API never takes less than the request flag, the preference or the URL -------
 
 

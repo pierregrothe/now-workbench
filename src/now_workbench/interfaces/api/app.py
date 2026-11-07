@@ -22,6 +22,7 @@ from now_workbench.domains.identity import (
     operator_owner,
 )
 from now_workbench.domains.instances import InstanceCreate, InstanceRepository, is_simulated
+from now_workbench.domains.settings import PreferencesRepository
 from now_workbench.domains.sharing import resolve_bundle, sync_registry
 from now_workbench.domains.templates import TemplateRecord, TemplateRepository
 from now_workbench.interfaces.ai.tile_routing import resolve_query_to_tiles
@@ -336,6 +337,7 @@ def _register_build_deploy(
 
         with db_session() as conn:
             target_inst = InstanceRepository(conn).resolve(req.instance_id)
+            sdk_fake_mode = PreferencesRepository(conn).get_workbench_preferences().sdk_fake_mode
         if target_inst is None:
             if req.instance_id:
                 raise HTTPException(status_code=404, detail="Instance not found")
@@ -347,11 +349,11 @@ def _register_build_deploy(
         await log_broadcaster.broadcast(
             f"[deploy:start] Deploying bundle '{bundle_id}' to target: {inst_url}..."
         )
-        if is_simulated(target_inst, False):
+        if is_simulated(target_inst, sdk_fake_mode):
             res = SdkExecutionResult(
                 command="deploy",
                 exit_code=0,
-                output=f"Deploy simulated: '{target_inst.name}' is a simulated instance.",
+                output=f"Deploy simulated (fake mode or simulated instance '{target_inst.name}').",
                 success=True,
             )
         else:
