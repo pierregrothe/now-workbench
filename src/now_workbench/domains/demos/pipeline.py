@@ -15,7 +15,7 @@ from now_workbench.domains.capture import (
     CaptureRequest,
     PlaywrightCaptureEngine,
 )
-from now_workbench.domains.instances import InstanceRecord
+from now_workbench.domains.instances import InstanceRecord, is_simulated
 from now_workbench.domains.plugins import PluginManager, PluginRecord
 from now_workbench.domains.properties import PropertyApplyResult, PropertyEngine
 from now_workbench.domains.releases import evaluate_release_prerequisites
@@ -192,7 +192,8 @@ class DemoPipelineEngine:
 
         A bundle that is already an SDK project (package.json) is installed as is. A bundle
         with Fluent sources gets a generated project scoped to the instance's vendor prefix;
-        its tables are renamed into that scope and the seed records follow the rename.
+        its tables are renamed into that scope and the seed records follow the rename. A
+        simulated instance (``is_simulated``) is never deployed to and is seeded in fake mode.
 
         Returns:
             The seed operation, what happened to the deploy step, and the table rename map.
@@ -201,26 +202,27 @@ class DemoPipelineEngine:
             PipelineStepError: The app could not be generated, built or installed.
         """
         bundle_path = self._get_bundle_path(bundle_id)
-        simulated = fake_mode or instance.url.startswith("fake://")
+        simulated = is_simulated(instance, fake_mode)
+        is_project = (bundle_path / "package.json").exists()
         table_map: dict[str, str] = {}
 
-        if (bundle_path / "package.json").exists():
-            await self._install(bundle_path, instance, fake_mode)
-            deploy_note = "Fluent app deployed."
-        elif not list((bundle_path / "fluent").glob("*.now.ts")):
+        if not is_project and not list((bundle_path / "fluent").glob("*.now.ts")):
             deploy_note = "Deploy skipped: the bundle has no Fluent sources."
         elif simulated:
             deploy_note = "Fluent app deploy simulated (fake instance)."
+        elif is_project:
+            await self._install(bundle_path, instance)
+            deploy_note = "Fluent app deployed."
         else:
             project = await self._generate_project(bundle_id, bundle_path, instance)
-            await self._install(project.path, instance, fake_mode)
+            await self._install(project.path, instance)
             table_map = project.table_map
             deploy_note = (
                 f"Fluent app deployed in scope {project.scope} "
                 f"({len(table_map)} table(s) created in that scope)."
             )
 
-        seed_engine = SeedEngine(self.conn, fake_mode=fake_mode)
+        seed_engine = SeedEngine(self.conn, fake_mode=simulated)
         seed = await seed_engine.load_and_seed(
             bundle_id=bundle_id,
             bundle_path=bundle_path,
@@ -246,8 +248,8 @@ class DemoPipelineEngine:
         except SdkProjectError as exc:
             raise PipelineStepError(f"Fluent app could not be built: {exc}") from exc
 
-    async def _install(self, project_dir: Path, instance: InstanceRecord, fake_mode: bool) -> None:
-        result = await NowSdkRunner(fake_mode=fake_mode).deploy(
+    async def _install(self, project_dir: Path, instance: InstanceRecord) -> None:
+        result = await NowSdkRunner().deploy(
             project_dir=project_dir,
             instance_url=instance.url,
             username=instance.username,
@@ -316,7 +318,7 @@ class DemoPipelineEngine:
             target_path=target_path,
             media_type="video",
             label=caption,
-            fake_mode=fake_mode,
+            fake_mode=is_simulated(instance, fake_mode),
         )
         return await self.capture_engine.capture(
             req=req,

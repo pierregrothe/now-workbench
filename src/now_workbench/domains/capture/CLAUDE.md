@@ -50,8 +50,8 @@ URL, username and password), read preferences, or run the demo pipeline (`demos`
 - Fail closed on live captures: a failed screenshot or video raises `CaptureFailedError` and
   writes no index entry. A placeholder is written ONLY when `fake_mode` is set, and is then
   labelled `playwright-simulated`. The API capture endpoint and the Otto capture tool OR in
-  the `capture_fake_mode` preference; the CLI passes only `--fake`, and the demos pipeline
-  passes its own `fake_mode`.
+  the `capture_fake_mode` preference and pass the result through `is_simulated` (instances),
+  as does the demos pipeline; the CLI passes only `--fake`.
 - Access is the caller's job. In the API and Otto, writes go through `resolve_bundle` with
   `write=True` (owner only, ADR-018) and then pass `settings.get_bundles_dir()`; reads pass
   `BundleAccess.root`, which for a shared bundle is the published snapshot root. The CLI

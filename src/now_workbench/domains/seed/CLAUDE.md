@@ -58,9 +58,11 @@ restore system properties (`properties`), or own the instance registry (`instanc
   owner-scoped registry: if the instance was deleted it raises `ValueError` even though the
   audit row remains.
 - `fake_mode` is decided by the CALLER and only by it: the engine never looks at
-  `settings`, the `sdk_fake_mode` preference or a `fake://` URL. Fake posts return
-  `fake_sys_...` ids, fake deletes succeed, fake `verify` reports "simulated". Seeding and
-  rollback still need a registered instance in fake mode.
+  `settings`, the `sdk_fake_mode` preference or a `fake://` URL. Callers decide through
+  `is_simulated` (instances); the seed and rollback APIs OR the request flag with
+  `sdk_fake_mode` and the target instance, so a simulated instance is never posted to. Fake
+  posts return `fake_sys_...` ids, fake deletes succeed, fake `verify` reports "simulated".
+  Seeding and rollback still need a registered instance in fake mode.
 - Date wizard: `{{TODAY}}` and `{{NOW}}` both mean the current UTC instant (TODAY is not
   midnight); units s, m, h, d, w; output `YYYY-MM-DD HH:MM:SS`, case-insensitive.
 - Non-basic auth sends no credentials (`httpx.USE_CLIENT_DEFAULT`).

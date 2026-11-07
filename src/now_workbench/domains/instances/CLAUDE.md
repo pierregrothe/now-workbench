@@ -22,6 +22,8 @@ releases (`releases`, which it imports), or hold the workbench-wide fake-mode pr
 - `count_records(inst, tables, ...)` / `daily_created(inst, table, days, ...)` -- async
   Aggregate API counts, a few requests at a time.
 - `seed_default_instance_if_empty(conn)` -- first-run seeding from settings.
+- `is_simulated(inst, fake_mode)` -- THE simulated-instance rule: True when `fake_mode` is
+  passed, `settings.fake_mode` is set, or the URL starts `fake://` or `http://fake`.
 - Models: `InstanceRecord` (decrypted credentials, backend only), `InstancePublic` (API
   view, `has_password` instead of the password; build it with `to_public`),
   `InstanceCreate`, `InstanceUpdate`, `InstanceProfile`, `InstanceNode`, `InstancePurpose`
@@ -79,14 +81,11 @@ releases (`releases`, which it imports), or hold the workbench-wide fake-mode pr
 - Use `InstanceRepository.resolve` for "this id or the default". Otto's fuzzy lookup (id,
   name, or a unique URL fragment) is `resolve_instance` in `interfaces/ai/tools/base.py`.
 - Live table counts: `count_records` / `daily_created`, not a new stats client.
-- Fake detection lives in `is_simulated` (`connectivity.py`), which is not on the public
-  root; other packages currently re-derive it (see Known gaps).
+- Fake detection: `is_simulated`. Every caller (plugins, properties, runbooks, demos, the seed
+  and capture APIs, the Otto tools) uses it; never re-check a URL prefix yourself.
 
 ## Known gaps
 
-- `is_simulated` is not exported. `interfaces/ai/tools/operations.py` (`_is_fake`) checks
-  `ctx.fake_mode` and `fake://` but not `http://fake`, and the seed API trusts the request's
-  `fake_mode` flag.
 - Two first-run seeders exist: `seed_default_instance_if_empty` (id `primary-instance`)
   and `seed_database` in `interfaces/api/app.py` (id `default-instance`, at app startup,
   only when the operator has no instance yet).

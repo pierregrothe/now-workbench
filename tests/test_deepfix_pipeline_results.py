@@ -32,6 +32,10 @@ class _FailingPropEngine(PropertyEngine):
         return PropertyApplyResult(success=False, applied_count=0, details=["Failed to update 'x'"])
 
 
+async def _failing_deploy(*_args: object, **_kwargs: object) -> None:
+    raise PipelineStepError("SDK deploy failed (exit code 2): boom")
+
+
 def _setup(tmp_path: Path):
     bundles_dir = tmp_path / "bundles"
     bundles_dir.mkdir()
@@ -59,13 +63,12 @@ async def test_deploy_and_seed_deploy_failure_raises(tmp_path: Path, monkeypatch
         )
         engine = DemoPipelineEngine(bundles_dir=bundles_dir, conn=conn)
         with pytest.raises(PipelineStepError, match="exit code 2"):
-            await engine.deploy_and_seed(bundle_id, inst, fake_mode=True)
+            await engine.deploy_and_seed(bundle_id, inst)
 
 
 @pytest.mark.asyncio
 async def test_run_full_pipeline_deploy_failure_reports_failed(tmp_path: Path, monkeypatch):
     bundles_dir, bundle_id = _setup(tmp_path)
-    monkeypatch.setattr(pipeline_mod, "NowSdkRunner", _FailingRunner)
     with db_session(tmp_path / "t.db") as conn:
         instance_repo = InstanceRepository(conn)
         instance_repo.add_instance(
@@ -75,6 +78,8 @@ async def test_run_full_pipeline_deploy_failure_reports_failed(tmp_path: Path, m
         inst = instance_repo.get_instance("i1")
         assert inst is not None
         engine = DemoPipelineEngine(bundles_dir=bundles_dir, conn=conn)
+        # Fake mode never deploys (STORY-072), so the deploy step itself is made to fail.
+        monkeypatch.setattr(engine, "deploy_and_seed", _failing_deploy)
         summary = await engine.run_full_pipeline(
             bundle_id, inst, fake_mode=True, record_video=False
         )

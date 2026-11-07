@@ -46,7 +46,7 @@ attribute).
   as missing (a 200 whose `result` is not a list of objects raises instead), with the reason
   recorded in `reasons`; it never claims a plugin is active on failure.
   A row counts as active when its active field reads "active" or "true".
-- Simulated means `fake_mode=True` OR an instance URL starting with fake:// ; then no HTTP
+- Simulated means `is_simulated(instance, fake_mode)` (instances domain); then no HTTP
   call is made and only the recorded rows count.
 - Recording is one-way: a plugin seen active is upserted; nothing ever removes or deactivates
   a row. On real instances the live answer wins anyway; on simulated ones a recorded plugin stays
