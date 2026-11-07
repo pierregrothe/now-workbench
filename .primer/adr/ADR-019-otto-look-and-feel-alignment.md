@@ -45,8 +45,11 @@ requirements; this ADR records the presentation decisions so later work does not
 
 - Visual changes are checked against the live instance before they ship. When EmployeeWorks
   changes, this ADR is amended, not silently overridden.
-- Every workbench screen now follows these measurements; PRD-002 records the restyles. The
-  Synthesizer and Media Capture were restyled on 2026-11-07 (story 2026.11b.02): pill buttons,
-  10px fields, warm segmented chips, 16px cards. The Fluent Explorer and the Artifact library
-  cards followed the same day (story 2026.11b.03): the Otto canvas, a Settings-style tables
-  menu, round icon buttons, warm chips and the shared form styles.
+- The screens listed follow these measurements: chat, Settings, Synthesizer, Media Capture,
+  Fluent Explorer and the Artifact library; PRD-002 records the restyles. The Synthesizer and
+  Media Capture were restyled on 2026-11-07 (story 2026.11b.02): pill buttons, 10px fields,
+  warm segmented chips, 16px cards. The Fluent Explorer and the Artifact library cards followed
+  the same day (story 2026.11b.03): the Otto canvas, a Settings-style tables menu, round icon
+  buttons, warm chips and the shared form styles.
+- Still to restyle: the buttons of the Settings Instances section (`admin-shared-styles`), the
+  admin panel canvas, and the share, clone and deploy dialogs (inline styles, 6px inputs).

@@ -17,6 +17,36 @@ async function expectNoSidewaysScroll(page: Page): Promise<void> {
   expect(scroll).toBeLessThanOrEqual(width);
 }
 
+/**
+ * Nothing scrolls sideways inside one screen either. The page check misses it: each screen
+ * scrolls inside its own host, under a content area that clips. So the host and every scroll
+ * container in its shadow trees (overflow other than visible) must be no wider than its box.
+ * Form controls and icons are not layout boxes and are skipped. `sideways` lists, by selector,
+ * the frames meant to scroll sideways (a wide table, a code box, a strip); their own overflow
+ * is allowed, their insides are still checked. The VIEWS loop keeps the page-level check only:
+ * its other screens have not been audited for such frames.
+ */
+async function expectNoSidewaysScrollIn(page: Page, host: string, sideways: string[]): Promise<void> {
+  await expectNoSidewaysScroll(page);
+  const wide = await page.locator(host).evaluate((root, allowed) => {
+    const found: string[] = [];
+    const visit = (el: Element): void => {
+      if (el.matches('input, select, textarea, button, svg')) return;
+      const overflow = getComputedStyle(el).overflowX;
+      const scrolls = overflow !== 'visible' && overflow !== 'clip';
+      const meant = allowed.some((sel) => el.matches(sel));
+      if (scrolls && !meant && el.scrollWidth > el.clientWidth + 1) {
+        found.push(`${el.tagName.toLowerCase()}.${el.getAttribute('class') ?? ''} ${el.scrollWidth}>${el.clientWidth}`);
+      }
+      for (const child of el.shadowRoot?.children ?? []) visit(child);
+      for (const child of el.children) visit(child);
+    };
+    visit(root);
+    return found;
+  }, sideways);
+  expect(wide).toEqual([]);
+}
+
 test.describe('phone portrait (iPhone size)', () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
 
@@ -144,12 +174,12 @@ test.describe('phone portrait (iPhone size)', () => {
     expect(await picker.evaluate((el) => parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(16);
     expect((await picker.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(40);
     expectTouchSized(await buttons('now-fluent-explorer'));
-    await expectNoSidewaysScroll(page);
+    await expectNoSidewaysScrollIn(page, 'now-fluent-explorer', ['.tables-sidebar', '.table-card', '.code-box']);
 
     await page.goto('/#artifacts');
     await expect(page.locator('now-demo-catalog .demo-card').first()).toBeVisible();
     expectTouchSized(await buttons('now-demo-catalog'));
-    await expectNoSidewaysScroll(page);
+    await expectNoSidewaysScrollIn(page, 'now-demo-catalog', []);
   });
 
   test('a capture gallery with a long-labelled card fits the width of the phone', async ({ page }) => {

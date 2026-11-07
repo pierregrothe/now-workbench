@@ -350,7 +350,7 @@ export class NowDemoCatalog extends LitElement {
                         `
                       : ''}
                     <button
-                      class="btn-secondary icon-btn proofs-close"
+                      class="btn-secondary icon-btn modal-close"
                       title="Close"
                       @click=${() => {
                         this.viewingMediaBundle = null;

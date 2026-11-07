@@ -94,10 +94,20 @@ Artifact library only:
   table headers, round icon buttons, the Settings-style tables menu (a strip at 900px or
   less), and the AA colours above (`--now-text-muted`, `#047857`, `#b42318`).
 - The deploy and clone dialogs reuse `demoCatalogStyles`, so their primary button is now the
-  shared AA pill colours too (dark text on the brand green); their layout is unchanged.
+  shared AA pill colours too (dark text on the brand green); their layout is unchanged. On
+  phones their icon buttons are 40x40 so siblings match, and their 32px close button is the
+  shared `.modal-close` class instead of an inline style.
 - No text, accessible name, role, event handler or API call changed.
 - `web/e2e/mobile.spec.ts`: a phone test asserts every button of both screens is at least
   40x40px, the Fluent bundle picker is 16px and 40px tall, and neither screen scrolls sideways.
+  Because each screen scrolls inside its own host, a new `expectNoSidewaysScrollIn` helper also
+  checks the host and every scroll container in its shadow trees, except the frames meant to
+  scroll sideways (Fluent: the tables strip, the table card, the code box). The VIEWS loop keeps
+  the page-level check: its other screens have not been audited for such frames.
+- Review fixes: the table id keeps 5.8:1 on the row hover; the proofs "Clear All"/"Delete" text
+  is `#b42318`; the proofs links are 40px tall on phones; the code box reserves a row above the
+  code for the 40px copy button on phones (top padding rather than right padding, since a long
+  first line scrolls under a right-hand button anyway).
 
 ### Modules Affected
 

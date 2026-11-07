@@ -50,7 +50,9 @@ Solution Consultants and developers using Otto inside now-workbench.
 - Every tile button either works or is not rendered.
 - The other workbench screens follow the ADR-019 measurements. Restyled: Synthesizer and
   Media Capture (story 2026.11b.02, 2026-11-07); Fluent Explorer and the Artifact library
-  cards (story 2026.11b.03, 2026-11-07). None is left to do.
+  cards (story 2026.11b.03, 2026-11-07). Still to do: the Settings Instances buttons
+  (`admin-shared-styles`), the admin panel canvas, and the share, clone and deploy dialogs
+  (inline styles, 6px inputs).
 
 ## Out of Scope (anti-creep fence)
 - We will NOT copy ServiceNow's text, logos, artwork or product screenshots; we align

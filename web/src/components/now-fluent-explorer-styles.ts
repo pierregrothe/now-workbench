@@ -14,7 +14,6 @@ export const fluentExplorerStyles = css`
       background: var(--otto-canvas, #efece7);
       color: var(--now-text-primary, #0f172a);
       overflow: hidden;
-      font-family: inherit;
     }
 
     /* The header blends into the canvas, as the Otto top bar. */
@@ -84,7 +83,6 @@ export const fluentExplorerStyles = css`
       color: #b42318;
     }
 
-    /* Round icon buttons, as the Otto toolbar. */
     .btn {
       position: relative;
       display: inline-flex;
@@ -92,7 +90,6 @@ export const fluentExplorerStyles = css`
       border-radius: var(--now-radius-pill, 9999px);
       cursor: pointer;
       border: 1px solid transparent;
-      transition: background-color 0.15s ease;
     }
 
     .btn.icon-btn {
@@ -189,6 +186,10 @@ export const fluentExplorerStyles = css`
       overflow-wrap: anywhere;
     }
 
+    .table-nav-btn:hover .table-nav-id {
+      color: var(--now-text-secondary, #475467); /* 5.8:1 on #e3dfd8; muted is 3.6:1 */
+    }
+
     .table-nav-btn.active .table-nav-id {
       color: #d0d0d0;
     }
@@ -260,11 +261,8 @@ export const fluentExplorerStyles = css`
       overflow-wrap: anywhere;
     }
 
-    .diff-headline {
-      margin-bottom: 8px;
-    }
-
     .diff-body {
+      margin-top: 8px;
       font-size: 13px;
       color: var(--now-text-secondary, #475467);
       overflow-wrap: anywhere;
@@ -473,6 +471,11 @@ export const fluentExplorerStyles = css`
 
       .table-card {
         padding: 16px;
+      }
+
+      /* A row above the code for the 40px copy button, so it never covers a line. */
+      .code-box {
+        padding-top: 58px;
       }
 
       .btn.icon-btn,

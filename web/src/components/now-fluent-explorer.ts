@@ -196,7 +196,7 @@ export class NowFluentExplorer extends LitElement {
           ${this.showDiff && this.diffResult
             ? html`
                 <div class="table-card diff-card">
-                  <div class="table-headline diff-headline">
+                  <div class="table-headline">
                     Baseline Schema Diff (${this.bundleId})
                   </div>
                   <div class="diff-body">

@@ -130,7 +130,7 @@ export class NowDeployDialog extends LitElement {
         <div class="modal-card">
           <div class="modal-header">
             <h2>Deploy & Seed Demonstration</h2>
-            <button class="btn-secondary icon-btn" style="flex: 0 0 32px; width: 32px; height: 32px;" title="Close" data-tooltip="Close" @click=${this.close}>
+            <button class="btn-secondary icon-btn modal-close" title="Close" data-tooltip="Close" @click=${this.close}>
               <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
             </button>
           </div>

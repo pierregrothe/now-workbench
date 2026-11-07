@@ -1,6 +1,7 @@
 // web/src/components/now-demo-catalog-modal-styles.ts
 // Modal rules of the Artifact library (ADR-024): the media proofs viewer of <now-demo-catalog>
-// and the deploy and clone dialogs, which reuse demoCatalogStyles.
+// and the deploy and clone dialogs, which reuse demoCatalogStyles. .modal-close is the 32px
+// close button of all three.
 // Author: Pierre Grothe
 // Date: 2026-11-07
 
@@ -118,8 +119,9 @@ export const demoCatalogModalStyles = css`
       align-items: center;
     }
 
+    /* #b42318 keeps 6:1 on the #f1f5f9 hover (#dc2626 was 4.4:1). */
     .btn-secondary.proof-danger {
-      color: #dc2626;
+      color: #b42318;
       border-color: #fca5a5;
       padding: 4px 10px;
     }
@@ -129,7 +131,7 @@ export const demoCatalogModalStyles = css`
       padding: 2px 8px;
     }
 
-    .icon-btn.proofs-close {
+    .icon-btn.modal-close {
       flex: 0 0 32px;
       width: 32px;
       height: 32px;
@@ -192,6 +194,8 @@ export const demoCatalogModalStyles = css`
     }
 
     .proof-link {
+      display: inline-flex;
+      align-items: center;
       color: #2563eb;
       font-weight: 600;
       text-decoration: none;
@@ -218,12 +222,16 @@ export const demoCatalogModalStyles = css`
       object-fit: contain;
     }
 
-    /* Phones (ADR-030): 40px touch targets in the proofs viewer. */
+    /* Phones (ADR-030): 40px touch targets in the proofs viewer and the dialogs. */
     @media (max-width: 768px), (max-height: 500px) {
-      .icon-btn.proofs-close {
+      .modal-card .icon-btn {
         width: 40px;
         height: 40px;
         flex-basis: 40px;
+      }
+
+      .proof-link {
+        min-height: 40px;
       }
 
       .proofs-modal .btn-secondary {
