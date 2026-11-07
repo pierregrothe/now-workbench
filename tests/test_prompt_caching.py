@@ -237,3 +237,41 @@ def test_run_agent_signed_compaction_block_and_trailing_user_turn_are_kept() -> 
         "content": "Summary.",
         "signature": "sig-1",
     }
+
+
+@pytest.mark.parametrize(
+    ("instance_url", "record"),
+    [
+        ("fake://gone.service-now.com", "I ran `delete_instances` after you confirmed. Deleted 1"),
+        (None, "I tried to run `delete_instances` after you confirmed."),
+    ],
+)
+def test_confirmed_tool_reply_tells_the_next_question_what_ran(
+    monkeypatch: pytest.MonkeyPatch, instance_url: str | None, record: str
+) -> None:
+    """A confirmed action is replayed as Otto's own account of it, not a bare result (STORY-059)."""
+    from now_workbench.domains.instances import InstanceCreate, InstanceRepository
+
+    if instance_url:
+        with db_session() as conn:
+            InstanceRepository(conn).add_instance(
+                InstanceCreate(id="gone", name="Gone", url=instance_url)
+            )
+    fake = _install(monkeypatch, [_Resp([_Block("text", text="Yes, it is deleted.")])])
+    client = TestClient(create_app())
+    thread = client.post("/api/threads", json={"title": "t"}).json()["id"]
+    shown = client.post(
+        f"/api/threads/{thread}/messages",
+        json={
+            "content": "Confirmed: delete Gone",
+            "widget_type": "tool_confirm",
+            "widget_data": {"tool": "delete_instances", "input": {"instances": ["gone"]}},
+        },
+    ).json()[-1]["content"]
+    assert not shown.startswith("I ")  # the person sees the result itself
+    client.post(f"/api/threads/{thread}/messages", json={"content": "Is it gone?"})
+
+    sent = _no_markers(fake.messages.calls[0]["messages"])
+    replayed = [m for m in sent if m["role"] == "assistant"][-1]["content"][0]["text"]
+    assert replayed.startswith(record)
+    assert replayed.endswith(shown)

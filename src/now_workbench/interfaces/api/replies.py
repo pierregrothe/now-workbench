@@ -158,10 +158,16 @@ def confirmed_tool_reply(
     data = req.widget_data or {}
     prefs = PreferencesRepository(conn).get_workbench_preferences()
     ctx = ToolContext(conn=conn, fake_mode=prefs.sdk_fake_mode, thread_id=thread_id)
-    result = execute_tool(ctx, str(data.get("tool", "")), dict(data.get("input") or {}), True)
+    tool = str(data.get("tool", ""))
+    result = execute_tool(ctx, tool, dict(data.get("input") or {}), True)
     tiles = result.tiles or [text_tile("tile-tool-result", "Result", result.summary)]
     resp = GenerativeUIResponse(summary=result.summary, layout=result.layout, tiles=tiles)
-    return _Reply(resp.summary, "generative_tiles", _widget_payload(resp, conn))
+    # The person sees the result; Claude, on later questions, also learns which action ran,
+    # so Otto never denies or repeats what was done (STORY-059).
+    ran = "ran" if result.ok else "tried to run"
+    record = f"I {ran} `{tool}` after you confirmed. {result.summary}"
+    transcript = [{"role": "assistant", "content": [{"type": "text", "text": record}]}]
+    return _Reply(resp.summary, "generative_tiles", _widget_payload(resp, conn), transcript)
 
 
 def build_contextual_reply(
