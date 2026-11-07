@@ -39,6 +39,8 @@ def stale_cards(now: float | None = None) -> list[str]:
     lines = []
     for card in _git("ls-files", "--", ":(glob)src/**/CLAUDE.md").splitlines():
         sha, _, stamp = _git("log", "-1", "--format=%H %ct", "--", card).partition(" ")
+        if not stamp:
+            continue  # staged but never committed: nothing to compare against yet
         domain = Path(card).parent.as_posix()
         commits = int(_git("rev-list", "--count", f"{sha}..HEAD", "--", f":(glob){domain}/**/*.py"))
         days = int((current - int(stamp)) // 86400)
@@ -56,7 +58,11 @@ def main() -> int:
     Returns:
         Always 0 (advisory).
     """
-    lines = stale_cards()
+    try:
+        lines = stale_cards()
+    except (subprocess.CalledProcessError, ValueError, OSError) as error:
+        print(f"domain-card-freshness: could not check the cards ({error}); skipped.")
+        return 0
     if lines:
         print("Domain cards that may need a refresh (advisory, ADR-033):")
         print("\n".join(f"  {line}" for line in lines))

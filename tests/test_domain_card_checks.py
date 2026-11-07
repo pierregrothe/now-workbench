@@ -40,6 +40,12 @@ class WidgetRepository:
     def list_widgets(self): ...
 def make_widget[T](spec: T) -> T:
     return {"code": "WIDGET_MISSING", "env": "WORKBENCH_WIDGET_DIR"}
+DDL = "CREATE TABLE IF NOT EXISTS widget_rows (id INTEGER); CREATE INDEX idx_widget_rows ON x"
+class WidgetSettings(BaseSettings):
+    model_config = SettingsConfigDict(env_prefix="WORKBENCH_")
+    widget_limit: int = 3
+class WidgetView(BaseModel):
+    label: str
 '''
 
 
@@ -68,6 +74,7 @@ def test_references_reads_code_shaped_inline_spans_once_and_skips_fences() -> No
         "Camel `listWidgets`, constant `LIMIT_DEFAULT`, short `Abc`.\n"
     )
     assert cards.references(text) == [
+        (1, "WidgetRepository"),
         (1, "make_widget"),
         (5, "widgets.list_widgets"),
         (6, "listWidgets"),
@@ -75,10 +82,17 @@ def test_references_reads_code_shaped_inline_spans_once_and_skips_fences() -> No
     ]
 
 
-def test_references_ignores_a_span_with_arguments_inside() -> None:
-    """`WidgetRepository(conn)` is a call shape, not an identifier, so it is not a reference."""
-    assert cards.references("`WidgetRepository(conn)` `WidgetRepository`") == [
-        (1, "WidgetRepository")
+def test_references_reads_the_leading_name_of_calls_subscripts_and_decorators() -> None:
+    text = (
+        "`GhostRepository(conn)` ``ghost_fn(1, 2)`` `Ghost_Box[T]` `@ghost_decorator`\n"
+        "~~~\n`hidden_name`\n~~~\n"
+        "`a_name, b_name` `GhostRepository | None` `POST /api/x` `git log --oneline`\n"
+    )
+    assert [name for _, name in cards.references(text)] == [
+        "GhostRepository",
+        "ghost_fn",
+        "Ghost_Box",
+        "ghost_decorator",
     ]
 
 
@@ -102,14 +116,17 @@ def test_defined_names_covers_every_binding_kind(src: Path) -> None:
         "LIMIT_DEFAULT",
         "WIDGET_MISSING",
         "WORKBENCH_WIDGET_DIR",
+        "WORKBENCH_WIDGET_LIMIT",
+        "widget_rows",
+        "idx_widget_rows",
+        "__init__",
         "utc_now",
         "clock",
         "platform",
         "httpx",
     }
     assert expected <= names
-    assert "__init__" not in names
-    assert "Module." not in names
+    assert "spec" in names and "conn" in names
 
 
 # --------------------------------------------------------------------------- dead references
@@ -121,13 +138,28 @@ def test_dead_references_reports_only_names_src_does_not_define(src: Path, tmp_p
         "# widgets\n"
         "- `WidgetRepository`, `widgets.make_widget`, `LIMIT_DEFAULT`\n"
         "- `fastapi.APIRouter`, `pathlib.Path`, `ValueError`\n"
-        "- `GhostService` and `widgets.vanished_fn`\n",
+        "- `GhostService` and `widgets.vanished_fn`\n"
+        "- `WidgetRepository.list_widgets`, `WidgetRepository.make_widget`\n"
+        "- `WidgetView.model_dump`\n",
     )
     dead = cards.dead_references(src, tmp_path / "none.txt")
+    card = "src/now_workbench/domains/widgets/CLAUDE.md"
     assert dead == [
-        "src/now_workbench/domains/widgets/CLAUDE.md:4: GhostService",
-        "src/now_workbench/domains/widgets/CLAUDE.md:4: widgets.vanished_fn",
+        f"{card}:4: GhostService",
+        f"{card}:4: widgets.vanished_fn",
+        f"{card}:5: WidgetRepository.make_widget",
     ]
+
+
+def test_build_index_checks_project_modules_that_share_a_stdlib_name() -> None:
+    """`platform` and `profile` are project modules, so a dead member under them is caught."""
+    index = cards.build_index()
+    assert index.resolves("platform.db.session.db_session")
+    assert index.resolves("domains.profile.ProfileRepository")
+    assert not index.resolves("platform.db.ghost_fn")
+    assert not index.resolves("profile.ghost_fn")
+    assert not index.resolves("ChatRepository.ghost_method")
+    assert {"platform", "profile"} <= index.modules
 
 
 def test_dead_references_honours_an_explained_allowlist_entry_only(
@@ -214,6 +246,22 @@ def test_stale_cards_ignores_commits_outside_the_domain_and_names_old_cards(repo
     later = int(git("log", "-1", "--format=%ct").strip()) + fresh.MAX_DAYS * 86400
     [line] = fresh.stale_cards(now=later)
     assert f"0 commits to src/now_workbench/domains/widgets and {fresh.MAX_DAYS} days" in line
+
+
+def test_stale_cards_skips_a_card_that_is_staged_but_never_committed(repo: Path) -> None:
+    card = Path("src/now_workbench/domains/gadgets/CLAUDE.md")
+    card.parent.mkdir(parents=True)
+    card.write_text("# gadgets\n")
+    git("add", str(card))
+    assert fresh.stale_cards() == []
+
+
+def test_main_stays_advisory_when_git_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.chdir(tmp_path)  # not a repository: every git call fails
+    assert fresh.main() == 0
+    assert "could not check the cards" in capsys.readouterr().out
 
 
 def test_main_is_advisory_and_says_nothing_when_fresh(

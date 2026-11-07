@@ -16,10 +16,10 @@ local git hooks and harness hooks are the primary gates.
 |------|-------------|-------|-----|------|
 | conventional-pre-commit | Conventional Commits message validation | global | [ADR-005] | conventional-pre-commit |
 | conventionalize-merge-msg | Conventional subject for local merge commits (prepare-commit-msg) | project | [ADR-032] | scripts/hooks/prepare_merge_commit_msg.py |
+| domain-card-freshness | Names domain cards that fell behind their domain (pre-push, advisory) | project | [ADR-033] | scripts/hooks/check_domain_card_freshness.py |
 | guard-branch | No commits on main; a branch per story | project | [ADR-032] | scripts/dev-tools/pr_gate.py |
 | guard-push | No pushes to main; land a PR instead (pre-push) | project | [ADR-032] | scripts/dev-tools/pr_gate.py |
 | import-contracts | Layers, acyclic domains and domain public roots (import-linter) | project | [ADR-015] | lint-imports |
-| domain-card-freshness | Names domain cards that fell behind their domain (pre-push, advisory) | project | [ADR-033] | scripts/hooks/check_domain_card_freshness.py |
 | file-size | File size limits (src 500 tiered, tests 1000, web 500 lines) | project | [ADR-005, ADR-015] | scripts/check_file_sizes.py |
 | mutation-gate | Every mutant of the gated modules killed (mutmut, pre-push) | project | [ADR-029] | scripts/mutation_gate.py |
 | mypy | Static type checking (mypy strict mode) | project | [ADR-005] | mypy |
