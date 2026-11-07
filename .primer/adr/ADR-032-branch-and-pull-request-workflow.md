@@ -47,4 +47,17 @@ and already apply.
 - A PR costs one full gate run (`check`) instead of one per push.
 - A stamp lives in the local `.git`, so it proves only what ran on this machine.
 - Repository settings (branch protection) stay the owner's call. The local guards do not
-  stop a push made with `--no-verify`.
+  stop a push made with `--no-verify`. They also see only the first ref of a push:
+  pre-commit hands its pre-push hooks the first branch with new commits. So `git push --all`
+  or `git push origin feature/x main` would get `main` past `guard-push` and the stamp skip.
+  Push one branch at a time (`git push -u origin <branch>`). Branch protection on GitHub is
+  the only complete guard.
+- The review record must name a commit of the branch itself (an ancestor of the head that is
+  not on `origin/main`). Commits made after that reviewed head are still accepted by `land`,
+  while the global `pre-pr-check.sh` demands the exact reviewed head at `gh pr create`.
+- The stamp proves the head against the `main` it was tested on. The squash merge onto a newer
+  `main` is not re-tested.
+- The release workflow is serialized (`concurrency`, no cancel-in-progress). GitHub keeps only
+  one pending run, so in a burst of three merges the middle run is dropped. A release merge
+  caught that way needs its run re-started by hand. The bump commit and the tag are pushed
+  atomically.

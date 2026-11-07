@@ -155,16 +155,21 @@ def test_check_refuses_a_dirty_tree_and_main(
     assert gate.main(["status"]) == 1
 
 
-@pytest.mark.parametrize("case", ["other-commit", "dirty", "no-stamp", "forced", "failed"])
+@pytest.mark.parametrize(
+    "case", ["other-commit", "unset-ref", "dirty", "no-stamp", "forced", "failed"]
+)
 def test_skip_reason_runs_the_check_unless_the_exact_commit_is_proven(
     case: str, repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     first = _commit("d.txt")
     head = _commit("e.txt")
     _stamp(head, passed=case != "failed")
+    monkeypatch.setenv("PRE_COMMIT_TO_REF", head)
     match case:
         case "other-commit":
             monkeypatch.setenv("PRE_COMMIT_TO_REF", first)
+        case "unset-ref":
+            monkeypatch.delenv("PRE_COMMIT_TO_REF")
         case "dirty":
             Path("e.txt").write_text("edited")
         case "no-stamp":
@@ -172,7 +177,20 @@ def test_skip_reason_runs_the_check_unless_the_exact_commit_is_proven(
         case "forced":
             monkeypatch.setenv("PR_GATE_FORCE", "1")
     assert gate.skip_reason("pytest-pre-push") is None
-    assert gate.run_unless_proven("pytest-pre-push", ["true"]) == 0
+    marker = repo.parent / "ran"
+    assert gate.run_unless_proven("pytest-pre-push", ["touch", str(marker)]) == 0
+    assert marker.exists()
+
+
+def test_skip_reason_skips_the_proven_commit_being_pushed(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    head = _commit("e2.txt")
+    _stamp(head)
+    monkeypatch.setenv("PRE_COMMIT_TO_REF", head)
+    marker = repo.parent / "ran"
+    assert gate.run_unless_proven("pytest-pre-push", ["touch", str(marker)]) == 0
+    assert not marker.exists()
 
 
 def test_read_stamp_ignores_a_stamp_for_another_commit_or_garbage(repo: Path) -> None:
@@ -212,6 +230,19 @@ def test_record_covers_needs_a_committed_record_naming_an_ancestor(repo: Path) -
     git("switch", "-q", "feature/x")
     stale = _record(other)
     assert "re-review" in str(gate._record_covers("feature/x", stale))
+
+
+def test_record_covers_refuses_a_head_already_on_main(repo: Path) -> None:
+    """A record naming main's tip (an ancestor of every branch) reviews nothing."""
+    _commit("m.txt")
+    head = _record(git("rev-parse", "origin/main"))
+    assert "re-review" in str(gate._record_covers("feature/x", head))
+
+
+def test_record_covers_ignores_a_head_mentioned_in_prose(repo: Path) -> None:
+    reviewed = _commit("n.txt")
+    head = _commit(".primer/reviews/feature-x.md", f"Notes: the old Head: {reviewed} was fine\n")
+    assert "re-review" in str(gate._record_covers("feature/x", head))
 
 
 def _fake_gh(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, view: dict[str, str]) -> Path:

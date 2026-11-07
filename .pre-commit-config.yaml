@@ -3,7 +3,7 @@
 # Author: Pierre Grothe
 # Date: 2026-10-29
 
-default_install_hook_types: [pre-commit, prepare-commit-msg, commit-msg, pre-push]
+default_install_hook_types: [pre-commit, pre-merge-commit, prepare-commit-msg, commit-msg, pre-push]
 
 repos:
   - repo: https://github.com/compilerla/conventional-pre-commit
@@ -21,7 +21,7 @@ repos:
         language: system
         pass_filenames: false
         always_run: true
-        stages: [pre-commit]
+        stages: [pre-commit, pre-merge-commit]
 
       - id: conventionalize-merge-msg
         name: Conventional subject for local merge commits (ADR-032)

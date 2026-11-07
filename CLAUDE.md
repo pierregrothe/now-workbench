@@ -80,7 +80,7 @@ in this one checkout (no worktrees).
 ```bash
 git switch -c feature/<slug>                          # after /primer story start
 python scripts/dev-tools/pr_gate.py check             # once per PR: pytest+coverage, mutation, e2e; stamps HEAD
-git push -u origin feature/<slug>                     # skips the stamped checks for that exact commit
+git push -u origin feature/<slug>                     # one branch per push; skips the stamped checks for that exact commit
 gh pr create --fill                                   # needs .primer/reviews/<branch-with-dashes>.md (Head: <sha>)
 python scripts/dev-tools/pr_gate.py land <pr>         # refuses an unstamped or unreviewed head; squash-merge, pull main
 ```

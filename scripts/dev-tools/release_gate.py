@@ -64,7 +64,11 @@ def completed_epics(rev: str) -> set[str]:
     Returns:
         The epic folder names whose ``epic.md`` is complete there.
     """
-    names = _git("ls-tree", "-r", "--name-only", rev, "--", ".primer/epics").split()
+    try:
+        listing = _git("ls-tree", "-r", "-z", "--name-only", rev, "--", ".primer/epics")
+    except subprocess.CalledProcessError:
+        return set()  # no such revision: the parent of a root commit
+    names = [name for name in listing.split("\0") if name]
     return {
         Path(name).parent.name
         for name in names

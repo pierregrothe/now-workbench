@@ -35,7 +35,7 @@ import re
 import subprocess
 import sys
 import time
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 __all__ = [
@@ -171,8 +171,8 @@ def skip_reason(hook: str) -> str | None:
     if os.environ.get(FORCE_ENV):
         return None
     head = _head()
-    pushed = os.environ.get("PRE_COMMIT_TO_REF", "")
-    if pushed and pushed != head:
+    # pre-commit leaves TO_REF unset for an all-files push (a root commit); then nothing is skipped.
+    if os.environ.get("PRE_COMMIT_TO_REF", "") != head:
         return None
     if _tracked_changes():
         return None
@@ -201,7 +201,7 @@ def run_unless_proven(hook: str, cmd: list[str]) -> int:
 
 
 def guard_branch() -> int:
-    """Refuse a commit on main (a merge commit during a conflict is a commit too).
+    """Refuse a commit on main, a merge commit included (the hook also runs at pre-merge-commit).
 
     Returns:
         0 on a story branch, 1 on main.
@@ -246,11 +246,24 @@ def _record_covers(branch: str, head: str) -> str | None:
         text = _git("show", f"{head}:{rel}")
     except subprocess.CalledProcessError:
         return f"no review record {rel} at the PR head"
-    for sha in re.findall(r"Head: ([0-9a-f]{9,64})", text):
-        ok = subprocess.run(["git", "merge-base", "--is-ancestor", sha, head], check=False)
-        if ok.returncode == 0:
+    for sha in re.findall(r"^- Head: ([0-9a-f]{9,64})\s*$", text, re.M):
+        if _ancestor(sha, head) and not _ancestor(sha, f"origin/{MAIN}"):
             return None
-    return f"{rel} names no Head that is an ancestor of {head[:12]}; re-review"
+    return f"{rel} names no Head among the branch's own commits up to {head[:12]}; re-review"
+
+
+def _ancestor(sha: str, rev: str) -> bool:
+    """Say whether a commit is an ancestor of (or equal to) a revision.
+
+    Args:
+        sha: The commit.
+        rev: The revision.
+
+    Returns:
+        True when ``sha`` is reachable from ``rev``.
+    """
+    done = subprocess.run(["git", "merge-base", "--is-ancestor", sha, rev], capture_output=True)
+    return done.returncode == 0
 
 
 def _gh_json(*args: str) -> object:
@@ -307,7 +320,8 @@ def land(pr: int, wait: float, poll: float) -> int:
     if problem is not None:
         print(f"land: {problem}.")
         return 1
-    since = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+    # A minute of slack: the local clock may run ahead of GitHub's.
+    since = (datetime.now(UTC) - timedelta(minutes=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
     subprocess.run(
         ["gh", "pr", "merge", str(pr), "--squash", "--delete-branch", "--match-head-commit", head],
         check=True,

@@ -80,6 +80,16 @@ def test_decide_releases_when_a_merge_closes_an_epic(repo: Path) -> None:
     assert gate.decide(sha, set()) == {"release": "true", "reason": "closes 2026.11c-open"}
 
 
+def test_decide_treats_a_root_commit_as_closing_its_complete_epics(repo: Path) -> None:
+    root = git("rev-list", "--max-parents=0", "HEAD")
+    assert gate.decide(root, set()) == {"release": "true", "reason": "closes 2026.11a-done"}
+
+
+def test_completed_epics_reads_folder_names_with_spaces(repo: Path) -> None:
+    sha = _epic("2026.12 with space", "Progress: 1/1 stories done")
+    assert "2026.12 with space" in gate.completed_epics(sha)
+
+
 def test_decide_does_not_release_an_edit_to_a_closed_epic(repo: Path) -> None:
     sha = _epic("2026.11a-done", "Progress: 7/7 stories done -- COMPLETE (edited)")
     assert gate.decide(sha, set())["release"] == "false"
