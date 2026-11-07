@@ -25,6 +25,9 @@ from now_workbench.bundles.manager import BundleManager
 from now_workbench.bundles.pipeline import DemoPipelineEngine
 from now_workbench.capture.engine import CaptureFailedError, PlaywrightCaptureEngine
 from now_workbench.db import db_session
+from now_workbench.db.repos.artifacts import ArtifactRepository
+from now_workbench.db.repos.groups import GroupRepository
+from now_workbench.db.repos.users import UserRepository
 from now_workbench.sharing.access import sync_registry
 from now_workbench.sharing.models import GroupKind, ShareTarget
 from now_workbench.sharing.store import published_root, snapshot_bundle
@@ -142,8 +145,8 @@ def test_sync_registry_missing_bundles_dir_registers_nothing(
 ) -> None:
     """With no bundles directory the registry sync adds nothing."""
     monkeypatch.setenv("WORKBENCH_BUNDLES_DIR", str(tmp_path / "nope"))
-    with db_session() as repo:
-        assert sync_registry(repo, "local@localhost") == 0
+    with db_session() as conn:
+        assert sync_registry(conn, "local@localhost") == 0
 
 
 # --- repositories -----------------------------------------------------------------------
@@ -151,49 +154,57 @@ def test_sync_registry_missing_bundles_dir_registers_nothing(
 
 def test_repo_artifact_versions_and_shares_queries() -> None:
     """Version lookup, live share listing, decide errors and pending-share filters."""
-    with db_session() as repo:
-        repo.register_artifact("demo", "o@example.com")
-        v = repo.add_artifact_version("demo", "Demo", "d", "n", 10, "o@example.com")
-        assert repo.get_artifact_version("demo", v.version) is not None
-        assert repo.get_artifact_version("demo", 99) is None
-        grp = repo.create_group("EMEA", GroupKind.REGION, "", "o@example.com")
-        share = repo.request_share("demo", v.version, ShareTarget.GROUP, grp.id, "o@example.com")
-        assert [s.id for s in repo.list_artifact_shares("demo")] == [share.id]
-        assert repo.list_artifact_shares("other") == []
-        assert repo.pending_shares([], include_global=False) == []
-        assert [s.id for s in repo.pending_shares([grp.id], include_global=False)] == [share.id]
-        repo.decide_share(share.id, True, "o@example.com")
+    with db_session() as conn:
+        artifact_repo = ArtifactRepository(conn)
+        artifact_repo.register_artifact("demo", "o@example.com")
+        v = artifact_repo.add_artifact_version("demo", "Demo", "d", "n", 10, "o@example.com")
+        assert artifact_repo.get_artifact_version("demo", v.version) is not None
+        assert artifact_repo.get_artifact_version("demo", 99) is None
+        grp = GroupRepository(conn).create_group("EMEA", GroupKind.REGION, "", "o@example.com")
+        share = artifact_repo.request_share(
+            "demo", v.version, ShareTarget.GROUP, grp.id, "o@example.com"
+        )
+        assert [s.id for s in artifact_repo.list_artifact_shares("demo")] == [share.id]
+        assert artifact_repo.list_artifact_shares("other") == []
+        assert artifact_repo.pending_shares([], include_global=False) == []
+        assert [s.id for s in artifact_repo.pending_shares([grp.id], include_global=False)] == [
+            share.id
+        ]
+        artifact_repo.decide_share(share.id, True, "o@example.com")
         with pytest.raises(LookupError):
-            repo.decide_share(share.id, True, "o@example.com")
+            artifact_repo.decide_share(share.id, True, "o@example.com")
         with pytest.raises(LookupError):
-            repo.decide_share("shr-missing", False, "o@example.com")
+            artifact_repo.decide_share("shr-missing", False, "o@example.com")
 
 
 def test_repo_create_group_duplicate_name_raises_value_error() -> None:
     """A second group with the same name is refused."""
-    with db_session() as repo:
-        repo.create_group("EMEA", GroupKind.REGION, "", "o@example.com")
+    with db_session() as conn:
+        group_repo = GroupRepository(conn)
+        group_repo.create_group("EMEA", GroupKind.REGION, "", "o@example.com")
         with pytest.raises(ValueError, match="already exists"):
-            repo.create_group("EMEA", GroupKind.REGION, "", "o@example.com")
+            group_repo.create_group("EMEA", GroupKind.REGION, "", "o@example.com")
 
 
 def test_repo_pending_join_requests_empty_group_list_is_empty() -> None:
     """An empty group filter returns nothing, None returns every group's requests."""
-    with db_session() as repo:
-        grp = repo.create_group("EMEA", GroupKind.REGION, "", "o@example.com")
-        repo.request_to_join(grp.id, "a@example.com")
-        assert repo.pending_join_requests([]) == []
-        assert [m.email for m in repo.pending_join_requests(None)] == ["a@example.com"]
-        assert [m.email for m in repo.pending_join_requests([grp.id])] == ["a@example.com"]
+    with db_session() as conn:
+        group_repo = GroupRepository(conn)
+        grp = group_repo.create_group("EMEA", GroupKind.REGION, "", "o@example.com")
+        group_repo.request_to_join(grp.id, "a@example.com")
+        assert group_repo.pending_join_requests([]) == []
+        assert [m.email for m in group_repo.pending_join_requests(None)] == ["a@example.com"]
+        assert [m.email for m in group_repo.pending_join_requests([grp.id])] == ["a@example.com"]
 
 
 def test_repo_end_impersonation_without_one_returns_false() -> None:
     """Ending an impersonation that does not exist is a no-op."""
-    with db_session() as repo:
-        assert repo.end_impersonation("a@example.com") is False
-        repo.start_impersonation("a@example.com", "b@example.com")
-        assert repo.end_impersonation("a@example.com", action="revoked") is True
-        assert repo.get_impersonation("a@example.com") is None
+    with db_session() as conn:
+        user_repo = UserRepository(conn)
+        assert user_repo.end_impersonation("a@example.com") is False
+        user_repo.start_impersonation("a@example.com", "b@example.com")
+        assert user_repo.end_impersonation("a@example.com", action="revoked") is True
+        assert user_repo.get_impersonation("a@example.com") is None
 
 
 # --- demos API (local mode) -------------------------------------------------------------
@@ -295,9 +306,9 @@ def test_capture_routes_engine_errors_map_to_404_and_400(
 
 def test_evaluate_and_pipeline_without_instance_are_400(demos: TestClient) -> None:
     """With no registered instance both endpoints ask for an active instance."""
-    with db_session() as repo:
-        repo.conn.execute("DELETE FROM instances;")
-        repo.conn.commit()
+    with db_session() as conn:
+        conn.execute("DELETE FROM instances;")
+        conn.commit()
     ev = demos.get(f"/api/demos/{BID}/evaluate")
     assert ev.status_code == 400
     assert "No active instance" in ev.json()["detail"]
@@ -371,8 +382,8 @@ def test_artifact_share_flow_errors_and_listings(team: TestClient) -> None:
     assert len(versions) >= 1
     assert team.get(f"/api/artifacts/{BID}/shares", headers=_h(ADMIN)).json() == []
 
-    with db_session() as repo:
-        repo.register_artifact("empty", ADMIN)
+    with db_session() as conn:
+        ArtifactRepository(conn).register_artifact("empty", ADMIN)
     unsaved = team.post("/api/artifacts/empty/shares", json={"target": "global"}, headers=_h(ADMIN))
     assert unsaved.status_code == 409
 

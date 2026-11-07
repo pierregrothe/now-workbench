@@ -6,6 +6,7 @@ from rich.panel import Panel
 from rich.table import Table
 
 from now_workbench.db.models import WorkbenchPreferences, WorkbenchPreferencesUpdate
+from now_workbench.db.repos.preferences import PreferencesRepository
 from now_workbench.db.session import db_session
 
 config_app = typer.Typer(name="config", help="Manage Now Workbench settings and preferences")
@@ -22,8 +23,8 @@ def _format_masked_key(prefs: WorkbenchPreferences) -> str:
 @config_app.command("show")
 def show_config_cmd() -> None:
     """Display persisted Now Workbench settings and preferences."""
-    with db_session() as repo:
-        prefs = repo.get_workbench_preferences()
+    with db_session() as conn:
+        prefs = PreferencesRepository(conn).get_workbench_preferences()
 
     table = Table(title="Now Workbench Settings", header_style="bold cyan")
     table.add_column("Category", style="magenta")
@@ -97,8 +98,8 @@ def set_config_cmd(
         default_brand_color=brand_color,
         show_welcome_on_startup=welcome,
     )
-    with db_session() as repo:
-        updated = repo.update_workbench_preferences(update)
+    with db_session() as conn:
+        updated = PreferencesRepository(conn).update_workbench_preferences(update)
     console.print(
         Panel(
             f"[green][OK] Updated Now Workbench Settings[/green]\n"
@@ -114,6 +115,6 @@ def set_config_cmd(
 @config_app.command("reset")
 def reset_config_cmd() -> None:
     """Reset Now Workbench settings back to factory defaults."""
-    with db_session() as repo:
-        repo.reset_workbench_preferences()
+    with db_session() as conn:
+        PreferencesRepository(conn).reset_workbench_preferences()
     console.print("[green][OK] Reset Now Workbench settings to defaults.[/green]")

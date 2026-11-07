@@ -7,6 +7,7 @@ from rich.table import Table
 
 from now_workbench.config.settings import settings
 from now_workbench.db.models import TemplateInstantiationRequest
+from now_workbench.db.repos.templates import TemplateRepository
 from now_workbench.db.session import db_session
 from now_workbench.templates import TemplateEngine
 
@@ -17,8 +18,8 @@ template_app = typer.Typer(name="template", help="Manage reusable customer templ
 @template_app.command("list")
 def list_templates_cmd() -> None:
     """List all available customization templates."""
-    with db_session() as repo:
-        templates = repo.list_templates()
+    with db_session() as conn:
+        templates = TemplateRepository(conn).list_templates()
 
     if not templates:
         console.print("[yellow]No customization templates registered.[/yellow]")
@@ -59,8 +60,8 @@ def generate_template_cmd(
     logo: str = typer.Option("", "--logo", "-l", help="Logo URL"),
 ) -> None:
     """Generate a customer-tailored customization bundle from a template."""
-    with db_session() as repo:
-        templates = {t.id: t for t in repo.list_templates()}
+    with db_session() as conn:
+        templates = {t.id: t for t in TemplateRepository(conn).list_templates()}
 
     if template_id not in templates:
         console.print(f"[red]Template '{template_id}' not found in registry.[/red]")
@@ -96,8 +97,8 @@ def inspect_template_cmd(
     template_id: str = typer.Argument(..., help="Template ID to inspect"),
 ) -> None:
     """Inspect parameters schema and details for a customization template."""
-    with db_session() as repo:
-        templates = {t.id: t for t in repo.list_templates()}
+    with db_session() as conn:
+        templates = {t.id: t for t in TemplateRepository(conn).list_templates()}
     if template_id not in templates:
         console.print(f"[red]Template '{template_id}' not found.[/red]")
         raise typer.Exit(code=1)

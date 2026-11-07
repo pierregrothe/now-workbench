@@ -21,6 +21,7 @@ from now_workbench.api.app import _log_setup_code, create_app
 from now_workbench.auth.access import ACCESS_HEADER, AccessValidator
 from now_workbench.config.settings import settings
 from now_workbench.db import db_session
+from now_workbench.db.repos.threads import ThreadRepository
 
 app_module = importlib.import_module("now_workbench.api.app")
 PNG_HEADER = b"\x89PNG\r\n\x1a\n" + b"0" * 32
@@ -166,8 +167,8 @@ def test_upload_attachment_after_token_budget_is_409(client: TestClient) -> None
     """Once the conversation used its token budget, files are refused too."""
     client.put("/api/limits", json={"max_conversation_tokens": 50_000})
     thread = _thread(client)
-    with db_session() as repo:
-        repo.add_thread_tokens(thread, 50_000)
+    with db_session() as conn:
+        ThreadRepository(conn).add_thread_tokens(thread, 50_000)
     res = client.post(
         f"/api/threads/{thread}/attachments", params={"filename": "a.txt"}, content=b"x"
     )
@@ -253,8 +254,8 @@ def test_ws_otto_token_budget_sends_error(client: TestClient) -> None:
     """A conversation over its token budget gets the budget message over the socket."""
     client.put("/api/limits", json={"max_conversation_tokens": 50_000})
     thread = _thread(client)
-    with db_session() as repo:
-        repo.add_thread_tokens(thread, 50_000)
+    with db_session() as conn:
+        ThreadRepository(conn).add_thread_tokens(thread, 50_000)
     out = _ws_collect(client, {"prompt": "second", "thread_id": thread})
     assert out[0]["type"] == "error"
     assert "budget" in out[0]["message"]
@@ -335,9 +336,9 @@ def test_test_all_instances_reports_each_instance(client: TestClient) -> None:
 
 def test_cleanup_unauthenticated_instances_removes_failed_ones(client: TestClient) -> None:
     """A not-authenticated instance is deleted and the remaining one becomes default."""
-    with db_session() as repo:
-        repo.conn.execute("UPDATE instances SET status = 'failed';")
-        repo.conn.commit()
+    with db_session() as conn:
+        conn.execute("UPDATE instances SET status = 'failed';")
+        conn.commit()
     body = client.post("/api/instances/cleanup").json()
     assert body["deleted_ids"] == ["default-instance"]
     assert body["remaining_count"] == 0

@@ -23,6 +23,7 @@ from now_workbench.auth.access import ACCESS_HEADER, AccessValidator
 from now_workbench.auth.guard import assert_safe_binding, is_loopback_host
 from now_workbench.auth.models import Role
 from now_workbench.db import db_session
+from now_workbench.db.repos.users import UserRepository
 
 TEAM = "example.cloudflareaccess.com"
 AUD = "aud-tag-123"
@@ -56,9 +57,10 @@ def _validator() -> AccessValidator:
 @pytest.fixture
 def signed_in() -> TestClient:
     """App with Access configured; ADMIN holds both roles, SC is a consultant only."""
-    with db_session() as repo:
-        repo.put_user(ADMIN, frozenset(Role), added_by="test")
-        repo.put_user(SC, frozenset({Role.SOLUTION_CONSULTANT}), added_by="test")
+    with db_session() as conn:
+        user_repo = UserRepository(conn)
+        user_repo.put_user(ADMIN, frozenset(Role), added_by="test")
+        user_repo.put_user(SC, frozenset({Role.SOLUTION_CONSULTANT}), added_by="test")
     return TestClient(
         create_app(access_validator=_validator(), announce_setup_code=lambda _c: None)
     )

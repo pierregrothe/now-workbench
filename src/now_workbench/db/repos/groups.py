@@ -8,6 +8,7 @@ import sqlite3
 import uuid
 from datetime import UTC, datetime
 
+from now_workbench.db.repos.base import Repository
 from now_workbench.sharing.models import (
     Group,
     GroupKind,
@@ -16,7 +17,7 @@ from now_workbench.sharing.models import (
     MemberStatus,
 )
 
-__all__ = ["GroupRepositoryMixin"]
+__all__ = ["GroupRepository"]
 
 _GROUP_SELECT = """
     SELECT g.id, g.name, g.kind, g.description,
@@ -50,10 +51,8 @@ def _member(row: sqlite3.Row) -> GroupMember:
     )
 
 
-class GroupRepositoryMixin:
-    """Mixin for ``groups`` and ``group_members``; groups are shared, not owner-scoped."""
-
-    conn: sqlite3.Connection
+class GroupRepository(Repository):
+    """Repository for ``groups`` and ``group_members``; groups are shared, not owner-scoped."""
 
     def create_group(self, name: str, kind: GroupKind, description: str, created_by: str) -> Group:
         """Create a group.

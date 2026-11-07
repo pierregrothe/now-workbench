@@ -9,15 +9,12 @@ Owner-scoped queries call :func:`current_owner`; when nothing set it they raise 
 returning everyone's rows, so a forgotten scope fails closed.
 """
 
+import sqlite3
 from collections.abc import Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
-from typing import TYPE_CHECKING
 
 from now_workbench.auth.models import LOCAL_EMAIL
-
-if TYPE_CHECKING:
-    from now_workbench.db.repository import DatabaseRepository
 
 __all__ = ["NoOwnerError", "current_owner", "operator_owner", "owner_scope"]
 
@@ -60,20 +57,23 @@ def owner_scope(email: str) -> Iterator[str]:
         _OWNER.reset(token)
 
 
-def operator_owner(repo: DatabaseRepository, local_mode: bool) -> str:
+def operator_owner(conn: sqlite3.Connection, local_mode: bool) -> str:
     """Return who server start-up and the CLI act as, claiming orphaned rows for them.
 
     The earliest administrator; in local mode (no Cloudflare Access) the local operator when
     there is none; otherwise "" (rows wait for the first administrator to be set up).
 
     Args:
-        repo: Open repository.
+        conn: Open database connection.
         local_mode: True when Cloudflare Access is not configured.
 
     Returns:
         The owner email ("" before the first administrator exists behind Access).
     """
-    owner = repo.first_admin_email() or (LOCAL_EMAIL if local_mode else "")
+    from now_workbench.db.repos.users import UserRepository  # users rows are owner-scoped
+
+    user_repo = UserRepository(conn)
+    owner = user_repo.first_admin_email() or (LOCAL_EMAIL if local_mode else "")
     if owner:
-        repo.claim_orphans(owner)
+        user_repo.claim_orphans(owner)
     return owner

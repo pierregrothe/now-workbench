@@ -16,6 +16,7 @@ from now_workbench.api import threads as threads_api
 from now_workbench.api.app import create_app
 from now_workbench.config.settings import settings
 from now_workbench.db import ChatMessageRecord, db_session
+from now_workbench.db.repos.threads import ThreadRepository
 
 
 @dataclass
@@ -202,15 +203,16 @@ def test_list_transcripts_is_private_to_the_owner() -> None:
     from now_workbench.auth.owner import owner_scope
     from now_workbench.db import ChatThreadCreate
 
-    with db_session() as repo:
-        repo.create_thread(ChatThreadCreate(id="tt", title="t"))
-        repo.add_message(
+    with db_session() as conn:
+        thread_repo = ThreadRepository(conn)
+        thread_repo.create_thread(ChatThreadCreate(id="tt", title="t"))
+        thread_repo.add_message(
             ChatMessageRecord(id="m1", thread_id="tt", role="assistant", content="a"),
             transcript=[{"role": "assistant", "content": "a"}],
         )
-        assert list(repo.list_transcripts("tt")) == ["m1"]
+        assert list(thread_repo.list_transcripts("tt")) == ["m1"]
         with owner_scope("someone@else.com"):
-            assert repo.list_transcripts("tt") == {}
+            assert thread_repo.list_transcripts("tt") == {}
 
 
 def test_run_agent_signed_compaction_block_and_trailing_user_turn_are_kept() -> None:
@@ -225,8 +227,8 @@ def test_run_agent_signed_compaction_block_and_trailing_user_turn_are_kept() -> 
 
     fake = _ScriptedClaude([_Resp([_Signed(), _Block("text", text="ok")])])
     prior = [{"role": "user", "content": "unanswered earlier question"}]
-    with db_session() as repo:
-        resp = run_agent("now this", [], repo, fake, "claude-test", prior=prior)
+    with db_session() as conn:
+        resp = run_agent("now this", [], conn, fake, "claude-test", prior=prior)
     sent = fake.messages.calls[0]["messages"]
     assert sent == [{"role": "user", "content": "unanswered earlier question\nnow this"}]
     assert resp.transcript[0]["content"][0] == {

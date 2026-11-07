@@ -4,7 +4,9 @@ from pathlib import Path
 
 import pytest
 
-from now_workbench.db import DatabaseRepository, InstanceCreate, init_db
+from now_workbench.db import InstanceCreate, init_db
+from now_workbench.db.repos.instances import InstanceRepository
+from now_workbench.db.repos.seeds import SeedRepository
 from now_workbench.seed.engine import SeedEngine, SeedPayloadError
 
 
@@ -12,10 +14,10 @@ from now_workbench.seed.engine import SeedEngine, SeedPayloadError
 async def test_seed_engine_lifecycle(tmp_path: Path) -> None:
     """Verify seed execution, audit tracking, and reverse rollback in fake mode."""
     conn = init_db(":memory:")
-    repo = DatabaseRepository(conn)
 
     # 1. Register test instance
-    repo.add_instance(
+    seed_repo = SeedRepository(conn)
+    InstanceRepository(conn).add_instance(
         InstanceCreate(
             id="test-inst",
             name="Test Sandbox",
@@ -41,7 +43,7 @@ async def test_seed_engine_lifecycle(tmp_path: Path) -> None:
         encoding="utf-8",
     )
 
-    engine = SeedEngine(repository=repo, fake_mode=True)
+    engine = SeedEngine(conn=conn, fake_mode=True)
 
     # 3. Load and seed records
     op = await engine.load_and_seed("test-bundle", bundle_dir)
@@ -53,7 +55,7 @@ async def test_seed_engine_lifecycle(tmp_path: Path) -> None:
     assert op.created_records[0].sys_id.startswith("fake_sys_")
 
     # 4. Verify persisted in SQLite
-    saved_op = repo.get_seed_operation(op.id)
+    saved_op = seed_repo.get_seed_operation(op.id)
     assert saved_op is not None
     assert saved_op.id == op.id
     assert len(saved_op.created_records) == 2
@@ -64,7 +66,7 @@ async def test_seed_engine_lifecycle(tmp_path: Path) -> None:
     assert len(errors) == 0
 
     # 6. Verify status updated to rolled_back
-    rolled_op = repo.get_seed_operation(op.id)
+    rolled_op = seed_repo.get_seed_operation(op.id)
     assert rolled_op is not None
     assert rolled_op.status == "rolled_back"
 
@@ -78,8 +80,7 @@ async def test_seed_engine_lifecycle(tmp_path: Path) -> None:
 async def test_seed_engine_missing_instance(tmp_path: Path) -> None:
     """Verify error handling when target instance cannot be resolved."""
     conn = init_db(":memory:")
-    repo = DatabaseRepository(conn)
-    engine = SeedEngine(repository=repo, fake_mode=True)
+    engine = SeedEngine(conn=conn, fake_mode=True)
 
     with pytest.raises(ValueError, match="No active default instance"):
         await engine.load_and_seed("bundle", tmp_path)
@@ -94,8 +95,8 @@ async def test_seed_engine_edge_cases_and_http_transport(tmp_path: Path) -> None
     from now_workbench.db.models import InstanceRecord
 
     conn = init_db(":memory:")
-    repo = DatabaseRepository(conn)
-    engine = SeedEngine(repository=repo, fake_mode=False)
+    seed_repo = SeedRepository(conn)
+    engine = SeedEngine(conn=conn, fake_mode=False)
 
     inst = InstanceRecord(
         id="mock-inst",
@@ -172,7 +173,7 @@ async def test_seed_engine_edge_cases_and_http_transport(tmp_path: Path) -> None
     # 8. Load and seed empty directory raises ValueError
     empty_bundle = tmp_path / "empty-bundle"
     (empty_bundle / "seed").mkdir(parents=True)
-    repo.add_instance(
+    InstanceRepository(conn).add_instance(
         InstanceCreate(id="mock-inst", name="Mock", url="https://m.sn.com", is_default=True)
     )
     with pytest.raises(ValueError, match="No seed records found"):
@@ -195,7 +196,7 @@ async def test_seed_engine_edge_cases_and_http_transport(tmp_path: Path) -> None
         instance_id="mock-inst",
         created_records=[SeedRecordItem(table="incident", sys_id="bad-sys-id")],
     )
-    repo.record_seed_operation(fail_op)
+    seed_repo.record_seed_operation(fail_op)
 
     # In-memory transport returning HTTP 500 for delete (a 404 would mean "already gone")
     import httpx
@@ -204,7 +205,7 @@ async def test_seed_engine_edge_cases_and_http_transport(tmp_path: Path) -> None
         return httpx.Response(500, json={"error": {"message": "Server error"}})
 
     mock_transport = httpx.MockTransport(mock_delete_handler)
-    engine_404 = SeedEngine(repository=repo, fake_mode=False, transport=mock_transport)
+    engine_404 = SeedEngine(conn=conn, fake_mode=False, transport=mock_transport)
     del_count, errs = await engine_404.rollback(fail_op.id)
     assert del_count == 0
     assert len(errs) == 1
@@ -217,7 +218,7 @@ async def test_seed_engine_edge_cases_and_http_transport(tmp_path: Path) -> None
         instance_id="mock-inst",
         created_records=[SeedRecordItem(table="incident", sys_id="bad-sys-id")],
     )
-    repo.record_seed_operation(fail_op_unreachable)
+    seed_repo.record_seed_operation(fail_op_unreachable)
     del_count_err, errs_exc = await engine.rollback(fail_op_unreachable.id)
     assert del_count_err == 0
     assert len(errs_exc) == 1

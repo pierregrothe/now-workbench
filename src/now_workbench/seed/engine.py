@@ -1,6 +1,7 @@
 """Transactional seed record loader and rollback tracker for ServiceNow bundles."""
 
 import json
+import sqlite3
 import uuid
 from pathlib import Path
 from typing import Any
@@ -12,7 +13,8 @@ from now_workbench.db.models import (
     SeedOperationRecord,
     SeedRecordItem,
 )
-from now_workbench.db.repository import DatabaseRepository
+from now_workbench.db.repos.instances import InstanceRepository
+from now_workbench.db.repos.seeds import SeedRepository
 from now_workbench.seed.date_wizard import transform_dataset_dates
 
 
@@ -25,23 +27,24 @@ class SeedEngine:
 
     def __init__(
         self,
-        repository: DatabaseRepository,
+        conn: sqlite3.Connection,
         fake_mode: bool = False,
         transport: httpx.AsyncBaseTransport | None = None,
     ) -> None:
-        self.repo = repository
+        self.instances = InstanceRepository(conn)
+        self.seeds = SeedRepository(conn)
         self.fake_mode = fake_mode
         self.transport = transport
 
     def _resolve_instance(self, instance_id: str | None) -> InstanceRecord:
         """Resolve target instance record or raise an error."""
         if instance_id:
-            inst = self.repo.get_instance(instance_id)
+            inst = self.instances.get_instance(instance_id)
             if not inst:
                 raise ValueError(f"Instance '{instance_id}' not found in registry.")
             return inst
 
-        inst = self.repo.get_default_instance()
+        inst = self.instances.get_default_instance()
         if not inst:
             raise ValueError("No active default instance configured in registry.")
         return inst
@@ -165,7 +168,7 @@ class SeedEngine:
             created_records=created,
             error=str(failure)[:500] if failure else "",
         )
-        self.repo.record_seed_operation(op)
+        self.seeds.record_seed_operation(op)
         if failure:
             raise RuntimeError(
                 f"Seed operation '{op_id}' failed after {len(created)} record(s) were created "
@@ -182,7 +185,7 @@ class SeedEngine:
         Raises:
             ValueError: The operation is unknown.
         """
-        op = self.repo.get_seed_operation(operation_id)
+        op = self.seeds.get_seed_operation(operation_id)
         if not op:
             raise ValueError(f"Seed operation '{operation_id}' not found.")
         if self.fake_mode:
@@ -217,7 +220,7 @@ class SeedEngine:
 
     async def rollback(self, operation_id: str) -> tuple[int, list[str]]:
         """Roll back (delete) all records created in a seed operation."""
-        op = self.repo.get_seed_operation(operation_id)
+        op = self.seeds.get_seed_operation(operation_id)
         if not op:
             raise ValueError(f"Seed operation '{operation_id}' not found.")
         if op.status == "rolled_back":
@@ -240,5 +243,5 @@ class SeedEngine:
 
         # Only a fully successful rollback is final; otherwise stay retry-able.
         status = "rolled_back" if not errors else "rollback_failed"
-        self.repo.update_seed_operation_status(operation_id, status)
+        self.seeds.update_seed_operation_status(operation_id, status)
         return deleted_count, errors

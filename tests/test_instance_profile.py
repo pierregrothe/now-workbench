@@ -4,6 +4,7 @@
 # Date: 2026-11-06
 """Tests for profile parsing, collection, persistence, and release ordering."""
 
+import sqlite3
 from datetime import UTC, datetime
 
 import httpx
@@ -11,7 +12,6 @@ import pytest
 
 from now_workbench.connectivity import check_and_record_instance
 from now_workbench.db import (
-    DatabaseRepository,
     InstanceCreate,
     InstanceNode,
     InstanceProfile,
@@ -19,6 +19,7 @@ from now_workbench.db import (
     init_db,
 )
 from now_workbench.db.models import InstanceRecord
+from now_workbench.db.repos.instances import InstanceRepository
 from now_workbench.instance_profile import (
     collect_instance_profile,
     datacenter_from_hostname,
@@ -231,81 +232,89 @@ def test_collect_instance_profile_network_error_returns_none() -> None:
     )
 
 
-def _repo_with_instance(url: str) -> tuple[DatabaseRepository, InstanceRecord]:
-    repo = DatabaseRepository(init_db(":memory:"))
-    inst = repo.add_instance(InstanceCreate(name="Acme", url=url, username="admin", password="pw"))
-    return repo, inst
+def _repo_with_instance(url: str) -> tuple[sqlite3.Connection, InstanceRecord]:
+    conn = init_db(":memory:")
+    inst = InstanceRepository(conn).add_instance(
+        InstanceCreate(name="Acme", url=url, username="admin", password="pw")
+    )
+    return conn, inst
 
 
 def test_check_and_record_instance_stores_profile_and_release() -> None:
     """A live check persists the profile; the instance release is derived from it."""
-    repo, inst = _repo_with_instance("https://acme.service-now.com")
+    conn, inst = _repo_with_instance("https://acme.service-now.com")
+    instance_repo = InstanceRepository(conn)
     assert inst.release == "Unknown"
-    status, _, _ = check_and_record_instance(repo, inst, transport=_servicenow())
-    stored = repo.get_instance(inst.id)
-    profile = repo.get_instance_profile(inst.id)
+    status, _, _ = check_and_record_instance(conn, inst, transport=_servicenow())
+    stored = instance_repo.get_instance(inst.id)
+    profile = instance_repo.get_instance_profile(inst.id)
     assert status == "authenticated"
     assert stored is not None and stored.release == "Australia"
     assert profile is not None and len(profile.nodes) == 2 and profile.production_property is False
-    repo.close()
+    conn.close()
 
 
 def test_check_and_record_instance_keeps_profile_when_unreadable() -> None:
     """A later check that reads nothing does not wipe the stored profile."""
-    repo, inst = _repo_with_instance("https://acme.service-now.com")
-    check_and_record_instance(repo, inst, transport=_servicenow())
-    check_and_record_instance(repo, inst, transport=_servicenow(admin=False, props=False))
-    stored = repo.get_instance(inst.id)
+    conn, inst = _repo_with_instance("https://acme.service-now.com")
+    check_and_record_instance(conn, inst, transport=_servicenow())
+    check_and_record_instance(conn, inst, transport=_servicenow(admin=False, props=False))
+    stored = InstanceRepository(conn).get_instance(inst.id)
     assert stored is not None and stored.release == "Australia"
-    repo.close()
+    conn.close()
 
 
 def test_check_and_record_instance_simulated_never_profiles() -> None:
     """fake:// instances are never probed, so no facts are invented for them."""
-    repo, inst = _repo_with_instance("fake://acme.service-now.com")
-    check_and_record_instance(repo, inst)
-    assert repo.get_instance_profile(inst.id) is None
-    stored = repo.get_instance(inst.id)
+    conn, inst = _repo_with_instance("fake://acme.service-now.com")
+    instance_repo = InstanceRepository(conn)
+    check_and_record_instance(conn, inst)
+    assert instance_repo.get_instance_profile(inst.id) is None
+    stored = instance_repo.get_instance(inst.id)
     assert stored is not None and stored.release == "Unknown"
-    repo.close()
+    conn.close()
 
 
 def test_save_instance_profile_replaces_nodes() -> None:
     """Saving a new profile replaces the previous node list entirely."""
-    repo, inst = _repo_with_instance("https://acme.service-now.com")
+    conn, inst = _repo_with_instance("https://acme.service-now.com")
+    instance_repo = InstanceRepository(conn)
     node = InstanceNode(node_id="a", hostname="a.yyz3.service-now.com", status="online")
-    repo.save_instance_profile(InstanceProfile(instance_id=inst.id, release="Zurich", nodes=[node]))
-    repo.save_instance_profile(InstanceProfile(instance_id=inst.id, release="Australia"))
-    profile = repo.get_instance_profile(inst.id)
+    instance_repo.save_instance_profile(
+        InstanceProfile(instance_id=inst.id, release="Zurich", nodes=[node])
+    )
+    instance_repo.save_instance_profile(InstanceProfile(instance_id=inst.id, release="Australia"))
+    profile = instance_repo.get_instance_profile(inst.id)
     assert profile is not None and profile.release == "Australia" and profile.nodes == []
     assert profile.production_property is None
-    repo.close()
+    conn.close()
 
 
 def test_update_instance_url_change_discards_profile() -> None:
     """Pointing an instance at a new URL drops facts that described the old system."""
-    repo, inst = _repo_with_instance("https://acme.service-now.com")
-    check_and_record_instance(repo, inst, transport=_servicenow())
-    repo.update_instance(inst.id, InstanceUpdate(name="Acme Renamed"))
-    assert repo.get_instance_profile(inst.id) is not None
-    repo.update_instance(inst.id, InstanceUpdate(url="https://other.service-now.com"))
-    assert repo.get_instance_profile(inst.id) is None
-    stored = repo.get_instance(inst.id)
+    conn, inst = _repo_with_instance("https://acme.service-now.com")
+    instance_repo = InstanceRepository(conn)
+    check_and_record_instance(conn, inst, transport=_servicenow())
+    instance_repo.update_instance(inst.id, InstanceUpdate(name="Acme Renamed"))
+    assert instance_repo.get_instance_profile(inst.id) is not None
+    instance_repo.update_instance(inst.id, InstanceUpdate(url="https://other.service-now.com"))
+    assert instance_repo.get_instance_profile(inst.id) is None
+    stored = instance_repo.get_instance(inst.id)
     assert stored is not None and stored.release == "Unknown"
-    repo.close()
+    conn.close()
 
 
 def test_delete_instance_cascades_profile_and_nodes() -> None:
     """Deleting an instance removes its profile and nodes via foreign-key cascade."""
-    repo, inst = _repo_with_instance("https://acme.service-now.com")
-    check_and_record_instance(repo, inst, transport=_servicenow())
-    repo.delete_instance(inst.id)
+    conn, inst = _repo_with_instance("https://acme.service-now.com")
+    check_and_record_instance(conn, inst, transport=_servicenow())
+    InstanceRepository(conn).delete_instance(inst.id)
     counts = [
-        repo.conn.execute(f"SELECT COUNT(*) FROM {t};").fetchone()[0]
+        conn.execute(f"SELECT COUNT(*) FROM {t};").fetchone()[0]
         for t in ("instance_profiles", "instance_nodes")
     ]
     assert counts == [0, 0]
-    repo.close()
+    conn.close()
 
 
 def test_instances_api_includes_profile_without_password() -> None:
@@ -315,11 +324,11 @@ def test_instances_api_includes_profile_without_password() -> None:
     from now_workbench.api.app import create_app
     from now_workbench.db import db_session
 
-    with db_session() as repo:
-        inst = repo.add_instance(
+    with db_session() as conn:
+        inst = InstanceRepository(conn).add_instance(
             InstanceCreate(name="Profiled", url="https://p.service-now.com", password="S3cret")
         )
-        check_and_record_instance(repo, inst, transport=_servicenow())
+        check_and_record_instance(conn, inst, transport=_servicenow())
     listed = TestClient(create_app()).get("/api/instances").json()
     entry = next(i for i in listed if i["name"] == "Profiled")
     assert entry["release"] == "Australia"
@@ -349,18 +358,19 @@ def test_collect_instance_profile_non_numeric_stats_are_dropped() -> None:
 
 def test_instance_purpose_defaults_to_demo_and_is_independent_of_reported_type() -> None:
     """A demo instance that ServiceNow reports as "prod" stays a demo unless the owner says so."""
-    repo, inst = _repo_with_instance("https://acme.service-now.com")
+    conn, inst = _repo_with_instance("https://acme.service-now.com")
+    instance_repo = InstanceRepository(conn)
     assert inst.purpose == "demo"
-    repo.save_instance_profile(
+    instance_repo.save_instance_profile(
         InstanceProfile(instance_id=inst.id, instance_type="prod", production_property=True)
     )
-    stored = repo.get_instance(inst.id)
+    stored = instance_repo.get_instance(inst.id)
     assert stored is not None and stored.purpose == "demo"
-    updated = repo.update_instance(inst.id, InstanceUpdate(purpose="production"))
+    updated = instance_repo.update_instance(inst.id, InstanceUpdate(purpose="production"))
     assert updated is not None and updated.purpose == "production"
-    renamed = repo.update_instance(inst.id, InstanceUpdate(name="Acme 2"))
+    renamed = instance_repo.update_instance(inst.id, InstanceUpdate(name="Acme 2"))
     assert renamed is not None and renamed.purpose == "production"
-    repo.close()
+    conn.close()
 
 
 def test_instances_api_purpose_validation_and_public_view() -> None:

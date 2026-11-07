@@ -11,6 +11,7 @@ from now_workbench.auth.guard import current_user
 from now_workbench.auth.models import AuthUser, Role
 from now_workbench.auth.setup import SetupCodes, SetupError, TooManyAttemptsError, WrongCodeError
 from now_workbench.db import db_session
+from now_workbench.db.repos.users import UserRepository
 
 __all__ = ["SetupStatus", "router"]
 
@@ -44,8 +45,8 @@ def _codes(request: Request) -> SetupCodes:
 @router.get("/status", response_model=SetupStatus)
 def setup_status(user: AuthUser = Depends(current_user)) -> SetupStatus:
     """Report whether the first administrator still has to be created."""
-    with db_session() as repo:
-        required = user.mode == "cloudflare" and repo.count_admins() == 0
+    with db_session() as conn:
+        required = user.mode == "cloudflare" and UserRepository(conn).count_admins() == 0
     return SetupStatus(
         setup_required=required,
         email=user.email,
@@ -61,8 +62,9 @@ def complete_setup(
     """Make the signed-in person the first administrator when the setup code matches."""
     if user.mode != "cloudflare":
         raise HTTPException(status_code=409, detail="Local mode needs no setup.")
-    with db_session() as repo:
-        if repo.count_admins() > 0:
+    with db_session() as conn:
+        user_repo = UserRepository(conn)
+        if user_repo.count_admins() > 0:
             raise HTTPException(status_code=409, detail="This workbench is already set up.")
         try:
             _codes(request).redeem(req.code)
@@ -72,6 +74,6 @@ def complete_setup(
             raise HTTPException(status_code=429, detail=str(exc)) from exc
         except SetupError as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
-        repo.put_user(user.email, frozenset(Role), added_by="first-run setup")
-        repo.claim_orphans(user.email)
+        user_repo.put_user(user.email, frozenset(Role), added_by="first-run setup")
+        user_repo.claim_orphans(user.email)
     return SetupStatus(setup_required=False, email=user.email, has_role=True, auth_mode=user.mode)

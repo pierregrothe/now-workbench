@@ -1,6 +1,7 @@
 """CLI commands for demo evaluation, module installation, testing, and full pipeline execution."""
 
 import asyncio
+import sqlite3
 
 import typer
 from rich.console import Console
@@ -12,14 +13,19 @@ from now_workbench.bundles.pipeline import DemoPipelineEngine
 from now_workbench.capture.engine import PlaywrightCaptureEngine
 from now_workbench.config.settings import settings
 from now_workbench.db.models import InstanceRecord
-from now_workbench.db.repository import DatabaseRepository
+from now_workbench.db.repos.instances import InstanceRepository
 from now_workbench.db.session import db_session
 
 console = Console()
 
 
-def _resolve_instance(repo: DatabaseRepository, instance_id: str | None) -> InstanceRecord:
-    inst = repo.get_instance(instance_id) if instance_id else repo.get_default_instance()
+def _resolve_instance(conn: sqlite3.Connection, instance_id: str | None) -> InstanceRecord:
+    instance_repo = InstanceRepository(conn)
+    inst = (
+        instance_repo.get_instance(instance_id)
+        if instance_id
+        else instance_repo.get_default_instance()
+    )
     if not inst:
         console.print("[red]Error: Target instance not found in registry.[/red]")
         raise typer.Exit(code=1)
@@ -33,9 +39,9 @@ def evaluate_demo_cmd(
 ) -> None:
     """Evaluate prerequisites (modules, properties, seed data) needed for a demonstration."""
     bundles_dir = settings.get_bundles_dir()
-    with db_session() as repo:
-        inst = _resolve_instance(repo, instance_id)
-        engine = DemoPipelineEngine(bundles_dir=bundles_dir, repo=repo)
+    with db_session() as conn:
+        inst = _resolve_instance(conn, instance_id)
+        engine = DemoPipelineEngine(bundles_dir=bundles_dir, conn=conn)
         try:
             res = engine.evaluate_bundle(bundle_id, inst, fake_mode=fake)
         except Exception as exc:
@@ -95,9 +101,9 @@ def install_modules_cmd(
 ) -> None:
     """Install or activate all ServiceNow plugins and modules required by a demo."""
     bundles_dir = settings.get_bundles_dir()
-    with db_session() as repo:
-        inst = _resolve_instance(repo, instance_id)
-        engine = DemoPipelineEngine(bundles_dir=bundles_dir, repo=repo)
+    with db_session() as conn:
+        inst = _resolve_instance(conn, instance_id)
+        engine = DemoPipelineEngine(bundles_dir=bundles_dir, conn=conn)
         try:
             installed = engine.install_required_modules(bundle_id, inst, fake_mode=fake)
         except Exception as exc:
@@ -128,9 +134,9 @@ def test_demo_cmd(
 ) -> None:
     """Execute end-to-end runbook test verification across all demonstration stages."""
     bundles_dir = settings.get_bundles_dir()
-    with db_session() as repo:
-        inst = _resolve_instance(repo, instance_id)
-        engine = DemoPipelineEngine(bundles_dir=bundles_dir, repo=repo)
+    with db_session() as conn:
+        inst = _resolve_instance(conn, instance_id)
+        engine = DemoPipelineEngine(bundles_dir=bundles_dir, conn=conn)
         try:
             res = asyncio.run(engine.test_demo_script(bundle_id, inst, fake_mode=fake))
         except Exception as exc:
@@ -165,9 +171,9 @@ def pipeline_demo_cmd(
 ) -> None:
     """Execute full demo lifecycle: evaluate, install modules, configure, seed, test, and prove."""
     bundles_dir = settings.get_bundles_dir()
-    with db_session() as repo:
-        inst = _resolve_instance(repo, instance_id)
-        engine = DemoPipelineEngine(bundles_dir=bundles_dir, repo=repo)
+    with db_session() as conn:
+        inst = _resolve_instance(conn, instance_id)
+        engine = DemoPipelineEngine(bundles_dir=bundles_dir, conn=conn)
         try:
             summary = asyncio.run(
                 engine.run_full_pipeline(

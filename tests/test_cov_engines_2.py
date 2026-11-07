@@ -6,6 +6,7 @@
 
 import json
 import shutil
+import sqlite3
 import stat
 import zipfile
 from datetime import UTC, datetime, timedelta
@@ -25,13 +26,14 @@ from now_workbench.chat.models import Attachment, ConversationLimits
 from now_workbench.cli import app
 from now_workbench.config.settings import settings
 from now_workbench.db import (
-    DatabaseRepository,
     InstanceCreate,
     InstanceProfile,
     db_session,
     init_db,
 )
 from now_workbench.db.models import ChatMessageRecord, ChatThreadRecord, SeedRecordItem
+from now_workbench.db.repos.instances import InstanceRepository
+from now_workbench.db.repos.seeds import SeedRepository
 from now_workbench.fluent.engine import FluentEngine
 from now_workbench.remediation import (
     RemediationAction,
@@ -70,9 +72,9 @@ def _stub(bin_dir: Path, name: str, body: str) -> None:
     path.chmod(path.stat().st_mode | stat.S_IEXEC)
 
 
-def _repo() -> DatabaseRepository:
-    repo = DatabaseRepository(init_db(":memory:"))
-    repo.add_instance(
+def _repo() -> sqlite3.Connection:
+    conn = init_db(":memory:")
+    InstanceRepository(conn).add_instance(
         InstanceCreate(
             id="inst",
             name="Inst",
@@ -82,7 +84,7 @@ def _repo() -> DatabaseRepository:
             is_default=True,
         )
     )
-    return repo
+    return conn
 
 
 # --------------------------------------------------------------------------- pipeline
@@ -106,10 +108,10 @@ async def test_deploy_and_seed_deploys_when_project_present(
 ) -> None:
     (bundles / SAMPLE / "package.json").write_text("{}", encoding="utf-8")
     monkeypatch.setattr(pipeline_mod, "NowSdkRunner", _OkRunner)
-    with db_session() as repo:
-        inst = repo.get_default_instance()
+    with db_session() as conn:
+        inst = InstanceRepository(conn).get_default_instance()
         assert inst is not None
-        engine = DemoPipelineEngine(bundles_dir=bundles, repo=repo)
+        engine = DemoPipelineEngine(bundles_dir=bundles, conn=conn)
         seed, note, _renames = await engine.deploy_and_seed(SAMPLE, inst, fake_mode=True)
         assert note == "Fluent app deployed."
         assert seed.status == "completed"
@@ -119,13 +121,14 @@ async def test_deploy_and_seed_deploys_when_project_present(
 
 
 async def test_full_pipeline_with_fake_video_succeeds(bundles: Path) -> None:
-    with db_session() as repo:
-        repo.save_instance_profile(
+    with db_session() as conn:
+        instance_repo = InstanceRepository(conn)
+        instance_repo.save_instance_profile(
             InstanceProfile(instance_id="default-instance", release="Zurich")
         )
-        inst = repo.get_default_instance()
+        inst = instance_repo.get_default_instance()
         assert inst is not None
-        engine = DemoPipelineEngine(bundles_dir=bundles, repo=repo)
+        engine = DemoPipelineEngine(bundles_dir=bundles, conn=conn)
         summary = await engine.run_full_pipeline(SAMPLE, inst, fake_mode=True, record_video=True)
     assert summary.status == "success"
     assert summary.video_proof_filename.endswith(".webm")
@@ -133,8 +136,8 @@ async def test_full_pipeline_with_fake_video_succeeds(bundles: Path) -> None:
 
 
 def test_pipeline_cli_full_run_prints_video_row(bundles: Path) -> None:
-    with db_session() as repo:
-        repo.save_instance_profile(
+    with db_session() as conn:
+        InstanceRepository(conn).save_instance_profile(
             InstanceProfile(instance_id="default-instance", release="Zurich")
         )
     res = runner.invoke(app, ["demo", "pipeline", SAMPLE, "--fake"])
@@ -151,7 +154,7 @@ async def test_run_runner_failure_without_log_reports_stderr(tmp_path: Path) -> 
     script.write_text("#!/bin/sh\ncat >/dev/null\necho bad-thing >&2\nexit 5\n", encoding="utf-8")
     script.chmod(0o755)
     inst = InstanceCreate(id="i", name="n", url="https://x")
-    record = DatabaseRepository(init_db(":memory:")).add_instance(inst)
+    record = InstanceRepository(init_db(":memory:")).add_instance(inst)
     err = await driver_mod._run_runner([str(script)], record)
     assert err is not None
     assert "code 5" in err
@@ -166,7 +169,7 @@ async def test_run_runner_failure_without_log_reports_stderr(tmp_path: Path) -> 
 
 
 def test_build_runner_cmd_fake_flag_precedes_credentials_flag(tmp_path: Path) -> None:
-    record = DatabaseRepository(init_db(":memory:")).add_instance(
+    record = InstanceRepository(init_db(":memory:")).add_instance(
         InstanceCreate(id="i", name="n", url="https://x")
     )
     args = (tmp_path / "s", tmp_path / "p", "https://x/", tmp_path / "v", tmp_path / "i")
@@ -275,9 +278,10 @@ def test_demo_cli_seed_rollback_history_flow(bundles: Path) -> None:
     seeded = runner.invoke(app, ["demo", "seed", SAMPLE, "--fake"])
     assert seeded.exit_code == 0
     assert "Table:" in seeded.stdout
-    with db_session() as repo:
-        op = repo.list_seed_operations()[0]
-        repo.update_seed_operation_status(op.id, "rolled_back")
+    with db_session() as conn:
+        seed_repo = SeedRepository(conn)
+        op = seed_repo.list_seed_operations()[0]
+        seed_repo.update_seed_operation_status(op.id, "rolled_back")
     hist = runner.invoke(app, ["demo", "seed-history"])
     assert "ROLLED_BACK" in hist.stdout
     again = runner.invoke(app, ["demo", "rollback", op.id, "--fake"])
@@ -286,11 +290,13 @@ def test_demo_cli_seed_rollback_history_flow(bundles: Path) -> None:
 
 
 def test_rollback_demo_prints_errors_from_unreachable_instance() -> None:
-    with db_session() as repo:
-        repo.add_instance(InstanceCreate(id="dead", name="Dead", url="http://127.0.0.1:1"))
+    with db_session() as conn:
+        InstanceRepository(conn).add_instance(
+            InstanceCreate(id="dead", name="Dead", url="http://127.0.0.1:1")
+        )
         from now_workbench.db.models import SeedOperationRecord
 
-        repo.record_seed_operation(
+        SeedRepository(conn).record_seed_operation(
             SeedOperationRecord(
                 id="op-dead",
                 bundle_id="b",
@@ -318,20 +324,21 @@ def test_doctor_branches(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Non
 
 
 def test_doctor_registry_variants(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    from now_workbench.db.repository import DatabaseRepository as Repo
+    from now_workbench.db.repos.instances import InstanceRepository as Instances
+    from now_workbench.db.repos.preferences import PreferencesRepository as Prefs
 
-    monkeypatch.setattr(Repo, "get_default_instance", lambda self: None)
+    monkeypatch.setattr(Instances, "get_default_instance", lambda self: None)
     res = runner.invoke(app, ["doctor"])
     assert "Instance Registry" in res.stdout
     assert "Active:" not in res.stdout
 
-    def explode(self: Repo) -> str:
+    def explode(self: Prefs) -> str:
         raise RuntimeError("sealed")
 
-    monkeypatch.setattr(Repo, "get_decrypted_anthropic_api_key", explode)
+    monkeypatch.setattr(Prefs, "get_decrypted_anthropic_api_key", explode)
     monkeypatch.delenv("WORKBENCH_ANTHROPIC_API_KEY", raising=False)
     assert "Simulation" in runner.invoke(app, ["doctor"]).stdout
-    monkeypatch.setattr(Repo, "get_decrypted_anthropic_api_key", lambda self: "sk-stored")
+    monkeypatch.setattr(Prefs, "get_decrypted_anthropic_api_key", lambda self: "sk-stored")
     assert "Connected" in runner.invoke(app, ["doctor"]).stdout
 
 
@@ -411,9 +418,9 @@ def test_synthesize_and_capture_cli(bundles: Path, monkeypatch: pytest.MonkeyPat
 
 
 def test_capture_cli_without_default_instance_exits_1(monkeypatch: pytest.MonkeyPatch) -> None:
-    from now_workbench.db.repository import DatabaseRepository as Repo
+    from now_workbench.db.repos.instances import InstanceRepository
 
-    monkeypatch.setattr(Repo, "get_default_instance", lambda self: None)
+    monkeypatch.setattr(InstanceRepository, "get_default_instance", lambda self: None)
     res = runner.invoke(app, ["demo", "capture", "x", "--fake"])
     assert res.exit_code == 1
     assert "No default instance registered" in res.stdout
@@ -690,9 +697,9 @@ async def test_seed_engine_resolution_and_payload_errors(tmp_path: Path) -> None
         await eng.load_and_seed("b", tmp_path)
     with pytest.raises(SeedPayloadError, match="Invalid seed file"):
         await eng.load_and_seed("b", _seed_dir(tmp_path, "{bad"))
-    empty = DatabaseRepository(init_db(":memory:"))
+    conn = init_db(":memory:")
     with pytest.raises(ValueError, match="No active default"):
-        await SeedEngine(empty, fake_mode=True).load_and_seed("b", tmp_path)
+        await SeedEngine(conn, fake_mode=True).load_and_seed("b", tmp_path)
 
 
 def _handler(request: httpx.Request) -> httpx.Response:
@@ -713,11 +720,11 @@ def _handler(request: httpx.Request) -> httpx.Response:
 
 
 async def test_seed_engine_live_post_rollback_and_oauth_paths(tmp_path: Path) -> None:
-    repo = _repo()
-    repo.add_instance(
+    conn = _repo()
+    InstanceRepository(conn).add_instance(
         InstanceCreate(id="oa", name="OA", url="https://oa.service-now.com", auth_type="oauth")
     )
-    eng = SeedEngine(repo, transport=httpx.MockTransport(_handler))
+    eng = SeedEngine(conn, transport=httpx.MockTransport(_handler))
     root = _seed_dir(
         tmp_path,
         json.dumps(
@@ -747,7 +754,8 @@ async def test_seed_engine_live_post_rollback_and_oauth_paths(tmp_path: Path) ->
 
 
 async def test_seed_engine_rollback_collects_failures() -> None:
-    repo = _repo()
+    conn = _repo()
+    seed_repo = SeedRepository(conn)
     from now_workbench.db.models import SeedOperationRecord
 
     items = [
@@ -755,15 +763,15 @@ async def test_seed_engine_rollback_collects_failures() -> None:
         SeedRecordItem(table="incident", sys_id="refuse"),
         SeedRecordItem(table="incident", sys_id="explode"),
     ]
-    repo.record_seed_operation(
+    seed_repo.record_seed_operation(
         SeedOperationRecord(id="op", bundle_id="b", instance_id="inst", created_records=items)
     )
-    eng = SeedEngine(repo, transport=httpx.MockTransport(_handler))
+    eng = SeedEngine(conn, transport=httpx.MockTransport(_handler))
     deleted, errors = await eng.rollback("op")
     assert deleted == 1
     assert any("Could not delete incident/refuse" in e for e in errors)
     assert any("Error deleting incident/explode" in e for e in errors)
-    assert repo.get_seed_operation("op").status == "rollback_failed"  # type: ignore[union-attr]
+    assert seed_repo.get_seed_operation("op").status == "rollback_failed"  # type: ignore[union-attr]
 
 
 # --------------------------------------------------------------------------- remaining branches
@@ -790,8 +798,8 @@ def test_cli_version_and_empty_states(tmp_path: Path, monkeypatch: pytest.Monkey
 
 
 def test_cli_instance_registry_empty_and_default_flags() -> None:
-    with db_session() as repo:
-        assert repo.delete_instance("default-instance")
+    with db_session() as conn:
+        assert InstanceRepository(conn).delete_instance("default-instance")
     assert "0 registered" in runner.invoke(app, ["doctor"]).stdout
     assert "No instances registered" in runner.invoke(app, ["instance", "list"]).stdout
     added = runner.invoke(
@@ -831,13 +839,14 @@ async def test_full_pipeline_property_and_deploy_failures(
 ) -> None:
     from now_workbench.properties.models import PropertyApplyResult
 
-    with db_session() as repo:
-        repo.save_instance_profile(
+    with db_session() as conn:
+        instance_repo = InstanceRepository(conn)
+        instance_repo.save_instance_profile(
             InstanceProfile(instance_id="default-instance", release="Zurich")
         )
-        inst = repo.get_default_instance()
+        inst = instance_repo.get_default_instance()
         assert inst is not None
-        engine = DemoPipelineEngine(bundles_dir=bundles, repo=repo)
+        engine = DemoPipelineEngine(bundles_dir=bundles, conn=conn)
 
         async def bad_props(**_kw: object) -> PropertyApplyResult:
             return PropertyApplyResult(success=False, applied_count=0, details=["x failed"])
@@ -902,16 +911,16 @@ def test_migrate_rolls_back_a_failing_migration(monkeypatch: pytest.MonkeyPatch)
 
 
 async def test_seed_engine_rejected_post_and_fake_rollback(tmp_path: Path) -> None:
-    repo = _repo()
+    conn = _repo()
 
     def reject(request: httpx.Request) -> httpx.Response:
         return httpx.Response(500, text="server says no")
 
     root = _seed_dir(tmp_path, json.dumps([{"table": "incident", "fields": {"a": "b"}}]))
-    eng = SeedEngine(repo, transport=httpx.MockTransport(reject))
+    eng = SeedEngine(conn, transport=httpx.MockTransport(reject))
     with pytest.raises(RuntimeError, match="HTTP 500 - server says no"):
         await eng.load_and_seed("b", root)
-    fake = SeedEngine(repo, fake_mode=True)
+    fake = SeedEngine(conn, fake_mode=True)
     op = await fake.load_and_seed("b", root)
     assert await fake.rollback(op.id) == (1, [])
 
@@ -968,8 +977,8 @@ def test_cli_module_runs_as_main(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_instance_cli_test_with_empty_registry_exits_1() -> None:
-    with db_session() as repo:
-        assert repo.delete_instance("default-instance")
+    with db_session() as conn:
+        assert InstanceRepository(conn).delete_instance("default-instance")
     res = runner.invoke(app, ["instance", "test"])
     assert res.exit_code == 1
     assert "No instance found to test" in res.stdout

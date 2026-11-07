@@ -23,6 +23,10 @@ from now_workbench.capture.models import CaptureArtifact, CaptureRequest
 from now_workbench.config.paths import safe_child
 from now_workbench.config.settings import settings
 from now_workbench.db.models import SeedOperationRecord
+from now_workbench.db.repos.artifacts import ArtifactRepository
+from now_workbench.db.repos.instances import InstanceRepository
+from now_workbench.db.repos.preferences import PreferencesRepository
+from now_workbench.db.repos.seeds import SeedRepository
 from now_workbench.db.session import db_session
 from now_workbench.fluent.engine import FluentEngine
 from now_workbench.properties.engine import PropertyEngine
@@ -102,9 +106,9 @@ class CloneBundleRequest(BaseModel):
 
 def _access(bundle_id: str, write: bool = False) -> BundleAccess:
     """Resolve a bundle for the signed-in person (ADR-018): 404 unless theirs or shared."""
-    with db_session() as repo:
+    with db_session() as conn:
         try:
-            return resolve_bundle(repo, bundle_id, write=write)
+            return resolve_bundle(conn, bundle_id, write=write)
         except LookupError as exc:
             raise HTTPException(status_code=404, detail="Demo bundle not found.") from exc
         except ReadOnlyBundleError as exc:
@@ -121,8 +125,8 @@ def _info(access: BundleAccess) -> DemoBundleInfo:
 @router.get("", response_model=list[DemoBundleInfo])
 def list_demos() -> list[DemoBundleInfo]:
     """List the signed-in person's demo bundles and those shared with them."""
-    with db_session() as repo:
-        accesses = list_accessible(repo)
+    with db_session() as conn:
+        accesses = list_accessible(conn)
     infos = [_info(a) for a in accesses]
     return sorted(infos, key=lambda b: b.manifest.name)
 
@@ -149,8 +153,8 @@ def clone_demo_bundle(bundle_id: str, req: CloneBundleRequest) -> DemoBundleInfo
         raise HTTPException(status_code=404, detail=str(e))
     except (FileExistsError, ValueError) as e:
         raise HTTPException(status_code=400, detail=str(e))
-    with db_session() as repo:
-        register_new_bundle(repo, info.manifest.id, current_owner())
+    with db_session() as conn:
+        register_new_bundle(conn, info.manifest.id, current_owner())
     return _info(_access(info.manifest.id))
 
 
@@ -165,8 +169,8 @@ def delete_demo(bundle_id: str) -> dict[str, Any]:
         raise HTTPException(status_code=404, detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
-    with db_session() as repo:
-        repo.forget_artifact(bundle_id)
+    with db_session() as conn:
+        ArtifactRepository(conn).forget_artifact(bundle_id)
     delete_artifact_files(bundle_id)
     return {
         "success": True,
@@ -231,8 +235,8 @@ async def seed_demo_records(
     instance_id = body.get("instance_id")
     fake_mode = bool(body.get("fake_mode", False))
 
-    with db_session() as repo:
-        engine = SeedEngine(repository=repo, fake_mode=fake_mode)
+    with db_session() as conn:
+        engine = SeedEngine(conn=conn, fake_mode=fake_mode)
         try:
             return await engine.load_and_seed(bundle_id, bundle_path, instance_id=instance_id)
         except Exception as exc:
@@ -245,8 +249,8 @@ async def rollback_seed_records(
     fake_mode: bool = False,
 ) -> dict[str, Any]:
     """Roll back (delete) all records created in a previous seed operation."""
-    with db_session() as repo:
-        engine = SeedEngine(repository=repo, fake_mode=fake_mode)
+    with db_session() as conn:
+        engine = SeedEngine(conn=conn, fake_mode=fake_mode)
         try:
             deleted_count, errors = await engine.rollback(operation_id)
             return {
@@ -262,8 +266,8 @@ async def rollback_seed_records(
 @router.get("/seed/operations", response_model=list[SeedOperationRecord])
 def list_seed_history(limit: int = 50) -> list[SeedOperationRecord]:
     """Retrieve audit history of demo seed runs."""
-    with db_session() as repo:
-        return repo.list_seed_operations(limit=limit)
+    with db_session() as conn:
+        return SeedRepository(conn).list_seed_operations(limit=limit)
 
 
 @router.get("/{bundle_id}/runbook", response_model=RunbookGuide)
@@ -295,9 +299,12 @@ async def verify_demo_stage(
             status_code=404, detail=f"Stage {req.step_number} not found in runbook."
         )
 
-    with db_session() as repo:
+    with db_session() as conn:
+        instance_repo = InstanceRepository(conn)
         inst = (
-            repo.get_instance(req.instance_id) if req.instance_id else repo.get_default_instance()
+            instance_repo.get_instance(req.instance_id)
+            if req.instance_id
+            else instance_repo.get_default_instance()
         )
     if not inst:
         raise HTTPException(status_code=400, detail="Target instance not found.")
@@ -319,8 +326,13 @@ def get_bundle_properties(bundle_id: str, instance_id: str | None = None) -> dic
     prop_engine = PropertyEngine()
     props = prop_engine.read_bundle_properties(target)
 
-    with db_session() as repo:
-        inst = repo.get_instance(instance_id) if instance_id else repo.get_default_instance()
+    with db_session() as conn:
+        instance_repo = InstanceRepository(conn)
+        inst = (
+            instance_repo.get_instance(instance_id)
+            if instance_id
+            else instance_repo.get_default_instance()
+        )
     snapshot = prop_engine.load_snapshot(bundle_id, inst.id) if inst else None
 
     return {
@@ -340,9 +352,12 @@ async def apply_bundle_properties(
     """Apply bundle properties to target instance and record snapshot."""
     target = _access(bundle_id).path
 
-    with db_session() as repo:
+    with db_session() as conn:
+        instance_repo = InstanceRepository(conn)
         inst = (
-            repo.get_instance(req.instance_id) if req.instance_id else repo.get_default_instance()
+            instance_repo.get_instance(req.instance_id)
+            if req.instance_id
+            else instance_repo.get_default_instance()
         )
     if not inst:
         raise HTTPException(status_code=400, detail="Target instance not found.")
@@ -365,9 +380,12 @@ async def restore_bundle_properties(
     """Restore previous property states from snapshot for target instance."""
     _access(bundle_id)
 
-    with db_session() as repo:
+    with db_session() as conn:
+        instance_repo = InstanceRepository(conn)
         inst = (
-            repo.get_instance(req.instance_id) if req.instance_id else repo.get_default_instance()
+            instance_repo.get_instance(req.instance_id)
+            if req.instance_id
+            else instance_repo.get_default_instance()
         )
     if not inst:
         raise HTTPException(status_code=400, detail="Target instance not found.")
@@ -389,18 +407,21 @@ async def reset_demo(
     """Unified teardown: roll back seed data records and restore system properties."""
     _access(bundle_id)
 
-    with db_session() as repo:
+    with db_session() as conn:
+        instance_repo = InstanceRepository(conn)
         inst = (
-            repo.get_instance(req.instance_id) if req.instance_id else repo.get_default_instance()
+            instance_repo.get_instance(req.instance_id)
+            if req.instance_id
+            else instance_repo.get_default_instance()
         )
         if not inst:
             raise HTTPException(status_code=400, detail="Target instance not found.")
 
         # 1. Roll back active seed records for this bundle and instance
-        seed_engine = SeedEngine(repository=repo, fake_mode=req.fake_mode)
+        seed_engine = SeedEngine(conn=conn, fake_mode=req.fake_mode)
         active_ops = [
             op
-            for op in repo.list_seed_operations(limit=100)
+            for op in SeedRepository(conn).list_seed_operations(limit=100)
             if op.bundle_id == bundle_id
             and op.status != "rolled_back"
             and op.instance_id == inst.id
@@ -464,10 +485,10 @@ def diff_demo_fluent_schema(
 @router.post("/synthesize", response_model=SynthesizedDemoResult)
 def synthesize_demo_bundle(req: UseCaseSynthesisRequest) -> SynthesizedDemoResult:
     """Synthesize a tailored demo bundle from a use case and customer context."""
-    with db_session() as repo:
-        prefs = repo.get_workbench_preferences()
+    with db_session() as conn:
+        prefs = PreferencesRepository(conn).get_workbench_preferences()
         try:
-            release = resolve_synthesis_release(repo, req.sn_release, req.instance_id)
+            release = resolve_synthesis_release(conn, req.sn_release, req.instance_id)
         except LookupError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         except NoReleaseError as exc:
@@ -478,8 +499,8 @@ def synthesize_demo_bundle(req: UseCaseSynthesisRequest) -> SynthesizedDemoResul
         author_name=prefs.sc_author_name,
         scoped_prefix=prefs.default_scoped_prefix,
     )
-    with db_session() as repo:
-        register_new_bundle(repo, result.bundle_id, current_owner())
+    with db_session() as conn:
+        register_new_bundle(conn, result.bundle_id, current_owner())
     return result
 
 
@@ -494,10 +515,13 @@ def list_demo_captures(bundle_id: str) -> list[CaptureArtifact]:
 async def create_demo_capture(bundle_id: str, req: CaptureRequest) -> CaptureArtifact:
     """Capture a screenshot or video of the target instance for this bundle (owner only)."""
     _access(bundle_id, write=True)
-    with db_session() as repo:
-        prefs = repo.get_workbench_preferences()
+    with db_session() as conn:
+        instance_repo = InstanceRepository(conn)
+        prefs = PreferencesRepository(conn).get_workbench_preferences()
         inst = (
-            repo.get_instance(req.instance_id) if req.instance_id else repo.get_default_instance()
+            instance_repo.get_instance(req.instance_id)
+            if req.instance_id
+            else instance_repo.get_default_instance()
         )
     if inst is None:
         if req.instance_id:
@@ -605,12 +629,17 @@ def evaluate_demo_prerequisites(
 ) -> DemoEvaluationResult:
     """Evaluate demo bundle prerequisites against the target or default instance."""
     bundles_dir = _access(bundle_id).root
-    with db_session() as repo:
-        inst = repo.get_instance(instance_id) if instance_id else repo.get_default_instance()
+    with db_session() as conn:
+        instance_repo = InstanceRepository(conn)
+        inst = (
+            instance_repo.get_instance(instance_id)
+            if instance_id
+            else instance_repo.get_default_instance()
+        )
         if not inst:
             raise HTTPException(status_code=400, detail="No active instance configured.")
-        prefs = repo.get_workbench_preferences()
-        engine = DemoPipelineEngine(bundles_dir=bundles_dir, repo=repo)
+        prefs = PreferencesRepository(conn).get_workbench_preferences()
+        engine = DemoPipelineEngine(bundles_dir=bundles_dir, conn=conn)
         try:
             return engine.evaluate_bundle(bundle_id, inst, fake_mode=prefs.sdk_fake_mode)
         except FileNotFoundError as e:
@@ -628,12 +657,17 @@ async def run_demo_pipeline_endpoint(
     """
     _access(bundle_id, write=True)
     bundles_dir = settings.get_bundles_dir()
-    with db_session() as repo:
-        inst = repo.get_instance(instance_id) if instance_id else repo.get_default_instance()
+    with db_session() as conn:
+        instance_repo = InstanceRepository(conn)
+        inst = (
+            instance_repo.get_instance(instance_id)
+            if instance_id
+            else instance_repo.get_default_instance()
+        )
         if not inst:
             raise HTTPException(status_code=400, detail="No active instance configured.")
-        prefs = repo.get_workbench_preferences()
-        engine = DemoPipelineEngine(bundles_dir=bundles_dir, repo=repo)
+        prefs = PreferencesRepository(conn).get_workbench_preferences()
+        engine = DemoPipelineEngine(bundles_dir=bundles_dir, conn=conn)
         try:
             return await engine.run_full_pipeline(
                 bundle_id=bundle_id,

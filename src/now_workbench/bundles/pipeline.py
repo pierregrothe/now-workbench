@@ -3,6 +3,7 @@ Evaluation, module setup, seed, testing, and video proof.
 """
 
 import json
+import sqlite3
 from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -13,7 +14,6 @@ from now_workbench.capture.models import CaptureArtifact, CaptureRequest
 from now_workbench.config.paths import safe_child
 from now_workbench.config.settings import settings
 from now_workbench.db.models import InstanceRecord, SeedOperationRecord
-from now_workbench.db.repository import DatabaseRepository
 from now_workbench.plugins.manager import PluginManager
 from now_workbench.plugins.models import PluginRecord
 from now_workbench.properties.engine import PropertyEngine
@@ -75,11 +75,11 @@ class DemoPipelineEngine:
     seeding, testing, and proof capture.
     """
 
-    def __init__(self, bundles_dir: Path, repo: DatabaseRepository) -> None:
+    def __init__(self, bundles_dir: Path, conn: sqlite3.Connection) -> None:
         self.bundles_dir = bundles_dir
-        self.repo = repo
+        self.conn = conn
         self.bundle_manager = BundleManager(storage_dir=bundles_dir)
-        self.plugin_manager = PluginManager(repo=repo)
+        self.plugin_manager = PluginManager(conn)
         self.prop_engine = PropertyEngine()
         self.runbook_engine = RunbookEngine()
         self.capture_engine = PlaywrightCaptureEngine(bundles_dir=bundles_dir)
@@ -219,7 +219,7 @@ class DemoPipelineEngine:
                 f"({len(table_map)} table(s) created in that scope)."
             )
 
-        seed_engine = SeedEngine(repository=self.repo, fake_mode=fake_mode)
+        seed_engine = SeedEngine(self.conn, fake_mode=fake_mode)
         seed = await seed_engine.load_and_seed(
             bundle_id=bundle_id,
             bundle_path=bundle_path,

@@ -2,21 +2,18 @@
 # Repository mixin for per-user profiles.
 # Author: Pierre Grothe
 # Date: 2026-11-06
-"""Profile repository mixin."""
+"""Profile repository."""
 
-import sqlite3
-
+from now_workbench.db.repos.base import Repository
 from now_workbench.profile.models import ProfileRecord
 
-__all__ = ["ProfileRepositoryMixin"]
+__all__ = ["ProfileRepository"]
 
 _COLUMNS = "email, display_name, avatar_kind, avatar_preset, avatar_updated_at"
 
 
-class ProfileRepositoryMixin:
-    """Mixin for the ``profile`` table (one row per verified email)."""
-
-    conn: sqlite3.Connection
+class ProfileRepository(Repository):
+    """Repository for the ``profile`` table (one row per verified email)."""
 
     def get_profile(self, email: str) -> ProfileRecord:
         """Return the user's profile, creating an empty one on first use."""

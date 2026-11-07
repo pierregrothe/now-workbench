@@ -126,9 +126,12 @@ import and test path, and green pytest, mypy, ruff, ratchets and Playwright:
 
 1. **Repository composition: per-domain repositories, no bundle.** Each domain owns
    `<Name>Repository(conn)`; `platform/db` provides only the connection (`db_session()`
-   yields a `sqlite3.Connection`) and migrations. A caller constructs the repositories it
-   needs, so a function's dependencies are visible in its signature. `DatabaseRepository`
-   is deleted.
+   yields a `sqlite3.Connection`) and migrations. The connection is the unit of work:
+   functions receive it and open the repositories they use (`ThreadRepository(conn)`, or a
+   local `thread_repo` when used more than once); long-lived services (`SeedEngine`,
+   `PluginManager`) hold the specific repositories. Plugin rows moved out of the instance
+   repository into `PluginRepository`, which removed the `db` <-> `plugins` cycle.
+   `DatabaseRepository` is deleted.
 2. **Orchestration: `domains/demos`.** The pipeline sits at the top of the domain order, so
    `bundles` stays a leaf.
 3. **`ai/actions.py`: deleted.** The agent answers these requests with real tools; the

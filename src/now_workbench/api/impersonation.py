@@ -13,6 +13,7 @@ from now_workbench.auth.guard import current_user
 from now_workbench.auth.impersonation import candidates, may_impersonate
 from now_workbench.auth.models import AuthUser
 from now_workbench.db import db_session
+from now_workbench.db.repos.users import UserRepository
 
 __all__ = ["ImpersonationStatus", "router"]
 
@@ -40,11 +41,11 @@ class StartRequest(BaseModel):
 
 def _status(user: AuthUser) -> ImpersonationStatus:
     real = user.signed_in
-    with db_session() as repo:
+    with db_session() as conn:
         return ImpersonationStatus(
             real_email=real.email,
             acting_as=user.email if user.real_email else None,
-            candidates=candidates(repo, real),
+            candidates=candidates(conn, real),
         )
 
 
@@ -61,10 +62,10 @@ def start_impersonation(
     """Act as someone you are allowed to (administrators: anyone; group admins: members)."""
     real = user.signed_in
     target = req.email.strip().lower()
-    with db_session() as repo:
-        if not may_impersonate(repo, real, target):
+    with db_session() as conn:
+        if not may_impersonate(conn, real, target):
             raise HTTPException(status_code=403, detail=f"You cannot act as {target}.")
-        repo.start_impersonation(real.email, target)
+        UserRepository(conn).start_impersonation(real.email, target)
     _log.warning("Impersonation started: %s is acting as %s.", real.email, target)
     acting = AuthUser(
         email=target,
@@ -80,7 +81,7 @@ def start_impersonation(
 def stop_impersonation(user: AuthUser = Depends(current_user)) -> ImpersonationStatus:
     """Go back to being yourself."""
     real = user.signed_in
-    with db_session() as repo:
-        if repo.end_impersonation(real.email):
+    with db_session() as conn:
+        if UserRepository(conn).end_impersonation(real.email):
             _log.warning("Impersonation stopped: %s is themselves again.", real.email)
     return _status(real)

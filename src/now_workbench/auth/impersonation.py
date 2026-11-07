@@ -13,53 +13,56 @@
 """
 
 import logging
-from typing import TYPE_CHECKING
+import sqlite3
 
 from now_workbench.auth.models import AuthUser, Role
-
-if TYPE_CHECKING:
-    from now_workbench.db.repository import DatabaseRepository
+from now_workbench.db.repos.groups import GroupRepository
+from now_workbench.db.repos.users import UserRepository
 
 __all__ = ["candidates", "effective_user", "may_impersonate"]
 
 _log = logging.getLogger("uvicorn.error")
 
 
-def may_impersonate(repo: DatabaseRepository, real: AuthUser, target: str) -> bool:
+def may_impersonate(conn: sqlite3.Connection, real: AuthUser, target: str) -> bool:
     """Return True when ``real`` (the signed-in person) may act as ``target``."""
+    group_repo = GroupRepository(conn)
     if target == real.email:
         return False
-    target_roles = repo.get_user_roles(target)
+    target_roles = UserRepository(conn).get_user_roles(target)
     if not target_roles:
         return False
     if Role.ADMIN in real.roles:
         return True
     if Role.ADMIN in target_roles:
         return False
-    targets_groups = set(repo.active_group_ids(target))
-    return any(g in targets_groups for g in repo.administered_group_ids(real.email))
+    targets_groups = set(group_repo.active_group_ids(target))
+    return any(g in targets_groups for g in group_repo.administered_group_ids(real.email))
 
 
-def candidates(repo: DatabaseRepository, real: AuthUser) -> list[str]:
+def candidates(conn: sqlite3.Connection, real: AuthUser) -> list[str]:
     """Return everyone ``real`` may act as, sorted."""
-    return sorted(m.email for m in repo.list_users() if may_impersonate(repo, real, m.email))
+    return sorted(
+        m.email for m in UserRepository(conn).list_users() if may_impersonate(conn, real, m.email)
+    )
 
 
-def effective_user(repo: DatabaseRepository, real: AuthUser) -> AuthUser:
+def effective_user(conn: sqlite3.Connection, real: AuthUser) -> AuthUser:
     """Return who a request acts as: the impersonated person, or ``real`` itself.
 
     An impersonation that is no longer allowed is ended (logged as revoked).
     """
-    target = repo.get_impersonation(real.email)
+    user_repo = UserRepository(conn)
+    target = user_repo.get_impersonation(real.email)
     if target is None:
         return real
-    if not may_impersonate(repo, real, target):
-        repo.end_impersonation(real.email, action="revoked")
+    if not may_impersonate(conn, real, target):
+        user_repo.end_impersonation(real.email, action="revoked")
         _log.warning("Impersonation of %s by %s revoked: no longer allowed.", target, real.email)
         return real
     return AuthUser(
         email=target,
-        roles=repo.get_user_roles(target),
+        roles=user_repo.get_user_roles(target),
         mode=real.mode,
         real_email=real.email,
         real_roles=real.roles,

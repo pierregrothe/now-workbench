@@ -10,6 +10,7 @@ another person's bundle is never revealed.
 """
 
 import json
+import sqlite3
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -17,7 +18,8 @@ from now_workbench.auth.models import LOCAL_EMAIL
 from now_workbench.auth.owner import current_owner
 from now_workbench.config.paths import safe_child
 from now_workbench.config.settings import settings
-from now_workbench.db.repository import DatabaseRepository
+from now_workbench.db.repos.artifacts import ArtifactRepository
+from now_workbench.db.repos.groups import GroupRepository
 from now_workbench.sharing.models import AccessKind, ArtifactVersion
 from now_workbench.sharing.store import published_root, snapshot_bundle
 
@@ -66,12 +68,12 @@ def _manifest(bundle_dir: Path) -> dict[str, object]:
 
 
 def save_version(
-    repo: DatabaseRepository, artifact_id: str, note: str, created_by: str
+    conn: sqlite3.Connection, artifact_id: str, note: str, created_by: str
 ) -> ArtifactVersion:
     """Freeze the live bundle as its next version.
 
     Args:
-        repo: Open repository.
+        conn: Open database connection.
         artifact_id: The bundle id.
         note: What changed, in the owner's words.
         created_by: Who saved it.
@@ -79,11 +81,12 @@ def save_version(
     Returns:
         The new version.
     """
+    artifact_repo = ArtifactRepository(conn)
     bundle_dir = safe_child(settings.get_bundles_dir(), artifact_id)
     manifest = _manifest(bundle_dir)
-    number = repo.next_artifact_version(artifact_id)
+    number = artifact_repo.next_artifact_version(artifact_id)
     size = snapshot_bundle(bundle_dir, artifact_id, number)
-    return repo.add_artifact_version(
+    return artifact_repo.add_artifact_version(
         artifact_id,
         name=str(manifest.get("name") or artifact_id),
         description=str(manifest.get("description") or ""),
@@ -93,24 +96,24 @@ def save_version(
     )
 
 
-def register_new_bundle(repo: DatabaseRepository, artifact_id: str, owner: str) -> None:
+def register_new_bundle(conn: sqlite3.Connection, artifact_id: str, owner: str) -> None:
     """Record a just-created bundle as ``owner``'s and freeze it as version 1."""
-    repo.register_artifact(artifact_id, owner)
-    save_version(repo, artifact_id, note="Created", created_by=owner)
+    ArtifactRepository(conn).register_artifact(artifact_id, owner)
+    save_version(conn, artifact_id, note="Created", created_by=owner)
 
 
-def sync_registry(repo: DatabaseRepository, operator: str) -> int:
+def sync_registry(conn: sqlite3.Connection, operator: str) -> int:
     """Register bundles found on disk without an owner (shipped samples, CLI imports).
 
     Args:
-        repo: Open repository.
+        conn: Open database connection.
         operator: Who gets them: the first administrator, the local operator, or "" (claimed
             by the first administrator at setup).
 
     Returns:
         How many bundles were registered.
     """
-    known = repo.artifact_owners()
+    known = ArtifactRepository(conn).artifact_owners()
     bundles_dir = settings.get_bundles_dir()
     if not bundles_dir.exists():
         return 0
@@ -118,12 +121,12 @@ def sync_registry(repo: DatabaseRepository, operator: str) -> int:
     for item in sorted(bundles_dir.iterdir()):
         if item.name in known or not (item / "manifest.json").exists():
             continue
-        register_new_bundle(repo, item.name, operator)
+        register_new_bundle(conn, item.name, operator)
         added += 1
     return added
 
 
-def _sync_if_local(repo: DatabaseRepository) -> None:
+def _sync_if_local(conn: sqlite3.Connection) -> None:
     """In local mode (one person, no Access) new bundles on disk are simply theirs.
 
     Behind Access this never runs per request: a directory created a moment before its
@@ -131,14 +134,14 @@ def _sync_if_local(repo: DatabaseRepository) -> None:
     register unowned bundles to the operator.
     """
     if not settings.get_access_audience():
-        sync_registry(repo, LOCAL_EMAIL)
+        sync_registry(conn, LOCAL_EMAIL)
 
 
-def resolve_bundle(repo: DatabaseRepository, artifact_id: str, write: bool = False) -> BundleAccess:
+def resolve_bundle(conn: sqlite3.Connection, artifact_id: str, write: bool = False) -> BundleAccess:
     """Return how the signed-in person reaches a bundle.
 
     Args:
-        repo: Open repository.
+        conn: Open database connection.
         artifact_id: The bundle id.
         write: True for operations that change the bundle (owner only).
 
@@ -149,16 +152,19 @@ def resolve_bundle(repo: DatabaseRepository, artifact_id: str, write: bool = Fal
         LookupError: Not theirs and not shared with them (or it does not exist).
         ReadOnlyBundleError: Shared with them, but ``write`` was requested.
     """
-    _sync_if_local(repo)
+    artifact_repo = ArtifactRepository(conn)
+    _sync_if_local(conn)
     email = current_owner()
     bundles_dir = settings.get_bundles_dir()
     working = safe_child(bundles_dir, artifact_id)
-    owner = repo.artifact_owner(artifact_id)
+    owner = artifact_repo.artifact_owner(artifact_id)
     if owner == email and working.is_dir():
-        versions = repo.list_artifact_versions(artifact_id)
+        versions = artifact_repo.list_artifact_versions(artifact_id)
         latest = versions[0].version if versions else 0
         return BundleAccess(artifact_id, bundles_dir, AccessKind.OWNER, latest, email)
-    approved = repo.shared_with(email, repo.active_group_ids(email)).get(artifact_id)
+    approved = artifact_repo.shared_with(email, GroupRepository(conn).active_group_ids(email)).get(
+        artifact_id
+    )
     if approved is None or owner is None:
         raise LookupError(f"Demo bundle '{artifact_id}' was not found.")
     if write:
@@ -170,19 +176,20 @@ def resolve_bundle(repo: DatabaseRepository, artifact_id: str, write: bool = Fal
     )
 
 
-def list_accessible(repo: DatabaseRepository) -> list[BundleAccess]:
+def list_accessible(conn: sqlite3.Connection) -> list[BundleAccess]:
     """Return the signed-in person's own bundles and those shared with them."""
-    _sync_if_local(repo)
+    artifact_repo = ArtifactRepository(conn)
+    _sync_if_local(conn)
     email = current_owner()
     bundles_dir = settings.get_bundles_dir()
     out: list[BundleAccess] = []
-    for artifact_id, owner in sorted(repo.artifact_owners().items()):
+    for artifact_id, owner in sorted(artifact_repo.artifact_owners().items()):
         if owner == email and (bundles_dir / artifact_id).is_dir():
-            versions = repo.list_artifact_versions(artifact_id)
+            versions = artifact_repo.list_artifact_versions(artifact_id)
             latest = versions[0].version if versions else 0
             out.append(BundleAccess(artifact_id, bundles_dir, AccessKind.OWNER, latest, email))
-    shared = repo.shared_with(email, repo.active_group_ids(email))
-    owners = repo.artifact_owners()
+    shared = artifact_repo.shared_with(email, GroupRepository(conn).active_group_ids(email))
+    owners = artifact_repo.artifact_owners()
     for artifact_id, version in sorted(shared.items()):
         out.append(
             BundleAccess(

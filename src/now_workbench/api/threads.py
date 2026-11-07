@@ -4,6 +4,7 @@ import asyncio
 import contextvars
 import json
 import logging
+import sqlite3
 import threading
 import uuid
 from collections.abc import AsyncIterator
@@ -39,10 +40,13 @@ from now_workbench.db import (
     ChatThreadCreate,
     ChatThreadRecord,
     ChatThreadUpdate,
-    DatabaseRepository,
     db_session,
     get_db_path,
 )
+from now_workbench.db.repos.chat import ChatRepository
+from now_workbench.db.repos.instances import InstanceRepository
+from now_workbench.db.repos.preferences import PreferencesRepository
+from now_workbench.db.repos.threads import ThreadRepository
 from now_workbench.sharing.access import list_accessible
 
 router = APIRouter(prefix="/api/threads", tags=["threads"])
@@ -61,9 +65,10 @@ GENERIC_TITLES = {
 _DELETED_DEFAULT_DBS: set[str] = set()
 
 
-def _ensure_default_thread(repo: DatabaseRepository) -> list[ChatThreadRecord]:
+def _ensure_default_thread(conn: sqlite3.Connection) -> list[ChatThreadRecord]:
     """Ensure at least one conversational thread exists on a fresh database."""
-    threads = repo.list_threads(include_archived=True)
+    thread_repo = ThreadRepository(conn)
+    threads = thread_repo.list_threads(include_archived=True)
     if threads:
         return threads
 
@@ -72,14 +77,14 @@ def _ensure_default_thread(repo: DatabaseRepository) -> list[ChatThreadRecord]:
         return []
 
     default_tiles = resolve_query_to_tiles("how many instances do I have")
-    thread = repo.create_thread(
+    thread = thread_repo.create_thread(
         ChatThreadCreate(
             id=DEFAULT_THREAD_ID,
             title="Workspace Orchestration Session",
             target_tab="home",
         )
     )
-    repo.add_message(
+    thread_repo.add_message(
         ChatMessageRecord(
             id=f"msg-{uuid.uuid4().hex[:8]}",
             thread_id=thread.id,
@@ -93,12 +98,12 @@ def _ensure_default_thread(repo: DatabaseRepository) -> list[ChatThreadRecord]:
             },
         )
     )
-    return repo.list_threads(include_archived=True)
+    return thread_repo.list_threads(include_archived=True)
 
 
-def _load_live_bundles_dict(repo: DatabaseRepository) -> list[dict[str, Any]]:
+def _load_live_bundles_dict(conn: sqlite3.Connection) -> list[dict[str, Any]]:
     """Load the person's own and shared bundles as dictionaries for tile resolution."""
-    infos = [BundleManager(a.root).inspect_bundle(a.path) for a in list_accessible(repo)]
+    infos = [BundleManager(a.root).inspect_bundle(a.path) for a in list_accessible(conn)]
     result: list[dict[str, Any]] = []
     for info in infos:
         manifest = info.manifest
@@ -115,16 +120,16 @@ def _load_live_bundles_dict(repo: DatabaseRepository) -> list[dict[str, Any]]:
     return result
 
 
-def _load_verified_instances_dict(repo: DatabaseRepository) -> list[dict[str, Any]]:
+def _load_verified_instances_dict(conn: sqlite3.Connection) -> list[dict[str, Any]]:
     """Load registered instances and verify any with 'unknown' status for real status reporting."""
-    instances = repo.list_instances()
-    prefs = repo.get_workbench_preferences()
+    instances = InstanceRepository(conn).list_instances()
+    prefs = PreferencesRepository(conn).get_workbench_preferences()
     result: list[dict[str, Any]] = []
     for inst in instances:
         status = inst.status
         if status in ("unknown", ""):
             status, _, _ = check_and_record_instance(
-                repo, inst, timeout=1.5, fake_mode=prefs.sdk_fake_mode
+                conn, inst, timeout=1.5, fake_mode=prefs.sdk_fake_mode
             )
         result.append(
             {
@@ -148,9 +153,9 @@ def _resolve_effective_query(user_text: str, history: list[ChatMessageRecord]) -
     return user_text
 
 
-def _widget_payload(resp: GenerativeUIResponse, repo: DatabaseRepository) -> dict[str, Any]:
+def _widget_payload(resp: GenerativeUIResponse, conn: sqlite3.Connection) -> dict[str, Any]:
     """Build persisted widget data for an assistant tile response."""
-    active_inst = repo.get_default_instance()
+    active_inst = InstanceRepository(conn).get_default_instance()
     inst_label = f"{active_inst.name} ({active_inst.url})" if active_inst else "no active instance"
     return {
         "active_instance": inst_label,
@@ -175,37 +180,38 @@ class _Reply:
 
 def _agent_reply(
     user_text: str,
-    repo: DatabaseRepository,
+    conn: sqlite3.Connection,
     history: list[ChatMessageRecord],
     files: ConversationFiles | None = None,
     prior: list[dict[str, Any]] | None = None,
 ) -> _Reply | None:
     """Answer with the Claude tool-calling agent when an API key is configured."""
-    api_key = repo.get_decrypted_anthropic_api_key()
+    pref_repo = PreferencesRepository(conn)
+    api_key = pref_repo.get_decrypted_anthropic_api_key()
     if not api_key:
         return None
-    prefs = repo.get_workbench_preferences()
+    prefs = pref_repo.get_workbench_preferences()
     try:
         resp = run_agent(
             user_text,
             history,
-            repo,
+            conn,
             client=make_client(api_key),
             model=prefs.claude_model,
             fake_mode=prefs.sdk_fake_mode,
             files=files,
             prior=prior,
-            compact_at=repo.get_conversation_limits().compact_at_tokens,
+            compact_at=ChatRepository(conn).get_conversation_limits().compact_at_tokens,
         )
     except Exception as exc:
         if not prefs.sdk_fake_mode:
             diag_resp = _build_diagnostic_error_tiles(str(exc))
-            return _Reply(diag_resp.summary, "generative_tiles", _widget_payload(diag_resp, repo))
+            return _Reply(diag_resp.summary, "generative_tiles", _widget_payload(diag_resp, conn))
         return None
     return _Reply(
         resp.summary,
         "generative_tiles",
-        _widget_payload(resp, repo),
+        _widget_payload(resp, conn),
         transcript=resp.transcript or None,
         tokens=resp.usage.get("billable", 0),
     )
@@ -213,28 +219,28 @@ def _agent_reply(
 
 def _confirmed_tool_reply(
     req: ChatMessageCreate,
-    repo: DatabaseRepository,
+    conn: sqlite3.Connection,
     history: list[ChatMessageRecord],
 ) -> _Reply:
     """Execute a user-confirmed destructive tool call and report the result."""
     data = req.widget_data or {}
-    prefs = repo.get_workbench_preferences()
-    ctx = ToolContext(repo=repo, fake_mode=prefs.sdk_fake_mode)
+    prefs = PreferencesRepository(conn).get_workbench_preferences()
+    ctx = ToolContext(conn=conn, fake_mode=prefs.sdk_fake_mode)
     result = execute_tool(ctx, str(data.get("tool", "")), dict(data.get("input") or {}), True)
     tiles = result.tiles or [text_tile("tile-tool-result", "Result", result.summary)]
     resp = GenerativeUIResponse(summary=result.summary, layout=result.layout, tiles=tiles)
-    return _Reply(resp.summary, "generative_tiles", _widget_payload(resp, repo))
+    return _Reply(resp.summary, "generative_tiles", _widget_payload(resp, conn))
 
 
 def _build_contextual_reply(
     user_text: str,
-    repo: DatabaseRepository,
+    conn: sqlite3.Connection,
     history: list[ChatMessageRecord],
     files: ConversationFiles | None = None,
     prior: list[dict[str, Any]] | None = None,
 ) -> _Reply:
     """Determine assistant response text and structured Generative UI tiles with context."""
-    agent = _agent_reply(user_text, repo, history, files, prior)
+    agent = _agent_reply(user_text, conn, history, files, prior)
     if agent is not None:
         return agent
     if files is not None and files.current:
@@ -248,15 +254,15 @@ def _build_contextual_reply(
     lower = user_text.lower()
     effective_query = _resolve_effective_query(user_text, history)
 
-    inst_dicts = _load_verified_instances_dict(repo)
-    bundle_dicts = _load_live_bundles_dict(repo)
+    inst_dicts = _load_verified_instances_dict(conn)
+    bundle_dicts = _load_live_bundles_dict(conn)
     tile_resp = resolve_query_to_tiles(
         query=effective_query,
         instances=inst_dicts or None,
         bundles=bundle_dicts or None,
     )
 
-    active_inst = repo.get_default_instance()
+    active_inst = InstanceRepository(conn).get_default_instance()
     inst_label = f"{active_inst.name} ({active_inst.url})" if active_inst else "no active instance"
 
     base_widget_data: dict[str, Any] = {
@@ -297,23 +303,23 @@ def _build_contextual_reply(
 @router.get("", response_model=list[ChatThreadRecord])
 def list_threads(include_archived: bool = True) -> list[ChatThreadRecord]:
     """List all conversational threads from SQLite, seeding a default thread if fresh."""
-    with db_session() as repo:
-        _ensure_default_thread(repo)
-        return repo.list_threads(include_archived=include_archived)
+    with db_session() as conn:
+        _ensure_default_thread(conn)
+        return ThreadRepository(conn).list_threads(include_archived=include_archived)
 
 
 @router.post("", response_model=ChatThreadRecord)
 def create_thread(req: ChatThreadCreate) -> ChatThreadRecord:
     """Create a new conversational thread in SQLite."""
-    with db_session() as repo:
-        return repo.create_thread(req)
+    with db_session() as conn:
+        return ThreadRepository(conn).create_thread(req)
 
 
 @router.get("/{thread_id}", response_model=ChatThreadRecord)
 def get_thread(thread_id: str) -> ChatThreadRecord:
     """Retrieve metadata and message count for a specific thread."""
-    with db_session() as repo:
-        thread = repo.get_thread(thread_id)
+    with db_session() as conn:
+        thread = ThreadRepository(conn).get_thread(thread_id)
         if not thread:
             raise HTTPException(status_code=404, detail="Thread not found.")
         return thread
@@ -323,8 +329,8 @@ def get_thread(thread_id: str) -> ChatThreadRecord:
 @router.put("/{thread_id}", response_model=ChatThreadRecord)
 def update_thread(thread_id: str, req: ChatThreadUpdate) -> ChatThreadRecord:
     """Update a thread's title, archived state, or target tab in SQLite."""
-    with db_session() as repo:
-        updated = repo.update_thread(thread_id, req)
+    with db_session() as conn:
+        updated = ThreadRepository(conn).update_thread(thread_id, req)
         if not updated:
             raise HTTPException(status_code=404, detail="Thread not found.")
         return updated
@@ -333,9 +339,9 @@ def update_thread(thread_id: str, req: ChatThreadUpdate) -> ChatThreadRecord:
 @router.delete("/{thread_id}")
 def delete_thread(thread_id: str) -> dict[str, Any]:
     """Permanently delete a conversational thread and its messages from SQLite."""
-    with db_session() as repo:
-        attachments = repo.list_attachments(thread_id)
-        deleted = repo.delete_thread(thread_id)
+    with db_session() as conn:
+        attachments = ChatRepository(conn).list_attachments(thread_id)
+        deleted = ThreadRepository(conn).delete_thread(thread_id)
         if not deleted:
             raise HTTPException(status_code=404, detail="Thread not found.")
         delete_files(attachments)
@@ -346,22 +352,23 @@ def delete_thread(thread_id: str) -> dict[str, Any]:
 @router.get("/{thread_id}/messages", response_model=list[ChatMessageRecord])
 def list_thread_messages(thread_id: str) -> list[ChatMessageRecord]:
     """Retrieve chronological message history for a conversational thread."""
-    with db_session() as repo:
-        if thread_id == DEFAULT_THREAD_ID and not repo.get_thread(thread_id):
-            _ensure_default_thread(repo)
-        elif not repo.get_thread(thread_id):
+    with db_session() as conn:
+        thread_repo = ThreadRepository(conn)
+        if thread_id == DEFAULT_THREAD_ID and not thread_repo.get_thread(thread_id):
+            _ensure_default_thread(conn)
+        elif not thread_repo.get_thread(thread_id):
             raise HTTPException(status_code=404, detail="Thread not found.")
-        return repo.list_messages(thread_id)
+        return thread_repo.list_messages(thread_id)
 
 
-def _auto_title(repo: DatabaseRepository, thread: ChatThreadRecord, first_prompt: str) -> None:
+def _auto_title(conn: sqlite3.Connection, thread: ChatThreadRecord, first_prompt: str) -> None:
     """Name a generically titled thread after its first question."""
     if thread.title not in GENERIC_TITLES:
         return
     clean_title = first_prompt.strip()
     short_title = f"{clean_title[:38]}..." if len(clean_title) > 38 else clean_title
     if short_title:
-        repo.update_thread(thread.id, ChatThreadUpdate(title=short_title))
+        ThreadRepository(conn).update_thread(thread.id, ChatThreadUpdate(title=short_title))
 
 
 def _require_unsent(attachments: list[Attachment], wanted: list[str]) -> None:
@@ -389,23 +396,25 @@ def post_thread_message(thread_id: str, req: ChatMessageCreate) -> StreamingResp
     start (100 s, HTTP 524), so the response starts immediately and sends a space every few
     seconds until the thread history, as JSON, follows. Leading whitespace is valid JSON.
     """
-    with db_session() as repo:
-        thread = repo.get_thread(thread_id)
+    with db_session() as conn:
+        chat_repo = ChatRepository(conn)
+        thread_repo = ThreadRepository(conn)
+        thread = thread_repo.get_thread(thread_id)
         if thread_id == DEFAULT_THREAD_ID and not thread:
-            _ensure_default_thread(repo)
-            thread = repo.get_thread(thread_id)
+            _ensure_default_thread(conn)
+            thread = thread_repo.get_thread(thread_id)
         if not thread:
             raise HTTPException(status_code=404, detail="Thread not found.")
-        existing_msgs = repo.list_messages(thread_id)
+        existing_msgs = thread_repo.list_messages(thread_id)
         # Confirming an action Otto already proposed is not a new question.
         if req.role == "user" and req.widget_type != "tool_confirm":
             try:
-                check_can_ask(thread, repo.get_conversation_limits())
+                check_can_ask(thread, chat_repo.get_conversation_limits())
             except LimitReachedError as exc:
                 raise HTTPException(status_code=409, detail=str(exc)) from exc
-        _require_unsent(repo.list_attachments(thread_id), req.attachment_ids)
+        _require_unsent(chat_repo.list_attachments(thread_id), req.attachment_ids)
         if req.role == "user":
-            _auto_title(repo, thread, req.content)
+            _auto_title(conn, thread, req.content)
 
     worker = _ReplyWorker(thread_id, req, existing_msgs)
     contextvars.copy_context().run(worker.start)
@@ -430,8 +439,8 @@ class _ReplyWorker:
 
     def _run(self) -> None:
         try:
-            with db_session() as repo:
-                messages = _save_turn(repo, self.thread_id, self.req, self.history)
+            with db_session() as conn:
+                messages = _save_turn(conn, self.thread_id, self.req, self.history)
             payload = [m.model_dump(mode="json") for m in messages]
             self.result = json.dumps(payload).encode()
         except Exception as exc:  # the stream must always end with valid JSON
@@ -452,13 +461,15 @@ _KEEPALIVE_S = 10.0
 
 
 def _save_turn(
-    repo: DatabaseRepository,
+    conn: sqlite3.Connection,
     thread_id: str,
     req: ChatMessageCreate,
     existing_msgs: list[ChatMessageRecord],
 ) -> list[ChatMessageRecord]:
     """Persist the message, produce Otto's reply for a user turn, and return the history."""
-    attachments = repo.list_attachments(thread_id)
+    chat_repo = ChatRepository(conn)
+    thread_repo = ThreadRepository(conn)
+    attachments = chat_repo.list_attachments(thread_id)
     user_msg = ChatMessageRecord(
         id=f"msg-{uuid.uuid4().hex[:8]}",
         thread_id=thread_id,
@@ -467,23 +478,23 @@ def _save_turn(
         widget_type=req.widget_type,
         widget_data=req.widget_data,
     )
-    repo.add_message(user_msg)
-    repo.attach_to_message(req.attachment_ids, user_msg.id)
+    thread_repo.add_message(user_msg)
+    chat_repo.attach_to_message(req.attachment_ids, user_msg.id)
 
     if req.role == "user":
         context_window = existing_msgs[-MAX_THREAD_CONTEXT_MESSAGES:]
         if req.widget_type == "tool_confirm":
-            reply = _confirmed_tool_reply(req, repo, context_window)
+            reply = _confirmed_tool_reply(req, conn, context_window)
         else:
             by_id = {a.id: a for a in attachments}
             files = ConversationFiles(
                 by_message={}, current=claude_blocks([by_id[a] for a in req.attachment_ids])
             )
             prior = replay_conversation(
-                existing_msgs, repo.list_transcripts(thread_id), _sent_files(attachments)
+                existing_msgs, thread_repo.list_transcripts(thread_id), _sent_files(attachments)
             )
-            reply = _build_contextual_reply(req.content, repo, context_window, files, prior)
-        repo.add_message(
+            reply = _build_contextual_reply(req.content, conn, context_window, files, prior)
+        thread_repo.add_message(
             ChatMessageRecord(
                 id=f"msg-{uuid.uuid4().hex[:8]}",
                 thread_id=thread_id,
@@ -494,7 +505,7 @@ def _save_turn(
             ),
             transcript=reply.transcript,
         )
-        repo.add_thread_tokens(thread_id, reply.tokens)
+        thread_repo.add_thread_tokens(thread_id, reply.tokens)
         usage = reply.widget_data.get("usage") or {}
         if usage:
             logging.getLogger("uvicorn.error").info(
@@ -505,4 +516,4 @@ def _save_turn(
                 usage.get("compactions", 0),
                 usage.get("billable", 0),
             )
-    return repo.list_messages(thread_id)
+    return thread_repo.list_messages(thread_id)

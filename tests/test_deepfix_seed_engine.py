@@ -5,19 +5,22 @@
 """Tests for SeedEngine partial-failure persistence, rollback status and payload errors."""
 
 import json
+import sqlite3
 from pathlib import Path
 
 import httpx
 import pytest
 
-from now_workbench.db import DatabaseRepository, InstanceCreate, init_db
+from now_workbench.db import InstanceCreate, init_db
 from now_workbench.db.models import SeedOperationRecord, SeedRecordItem
+from now_workbench.db.repos.instances import InstanceRepository
+from now_workbench.db.repos.seeds import SeedRepository
 from now_workbench.seed.engine import SeedEngine, SeedPayloadError
 
 
-def _repo() -> DatabaseRepository:
-    repo = DatabaseRepository(init_db(":memory:"))
-    repo.add_instance(
+def _repo() -> sqlite3.Connection:
+    conn = init_db(":memory:")
+    InstanceRepository(conn).add_instance(
         InstanceCreate(
             id="inst",
             name="Inst",
@@ -27,7 +30,7 @@ def _repo() -> DatabaseRepository:
             is_default=True,
         )
     )
-    return repo
+    return conn
 
 
 def _bundle(tmp_path: Path, count: int = 3) -> Path:
@@ -56,11 +59,11 @@ def _transport(fail_post_at: int | None = None, fail_delete: bool = False) -> ht
 
 @pytest.mark.asyncio
 async def test_load_and_seed_mid_batch_failure_persists_created_records(tmp_path: Path) -> None:
-    repo = _repo()
-    engine = SeedEngine(repo, transport=_transport(fail_post_at=3))
+    conn = _repo()
+    engine = SeedEngine(conn, transport=_transport(fail_post_at=3))
     with pytest.raises(RuntimeError, match="failed after 2 record"):
         await engine.load_and_seed("b", _bundle(tmp_path))
-    ops = repo.list_seed_operations()
+    ops = SeedRepository(conn).list_seed_operations()
     assert len(ops) == 1
     assert ops[0].status == "failed"
     assert [r.sys_id for r in ops[0].created_records] == ["id1", "id2"]
@@ -68,55 +71,57 @@ async def test_load_and_seed_mid_batch_failure_persists_created_records(tmp_path
 
 @pytest.mark.asyncio
 async def test_rollback_partial_failure_keeps_operation_retryable(tmp_path: Path) -> None:
-    repo = _repo()
-    op = await SeedEngine(repo, transport=_transport()).load_and_seed("b", _bundle(tmp_path))
-    failing = SeedEngine(repo, transport=_transport(fail_delete=True))
+    conn = _repo()
+    seed_repo = SeedRepository(conn)
+    op = await SeedEngine(conn, transport=_transport()).load_and_seed("b", _bundle(tmp_path))
+    failing = SeedEngine(conn, transport=_transport(fail_delete=True))
     count, errors = await failing.rollback(op.id)
     assert count == 0
     assert len(errors) == 3
-    saved = repo.get_seed_operation(op.id)
+    saved = seed_repo.get_seed_operation(op.id)
     assert saved is not None
     assert saved.status == "rollback_failed"
 
-    count, errors = await SeedEngine(repo, transport=_transport()).rollback(op.id)
+    count, errors = await SeedEngine(conn, transport=_transport()).rollback(op.id)
     assert (count, errors) == (3, [])
-    saved = repo.get_seed_operation(op.id)
+    saved = seed_repo.get_seed_operation(op.id)
     assert saved is not None
     assert saved.status == "rolled_back"
 
 
 @pytest.mark.asyncio
 async def test_rollback_failed_seed_operation_marks_rolled_back(tmp_path: Path) -> None:
-    repo = _repo()
-    engine = SeedEngine(repo, transport=_transport(fail_post_at=2))
+    conn = _repo()
+    seed_repo = SeedRepository(conn)
+    engine = SeedEngine(conn, transport=_transport(fail_post_at=2))
     with pytest.raises(RuntimeError):
         await engine.load_and_seed("b", _bundle(tmp_path))
-    op_id = repo.list_seed_operations()[0].id
+    op_id = seed_repo.list_seed_operations()[0].id
     count, errors = await engine.rollback(op_id)
     assert (count, errors) == (1, [])
-    saved = repo.get_seed_operation(op_id)
+    saved = seed_repo.get_seed_operation(op_id)
     assert saved is not None
     assert saved.status == "rolled_back"
 
 
 @pytest.mark.asyncio
 async def test_load_and_seed_malformed_seed_file_raises_naming_file(tmp_path: Path) -> None:
-    repo = _repo()
+    conn = _repo()
     bundle = _bundle(tmp_path)
     (bundle / "seed" / "02_bad.json").write_text("{not json", encoding="utf-8")
-    engine = SeedEngine(repo, fake_mode=True)
+    engine = SeedEngine(conn, fake_mode=True)
     with pytest.raises(SeedPayloadError, match="02_bad.json"):
         await engine.load_and_seed("b", bundle)
-    assert repo.list_seed_operations() == []
+    assert SeedRepository(conn).list_seed_operations() == []
 
 
 async def test_verify_reports_present_and_missing_records() -> None:
     """verify() looks each created record up by sys_id and says which are gone."""
-    repo = DatabaseRepository(init_db(":memory:"))
-    repo.add_instance(
+    conn = init_db(":memory:")
+    InstanceRepository(conn).add_instance(
         InstanceCreate(id="i1", name="Dev", url="https://dev.service-now.com", password="p")
     )
-    repo.record_seed_operation(
+    SeedRepository(conn).record_seed_operation(
         SeedOperationRecord(
             id="seed-1",
             bundle_id="b",
@@ -133,7 +138,7 @@ async def test_verify_reports_present_and_missing_records() -> None:
             return httpx.Response(200, json={"result": {"sys_id": "aaa", "number": "INC1"}})
         return httpx.Response(404, json={"error": {}})
 
-    engine = SeedEngine(repository=repo, transport=httpx.MockTransport(handler))
+    engine = SeedEngine(conn=conn, transport=httpx.MockTransport(handler))
     checks = await engine.verify("seed-1")
     assert [(i.sys_id, ok, d) for i, ok, d in checks] == [
         ("aaa", True, "INC1"),
@@ -143,15 +148,15 @@ async def test_verify_reports_present_and_missing_records() -> None:
 
 async def test_load_and_seed_failure_keeps_the_reason() -> None:
     """A failed seed run stores why it failed for later diagnosis."""
-    repo = DatabaseRepository(init_db(":memory:"))
-    repo.add_instance(
+    conn = init_db(":memory:")
+    InstanceRepository(conn).add_instance(
         InstanceCreate(id="i1", name="Dev", url="https://dev.service-now.com", password="p")
     )
     bundle = Path(__file__).resolve().parents[1] / "bundles" / "sample-ai-assistant"
     transport = httpx.MockTransport(lambda req: httpx.Response(403, text="ACL denied"))
-    engine = SeedEngine(repository=repo, transport=transport)
+    engine = SeedEngine(conn=conn, transport=transport)
     with pytest.raises(RuntimeError):
         await engine.load_and_seed("sample-ai-assistant", bundle, instance_id="i1")
-    op = repo.list_seed_operations()[0]
+    op = SeedRepository(conn).list_seed_operations()[0]
     assert op.status == "failed"
     assert "HTTP 403" in op.error

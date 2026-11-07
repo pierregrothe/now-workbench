@@ -6,6 +6,8 @@ from fastapi.testclient import TestClient
 
 from now_workbench.api.app import create_app
 from now_workbench.db import db_session
+from now_workbench.db.repos.templates import TemplateRepository
+from now_workbench.db.repos.threads import ThreadRepository
 
 
 def test_api_instances_and_admin_diagnostics() -> None:
@@ -197,8 +199,8 @@ def test_api_demos_and_error_routes() -> None:
     # 8. Template instantiate failure returns 400
     from now_workbench.db import TemplateRecord, db_session
 
-    with db_session() as repo:
-        repo.save_template(
+    with db_session() as conn:
+        TemplateRepository(conn).save_template(
             TemplateRecord(
                 id="bad-base-template",
                 name="Bad Base",
@@ -585,8 +587,8 @@ def test_api_threads_and_messages_endpoints(tmp_path: Path) -> None:
         # The conversation token budget is an admin setting (ADR-023).
         limits = client.put("/api/limits", json={"max_conversation_tokens": 50_000})
         assert limits.status_code == 200
-        with db_session() as repo:
-            repo.add_thread_tokens("otto-conv-1", 50_000)
+        with db_session() as conn:
+            ThreadRepository(conn).add_thread_tokens("otto-conv-1", 50_000)
         over_limit = client.post(
             "/api/threads/otto-conv-1/messages",
             json={"content": "One question past the budget"},

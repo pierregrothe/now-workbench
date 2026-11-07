@@ -17,6 +17,7 @@ from now_workbench.api.app import create_app
 from now_workbench.auth.access import ACCESS_HEADER, AccessValidator
 from now_workbench.auth.models import Role
 from now_workbench.db import db_session
+from now_workbench.db.repos.users import UserRepository
 
 __all__ = ["as_user", "multi_user_client"]
 
@@ -48,10 +49,11 @@ def multi_user_client(admin: str, consultants: tuple[str, ...]) -> Iterator[Test
     Yields:
         A started test client.
     """
-    with db_session() as repo:
-        repo.put_user(admin, frozenset(Role), added_by="test")
+    with db_session() as conn:
+        user_repo = UserRepository(conn)
+        user_repo.put_user(admin, frozenset(Role), added_by="test")
         for email in consultants:
-            repo.put_user(email, frozenset({Role.SOLUTION_CONSULTANT}), added_by="test")
+            user_repo.put_user(email, frozenset({Role.SOLUTION_CONSULTANT}), added_by="test")
     validator = AccessValidator(_TEAM, _AUD, key_resolver=lambda _t: _KEY.public_key())
     with TestClient(create_app(access_validator=validator)) as client:
         yield client

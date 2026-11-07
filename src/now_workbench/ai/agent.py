@@ -2,6 +2,7 @@
 
 import functools
 import inspect
+import sqlite3
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from enum import StrEnum
@@ -13,7 +14,7 @@ from pydantic import BaseModel, ConfigDict
 from now_workbench.ai.tiles import AgentStep, GenerativeUIResponse, TileLayout, UITileSpec
 from now_workbench.ai.tools import ToolContext, ToolResult, execute_tool, tool_definitions
 from now_workbench.ai.tools.base import model_to_text, text_tile
-from now_workbench.db import ChatMessageRecord, DatabaseRepository
+from now_workbench.db import ChatMessageRecord
 
 # Room to detect a problem, fix it and verify the fix within one request.
 MAX_STEPS = 12
@@ -445,14 +446,14 @@ class ClaudeAgentRunner:
         self,
         client: Any,
         model: str,
-        repo: DatabaseRepository,
+        conn: sqlite3.Connection,
         fake_mode: bool = False,
     ) -> None:
         self.client = client
         self.model = model
-        self.repo = repo
+        self.conn = conn
         self.fake_mode = fake_mode
-        self.ctx = ToolContext(repo=repo, fake_mode=fake_mode)
+        self.ctx = ToolContext(conn=conn, fake_mode=fake_mode)
 
     async def stream_run(
         self,
@@ -545,7 +546,7 @@ class ClaudeAgentRunner:
 def run_agent(
     user_text: str,
     history: list[ChatMessageRecord],
-    repo: DatabaseRepository,
+    conn: sqlite3.Connection,
     client: Any,
     model: str,
     fake_mode: bool = False,
@@ -556,7 +557,7 @@ def run_agent(
     """Run Otto for one question and return its reply (with transcript and usage)."""
     import asyncio
 
-    runner = ClaudeAgentRunner(client=client, model=model, repo=repo, fake_mode=fake_mode)
+    runner = ClaudeAgentRunner(client=client, model=model, conn=conn, fake_mode=fake_mode)
 
     try:
         asyncio.get_running_loop()
@@ -566,7 +567,7 @@ def run_agent(
 
     if in_running_loop:
         return _run_agent_sync(
-            user_text, history, repo, client, model, fake_mode, files, prior, compact_at
+            user_text, history, conn, client, model, fake_mode, files, prior, compact_at
         )
     return asyncio.run(runner.run(user_text, history, files, prior, compact_at))
 
@@ -574,7 +575,7 @@ def run_agent(
 def _run_agent_sync(
     user_text: str,
     history: list[ChatMessageRecord],
-    repo: DatabaseRepository,
+    conn: sqlite3.Connection,
     client: Any,
     model: str,
     fake_mode: bool = False,
@@ -583,7 +584,7 @@ def _run_agent_sync(
     compact_at: int = DEFAULT_COMPACT_AT,
 ) -> GenerativeUIResponse:
     """Direct synchronous runner for tests and sync execution contexts."""
-    ctx = ToolContext(repo=repo, fake_mode=fake_mode)
+    ctx = ToolContext(conn=conn, fake_mode=fake_mode)
     messages = (
         _with_question(prior, user_text, files)
         if prior is not None

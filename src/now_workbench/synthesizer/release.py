@@ -9,7 +9,10 @@ instance, or a release the platform has not reported yet, there is nothing to bu
 ``NoReleaseError`` explains how to fix it; a release is never guessed.
 """
 
-from now_workbench.db import UNKNOWN_RELEASE, DatabaseRepository
+import sqlite3
+
+from now_workbench.db import UNKNOWN_RELEASE
+from now_workbench.db.repos.instances import InstanceRepository
 
 __all__ = ["NoReleaseError", "resolve_synthesis_release"]
 
@@ -19,12 +22,12 @@ class NoReleaseError(RuntimeError):
 
 
 def resolve_synthesis_release(
-    repo: DatabaseRepository, explicit: str | None, instance_id: str | None
+    conn: sqlite3.Connection, explicit: str | None, instance_id: str | None
 ) -> str:
     """Return the release to build for: explicit value, else the target instance's.
 
     Args:
-        repo: Open repository.
+        conn: Open database connection.
         explicit: Release passed by the caller (CLI flag, chat tool), if any.
         instance_id: Target instance; None means the default instance.
 
@@ -36,13 +39,18 @@ def resolve_synthesis_release(
         NoReleaseError: No explicit release, and the target instance (or the default
             instance) is missing or has not reported a release.
     """
+    instance_repo = InstanceRepository(conn)
     if explicit:
         return explicit
-    inst = repo.get_instance(instance_id) if instance_id else repo.get_default_instance()
+    inst = (
+        instance_repo.get_instance(instance_id)
+        if instance_id
+        else instance_repo.get_default_instance()
+    )
     if instance_id and inst is None:
         raise LookupError(f"Instance '{instance_id}' not found")
     if inst is not None:
-        profile = repo.get_instance_profile(inst.id)
+        profile = instance_repo.get_instance_profile(inst.id)
         if profile is not None and profile.release and profile.release != UNKNOWN_RELEASE:
             return profile.release
     raise NoReleaseError(

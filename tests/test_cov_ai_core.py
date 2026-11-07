@@ -38,35 +38,39 @@ from now_workbench.ai.tiles import (
 from now_workbench.ai.tools import REGISTRY, ToolContext, execute_tool, tool_definitions
 from now_workbench.ai.tools.base import ToolResult, ToolSpec, resolve_instance, run_async
 from now_workbench.db import ChatMessageRecord, InstanceCreate, db_session
+from now_workbench.db.repos.instances import InstanceRepository
 
 
 def _ctx(repo: Any) -> ToolContext:
-    return ToolContext(repo=repo, fake_mode=True)
+    return ToolContext(conn=repo, fake_mode=True)
 
 
 def _add(repo: Any, ident: str, name: str, url: str, default: bool = False) -> None:
-    repo.add_instance(InstanceCreate(id=ident, name=name, url=url, is_default=default))
+    InstanceRepository(repo).add_instance(
+        InstanceCreate(id=ident, name=name, url=url, is_default=default)
+    )
 
 
 # -- tools/base.py ---------------------------------------------------------------
 def test_resolve_instance_without_default_raises() -> None:
-    with db_session() as repo:
-        for i in repo.list_instances():
-            repo.delete_instance(i.id)
+    with db_session() as conn:
+        instance_repo = InstanceRepository(conn)
+        for i in instance_repo.list_instances():
+            instance_repo.delete_instance(i.id)
         with pytest.raises(ValueError, match="No default instance"):
-            resolve_instance(repo, None)
+            resolve_instance(conn, None)
 
 
 def test_resolve_instance_ambiguous_and_missing() -> None:
-    with db_session() as repo:
-        _add(repo, "a1", "Alpha One", "fake://alpha-one.service-now.com")
-        _add(repo, "a2", "Alpha Two", "fake://alpha-two.service-now.com")
+    with db_session() as conn:
+        _add(conn, "a1", "Alpha One", "fake://alpha-one.service-now.com")
+        _add(conn, "a2", "Alpha Two", "fake://alpha-two.service-now.com")
         with pytest.raises(ValueError, match="ambiguous"):
-            resolve_instance(repo, "alpha")
+            resolve_instance(conn, "alpha")
         with pytest.raises(ValueError, match="No instance matches"):
-            resolve_instance(repo, "zzz-nothing")
-        assert resolve_instance(repo, "Alpha-One").id == "a1"
-        assert resolve_instance(repo, "one.service").id == "a1"
+            resolve_instance(conn, "zzz-nothing")
+        assert resolve_instance(conn, "Alpha-One").id == "a1"
+        assert resolve_instance(conn, "one.service").id == "a1"
 
 
 async def test_run_async_inside_running_loop_uses_thread() -> None:
@@ -84,8 +88,8 @@ def test_run_async_without_loop() -> None:
 
 
 def test_execute_tool_unknown_name() -> None:
-    with db_session() as repo:
-        res = execute_tool(_ctx(repo), "no_such_tool", {})
+    with db_session() as conn:
+        res = execute_tool(_ctx(conn), "no_such_tool", {})
         assert not res.ok and "Unknown tool" in res.summary
 
 
@@ -105,10 +109,10 @@ def test_execute_tool_plan_failure_reports_error() -> None:
         plan=bad_plan,
     )
     try:
-        with db_session() as repo:
-            res = execute_tool(_ctx(repo), "zz_cov_tool", {})
+        with db_session() as conn:
+            res = execute_tool(_ctx(conn), "zz_cov_tool", {})
             assert not res.ok and "Could not prepare" in res.summary
-            res2 = execute_tool(_ctx(repo), "zz_cov_tool", {}, confirmed=True)
+            res2 = execute_tool(_ctx(conn), "zz_cov_tool", {}, confirmed=True)
             assert not res2.ok and "handler boom" in res2.summary
     finally:
         del REGISTRY["zz_cov_tool"]
@@ -122,8 +126,8 @@ def test_execute_tool_destructive_without_planner_uses_default_plan() -> None:
         name="zz_cov_noplan", description="x", properties={}, handler=handler, destructive=True
     )
     try:
-        with db_session() as repo:
-            res = execute_tool(_ctx(repo), "zz_cov_noplan", {})
+        with db_session() as conn:
+            res = execute_tool(_ctx(conn), "zz_cov_noplan", {})
             assert res.pending and "Run zz_cov_noplan." in res.summary
     finally:
         del REGISTRY["zz_cov_noplan"]
@@ -136,13 +140,14 @@ def test_tool_definitions_lists_every_registered_tool() -> None:
 
 # -- tools/instances.py ----------------------------------------------------------
 def test_instance_tools_add_update_test_and_list() -> None:
-    with db_session() as repo:
-        ctx = _ctx(repo)
+    with db_session() as conn:
+        instance_repo = InstanceRepository(conn)
+        ctx = _ctx(conn)
         added = execute_tool(
             ctx, "add_instance", {"url": "fake://newbie.service-now.com/", "make_default": True}
         )
         assert added.ok and "newbie" in added.summary
-        assert any(i.name == "newbie" and i.is_default for i in repo.list_instances())
+        assert any(i.name == "newbie" and i.is_default for i in instance_repo.list_instances())
 
         listed = execute_tool(ctx, "list_instances", {"detailed": True})
         assert listed.ok and listed.tiles[0].type == "instance-card"
@@ -158,14 +163,15 @@ def test_instance_tools_add_update_test_and_list() -> None:
         tested = execute_tool(ctx, "test_instances", {"instances": ["newbie"]})
         assert tested.ok and tested.data["results"][0].startswith("newbie:")
         all_tested = execute_tool(ctx, "test_instances", {})
-        assert len(all_tested.data["results"]) == len(repo.list_instances())
+        assert len(all_tested.data["results"]) == len(instance_repo.list_instances())
 
 
 def test_instance_tools_delete_modes_and_default_fallback() -> None:
-    with db_session() as repo:
-        ctx = _ctx(repo)
-        _add(repo, "x1", "Ex One", "fake://ex-one.service-now.com")
-        _add(repo, "x2", "Ex Two", "fake://ex-two.service-now.com")
+    with db_session() as conn:
+        instance_repo = InstanceRepository(conn)
+        ctx = _ctx(conn)
+        _add(conn, "x1", "Ex One", "fake://ex-one.service-now.com")
+        _add(conn, "x2", "Ex Two", "fake://ex-two.service-now.com")
         nothing = execute_tool(ctx, "delete_instances", {"instances": []}, confirmed=True)
         assert "nothing deleted" in nothing.summary
         plan = execute_tool(ctx, "delete_instances", {"instances": []})
@@ -175,20 +181,20 @@ def test_instance_tools_delete_modes_and_default_fallback() -> None:
         assert plan2.pending and "Ex One" in plan2.summary
         done = execute_tool(ctx, "delete_instances", {"filter": "all_except_default"}, True)
         assert "Deleted 2" in done.summary
-        assert [i.id for i in repo.list_instances()] == ["default-instance"]
+        assert [i.id for i in instance_repo.list_instances()] == ["default-instance"]
 
         # deleting the default promotes the remaining instance
-        _add(repo, "x3", "Ex Three", "fake://ex-three.service-now.com")
+        _add(conn, "x3", "Ex Three", "fake://ex-three.service-now.com")
         execute_tool(ctx, "delete_instances", {"instances": ["default-instance"]}, True)
-        remaining = repo.list_instances()
+        remaining = instance_repo.list_instances()
         assert [i.id for i in remaining] == ["x3"] and remaining[0].is_default
 
 
 def test_instance_tools_delete_many_truncates_names() -> None:
-    with db_session() as repo:
-        ctx = _ctx(repo)
+    with db_session() as conn:
+        ctx = _ctx(conn)
         for n in range(9):
-            _add(repo, f"m{n}", f"Many{n}", f"fake://many{n}.service-now.com")
+            _add(conn, f"m{n}", f"Many{n}", f"fake://many{n}.service-now.com")
         plan = execute_tool(ctx, "delete_instances", {"filter": "all_except_default"})
         assert plan.summary.rstrip().endswith("...")
         done = execute_tool(ctx, "delete_instances", {"filter": "all_except_default"}, True)
@@ -196,27 +202,27 @@ def test_instance_tools_delete_many_truncates_names() -> None:
 
 
 def test_instance_tool_test_many_unauthenticated_in_summary() -> None:
-    with db_session() as repo:
+    with db_session() as conn:
         for n in range(5):
-            _add(repo, f"u{n}", f"Un{n}", f"fake://auth-failed.u{n}.service-now.com")
-        res = execute_tool(_ctx(repo), "test_instances", {})
+            _add(conn, f"u{n}", f"Un{n}", f"fake://auth-failed.u{n}.service-now.com")
+        res = execute_tool(_ctx(conn), "test_instances", {})
         assert res.ok and res.tiles[0].type == "instance-kpi"
 
 
 def test_instance_tools_delete_unauthenticated_filter() -> None:
-    with db_session() as repo:
-        _add(repo, "bad", "Bad", "fake://auth-failed.service-now.com")
-        execute_tool(_ctx(repo), "test_instances", {})
+    with db_session() as conn:
+        _add(conn, "bad", "Bad", "fake://auth-failed.service-now.com")
+        execute_tool(_ctx(conn), "test_instances", {})
         res = execute_tool(
-            _ctx(repo), "delete_instances", {"filter": "unauthenticated"}, confirmed=True
+            _ctx(conn), "delete_instances", {"filter": "unauthenticated"}, confirmed=True
         )
-        assert repo.get_instance("bad") is None and res.ok
+        assert InstanceRepository(conn).get_instance("bad") is None and res.ok
 
 
 # -- tools/system.py -------------------------------------------------------------
 def test_system_tools_settings_roundtrip_and_diagnostics() -> None:
-    with db_session() as repo:
-        ctx = _ctx(repo)
+    with db_session() as conn:
+        ctx = _ctx(conn)
         shown = execute_tool(ctx, "show_settings", {})
         assert shown.ok and "anthropic_api_key_masked" not in shown.data["settings"]
 
@@ -409,7 +415,7 @@ async def test_call_client_create_supports_all_client_shapes() -> None:
 
 
 async def test_runner_streams_events_and_assembles_response() -> None:
-    with db_session() as repo:
+    with db_session() as conn:
         client = _AsyncClient(
             [
                 _Resp(
@@ -422,7 +428,7 @@ async def test_runner_streams_events_and_assembles_response() -> None:
                 _text("All good."),
             ]
         )
-        runner = ClaudeAgentRunner(client, "m", repo, fake_mode=True)
+        runner = ClaudeAgentRunner(client, "m", conn, fake_mode=True)
         events = [e async for e in runner.stream_run("how many", [])]
         kinds = [e.event_type for e in events]
         assert kinds == [
@@ -434,24 +440,24 @@ async def test_runner_streams_events_and_assembles_response() -> None:
             AgentEventType.DONE,
         ]
         client2 = _AsyncClient([_tool_call("u1", "list_instances", {}), _text("Done now.")])
-        resp = await ClaudeAgentRunner(client2, "m", repo, fake_mode=True).run(
+        resp = await ClaudeAgentRunner(client2, "m", conn, fake_mode=True).run(
             "q", [], ConversationFiles(by_message={}, current=[])
         )
         assert resp.summary == "Done now." and resp.steps[0].ok
 
 
 async def test_runner_tool_without_tiles_emits_no_tile_event() -> None:
-    with db_session() as repo:
+    with db_session() as conn:
         client = _AsyncClient([_tool_call("u1", "no_such_tool", {}), _text("ok")])
-        events = [e async for e in ClaudeAgentRunner(client, "m", repo).stream_run("q", [])]
+        events = [e async for e in ClaudeAgentRunner(client, "m", conn).stream_run("q", [])]
         assert AgentEventType.TILE_RENDER not in [e.event_type for e in events]
 
 
 async def test_runner_failure_fake_mode_raises_and_live_mode_yields_diagnostic() -> None:
-    with db_session() as repo:
+    with db_session() as conn:
         with pytest.raises(AgentUnavailableError, match="api down"):
-            await ClaudeAgentRunner(_Boom(), "m", repo, fake_mode=True).run("q", [])
-        resp = await ClaudeAgentRunner(_Boom(), "m", repo).run("q", [])
+            await ClaudeAgentRunner(_Boom(), "m", conn, fake_mode=True).run("q", [])
+        resp = await ClaudeAgentRunner(_Boom(), "m", conn).run("q", [])
         assert resp.summary == "Diagnostic Warning: api down"
         assert resp.tiles[0].type == "security-alert"
 
@@ -462,53 +468,53 @@ async def test_runner_run_without_done_event_returns_placeholder() -> None:
             if False:
                 yield None
 
-    with db_session() as repo:
-        resp = await Silent(_Boom(), "m", repo).run("q", [])
+    with db_session() as conn:
+        resp = await Silent(_Boom(), "m", conn).run("q", [])
         assert resp.summary == "No response received from agent."
 
 
 def test_run_agent_sync_context_and_failure_paths() -> None:
-    with db_session() as repo:
+    with db_session() as conn:
         files = ConversationFiles(by_message={}, current=[])
-        resp = run_agent("hi", [], repo, _FakeClient([_text("hello")]), "m", files=files)
+        resp = run_agent("hi", [], conn, _FakeClient([_text("hello")]), "m", files=files)
         assert resp.summary == "hello"
 
 
 async def test_run_agent_inside_running_loop_uses_sync_runner() -> None:
-    with db_session() as repo:
+    with db_session() as conn:
         client = _FakeClient([_tool_call("t1", "list_instances", {}), _text("listed")])
-        resp = run_agent("list", [], repo, client, "m", fake_mode=True)
+        resp = run_agent("list", [], conn, client, "m", fake_mode=True)
         assert resp.summary == "listed" and resp.steps
         # tool_result was fed back with a single cache breakpoint
         call = client.messages.calls[-1]
         assert call["cache_control"] == {"type": "ephemeral"}
         assert call["system"][0]["cache_control"] == {"type": "ephemeral", "ttl": "1h"}
         with pytest.raises(AgentUnavailableError):
-            run_agent("x", [], repo, _Boom(), "m", fake_mode=True)
-        diag = run_agent("x", [], repo, _Boom(), "m")
+            run_agent("x", [], conn, _Boom(), "m", fake_mode=True)
+        diag = run_agent("x", [], conn, _Boom(), "m")
         assert diag.tiles[0].id == "tile-diagnostic-error"
 
 
 def test_run_agent_sync_without_tools_skips_cache_marker(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(agent_mod, "tool_definitions", lambda: [])
-    with db_session() as repo:
+    with db_session() as conn:
         client = _FakeClient([_text("none")])
-        agent_mod._run_agent_sync("q", [], repo, client, "m")
+        agent_mod._run_agent_sync("q", [], conn, client, "m")
         assert client.messages.calls[0]["tools"] == []
 
 
 async def test_runner_without_tools_skips_cache_marker(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(agent_mod, "tool_definitions", lambda: [])
-    with db_session() as repo:
-        resp = await ClaudeAgentRunner(_AsyncClient([_text("none")]), "m", repo).run("q", [])
+    with db_session() as conn:
+        resp = await ClaudeAgentRunner(_AsyncClient([_text("none")]), "m", conn).run("q", [])
         assert resp.summary == "none"
 
 
 def test_resolve_instance_blank_returns_default_and_media_tile_shape() -> None:
     from now_workbench.ai.tools.base import media_tile
 
-    with db_session() as repo:
-        assert resolve_instance(repo, None).id == "default-instance"
+    with db_session() as conn:
+        assert resolve_instance(conn, None).id == "default-instance"
     tile = media_tile("m1", "Clip", "http://x/y.mp4", label="L")
     assert tile.type == "media-player"
     assert tile.props == {
@@ -520,13 +526,14 @@ def test_resolve_instance_blank_returns_default_and_media_tile_shape() -> None:
 
 
 def test_instance_tools_rename_and_set_default() -> None:
-    with db_session() as repo:
-        ctx = _ctx(repo)
-        _add(repo, "r1", "Rename Me", "fake://rename.service-now.com")
+    with db_session() as conn:
+        instance_repo = InstanceRepository(conn)
+        ctx = _ctx(conn)
+        _add(conn, "r1", "Rename Me", "fake://rename.service-now.com")
         renamed = execute_tool(ctx, "rename_instance", {"instance": "r1", "new_name": " New "})
-        assert renamed.ok and repo.get_instance("r1").name == "New"  # type: ignore[union-attr]
+        assert renamed.ok and instance_repo.get_instance("r1").name == "New"  # type: ignore[union-attr]
         made = execute_tool(ctx, "set_default_instance", {"instance": "r1"})
-        assert made.ok and repo.get_default_instance().id == "r1"  # type: ignore[union-attr]
+        assert made.ok and instance_repo.get_default_instance().id == "r1"  # type: ignore[union-attr]
 
 
 # -- actions.py ------------------------------------------------------------------

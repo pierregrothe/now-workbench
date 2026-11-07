@@ -1,14 +1,12 @@
 """Plugin and module manager for ServiceNow instances."""
 
-from typing import TYPE_CHECKING
+import sqlite3
 
 import httpx
 
 from now_workbench.db.models import InstanceRecord
 from now_workbench.plugins.models import PluginEvaluationResult, PluginRecord
-
-if TYPE_CHECKING:
-    from now_workbench.db.repository import DatabaseRepository
+from now_workbench.plugins.repository import PluginRepository
 
 # Plugin ids as ServiceNow reports them in v_plugin (verified on an Australia instance).
 KNOWN_PLUGIN_NAMES: dict[str, str] = {
@@ -28,10 +26,10 @@ class PluginManager:
 
     def __init__(
         self,
-        repo: DatabaseRepository,
+        conn: sqlite3.Connection,
         transport: httpx.BaseTransport | None = None,
     ) -> None:
-        self.repo = repo
+        self.plugins = PluginRepository(conn)
         self._transport = transport
 
     def _query_plugin_active(self, instance: InstanceRecord, plugin_id: str) -> tuple[bool, str]:
@@ -69,7 +67,7 @@ class PluginManager:
         instance (fake mode, ``fake://``) answers from what the workbench recorded.
         """
         simulated = fake_mode or instance.url.startswith("fake://")
-        recorded = {p.plugin_id for p in self.repo.list_instance_plugins(instance.id)}
+        recorded = {p.plugin_id for p in self.plugins.list_instance_plugins(instance.id)}
 
         installed: list[str] = []
         missing: list[str] = []
@@ -85,7 +83,7 @@ class PluginManager:
             if active:
                 installed.append(clean_id)
                 if not simulated and clean_id not in recorded:
-                    self.repo.add_instance_plugin(
+                    self.plugins.add_instance_plugin(
                         instance.id, clean_id, KNOWN_PLUGIN_NAMES.get(clean_id, clean_id)
                     )
             else:
@@ -121,7 +119,7 @@ class PluginManager:
                     f"Plugin '{clean_id}' ({name}) is not active on {instance.name} ({reason}); "
                     "activate it on the instance, then retry.",
                 )
-        self.repo.add_instance_plugin(
+        self.plugins.add_instance_plugin(
             instance_id=instance.id,
             plugin_id=clean_id,
             plugin_name=name,

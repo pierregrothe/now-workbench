@@ -10,6 +10,7 @@ from starlette.websockets import WebSocketDisconnect
 
 from now_workbench.api.app import create_app
 from now_workbench.db import InstanceCreate, db_session
+from now_workbench.db.repos.instances import InstanceRepository
 
 BUNDLE = "sample-ai-assistant"
 GOOD_ORIGIN = "http://localhost:8080"
@@ -64,9 +65,10 @@ def test_deploy_unknown_instance_id_returns_404(client: TestClient) -> None:
 
 def test_deploy_without_any_instance_returns_409(client: TestClient) -> None:
     """No instance id and no registered default is a conflict."""
-    with db_session() as repo:
-        for existing in repo.list_instances():
-            repo.delete_instance(existing.id)
+    with db_session() as conn:
+        instance_repo = InstanceRepository(conn)
+        for existing in instance_repo.list_instances():
+            instance_repo.delete_instance(existing.id)
     res = client.post(f"/api/demos/{BUNDLE}/deploy", json={})
     assert res.status_code == 409
     assert res.json()["detail"] == "No target instance registered"
@@ -74,8 +76,8 @@ def test_deploy_without_any_instance_returns_409(client: TestClient) -> None:
 
 def test_deploy_default_instance_reports_target(client: TestClient) -> None:
     """Deploying to the default instance names the target in the response."""
-    with db_session() as repo:
-        inst = repo.add_instance(
+    with db_session() as conn:
+        inst = InstanceRepository(conn).add_instance(
             InstanceCreate(name="dev-one", url="https://dev1.service-now.com", is_default=True)
         )
     res = client.post(f"/api/demos/{BUNDLE}/deploy", json={})

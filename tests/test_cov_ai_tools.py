@@ -18,6 +18,8 @@ from now_workbench.capture.models import CaptureArtifact, CaptureRequest
 from now_workbench.config.settings import settings
 from now_workbench.db import InstanceCreate, InstanceProfile, db_session
 from now_workbench.db.models import WorkbenchPreferencesUpdate
+from now_workbench.db.repos.instances import InstanceRepository
+from now_workbench.db.repos.preferences import PreferencesRepository
 from now_workbench.properties.engine import PropertyEngine
 from now_workbench.sharing.access import ReadOnlyBundleError
 
@@ -34,16 +36,16 @@ def library(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     work = tmp_path / "workspace"
     work.mkdir()
     monkeypatch.setattr(settings, "workspace_dir", work)
-    with db_session() as repo:
-        repo.save_instance_profile(
+    with db_session() as conn:
+        InstanceRepository(conn).save_instance_profile(
             InstanceProfile(instance_id="default-instance", release="Xanadu")
         )
     return dest
 
 
 def _run(name: str, args: dict[str, Any], fake: bool = True) -> ToolResult:
-    with db_session() as repo:
-        return execute_tool(ToolContext(repo=repo, fake_mode=fake), name, args, confirmed=True)
+    with db_session() as conn:
+        return execute_tool(ToolContext(conn=conn, fake_mode=fake), name, args, confirmed=True)
 
 
 def _ok(name: str, args: dict[str, Any], fake: bool = True) -> ToolResult:
@@ -95,8 +97,8 @@ def test_export_bundle_writes_archive(library: Path) -> None:
 
 def test_delete_bundle_asks_then_removes(library: Path) -> None:
     _ok("clone_bundle", {"source_bundle_id": SAMPLE, "new_bundle_id": "doomed"})
-    with db_session() as repo:
-        ctx = ToolContext(repo=repo, fake_mode=True)
+    with db_session() as conn:
+        ctx = ToolContext(conn=conn, fake_mode=True)
         pending = execute_tool(ctx, "delete_bundle", {"bundle_id": "doomed"})
         assert "Permanently delete" in str(pending.tiles[0].props)
         done = execute_tool(ctx, "delete_bundle", {"bundle_id": "doomed"}, confirmed=True)
@@ -239,8 +241,10 @@ def test_capture_media_live_attaches_image(
     _FakeCaptureEngine.root = tmp_path
     _FakeCaptureEngine.media = "screenshot"
     _FakeCaptureEngine.payload = b"\x89PNGdata"
-    with db_session() as repo:
-        repo.update_workbench_preferences(WorkbenchPreferencesUpdate(capture_fake_mode=False))
+    with db_session() as conn:
+        PreferencesRepository(conn).update_workbench_preferences(
+            WorkbenchPreferencesUpdate(capture_fake_mode=False)
+        )
     res = _ok("capture_media", {"bundle_id": SAMPLE, "target_path": "/x"}, fake=False)
     assert "live capture" in res.summary
     assert "The image is attached" in res.summary
@@ -256,8 +260,10 @@ def test_capture_media_live_video_uses_png_poster(
     _FakeCaptureEngine.root = tmp_path
     _FakeCaptureEngine.media = "video"
     _FakeCaptureEngine.payload = b"\x89PNGdata"
-    with db_session() as repo:
-        repo.update_workbench_preferences(WorkbenchPreferencesUpdate(capture_fake_mode=False))
+    with db_session() as conn:
+        PreferencesRepository(conn).update_workbench_preferences(
+            WorkbenchPreferencesUpdate(capture_fake_mode=False)
+        )
     res = _ok("capture_media", {"media_type": "video"}, fake=False)
     assert len(res.images) == 1
     assert res.tiles[0].props["media_type"] == "video"
@@ -272,8 +278,10 @@ def test_capture_media_oversized_image_is_not_attached(
     _FakeCaptureEngine.root = tmp_path
     _FakeCaptureEngine.media = "screenshot"
     _FakeCaptureEngine.payload = b"0" * 3_600_000
-    with db_session() as repo:
-        repo.update_workbench_preferences(WorkbenchPreferencesUpdate(capture_fake_mode=False))
+    with db_session() as conn:
+        PreferencesRepository(conn).update_workbench_preferences(
+            WorkbenchPreferencesUpdate(capture_fake_mode=False)
+        )
     res = _ok("capture_media", {}, fake=False)
     assert res.images == []
     assert "live capture" in res.summary
@@ -362,8 +370,8 @@ def test_capture_lifecycle_list_update_delete(library: Path) -> None:
     assert renamed.summary == f"Updated capture '{filename}' label to: 'Renamed'."
     assert renamed.tiles[0].id == f"tile-cap-up-{filename}"
 
-    with db_session() as repo:
-        ctx = ToolContext(repo=repo, fake_mode=True)
+    with db_session() as conn:
+        ctx = ToolContext(conn=conn, fake_mode=True)
         args = {"bundle_id": SAMPLE, "filename": filename}
         pending = execute_tool(ctx, "delete_demo_capture", args)
         assert filename in str(pending.tiles[0].props)
@@ -396,8 +404,8 @@ def test_seed_bundle_records_operation(library: Path) -> None:
 
 def test_rollback_seed_deletes_records_after_confirmation(library: Path) -> None:
     op_id = _seed().data["operation_id"]
-    with db_session() as repo:
-        ctx = ToolContext(repo=repo, fake_mode=False)
+    with db_session() as conn:
+        ctx = ToolContext(conn=conn, fake_mode=False)
         pending = execute_tool(ctx, "rollback_seed", {"operation_id": op_id})
         assert "Delete" in str(pending.tiles[0].props)
         done = execute_tool(ctx, "rollback_seed", {"operation_id": op_id}, confirmed=True)
@@ -407,8 +415,8 @@ def test_rollback_seed_deletes_records_after_confirmation(library: Path) -> None
 
 
 def test_rollback_seed_unknown_operation_plan_and_result(library: Path) -> None:
-    with db_session() as repo:
-        ctx = ToolContext(repo=repo, fake_mode=True)
+    with db_session() as conn:
+        ctx = ToolContext(conn=conn, fake_mode=True)
         pending = execute_tool(ctx, "rollback_seed", {"operation_id": "ghost"})
         assert "was not found" in str(pending.tiles[0].props)
         done = execute_tool(ctx, "rollback_seed", {"operation_id": "ghost"}, confirmed=True)
@@ -430,8 +438,8 @@ def test_verify_seed_operation_unknown_operation(library: Path) -> None:
 
 def test_reset_demo_rolls_back_and_restores(library: Path) -> None:
     _seed()
-    with db_session() as repo:
-        ctx = ToolContext(repo=repo, fake_mode=True)
+    with db_session() as conn:
+        ctx = ToolContext(conn=conn, fake_mode=True)
         pending = execute_tool(ctx, "reset_demo", {"bundle_id": SAMPLE})
         assert "Reset demo" in str(pending.tiles[0].props)
         done = execute_tool(ctx, "reset_demo", {"bundle_id": SAMPLE}, confirmed=True)
@@ -472,8 +480,8 @@ def test_get_properties_live_instance_reads_values(
         return {n: ("on" if i == 0 else None) for i, n in enumerate(names)}
 
     monkeypatch.setattr(PropertyEngine, "read_live_values", fake_live)
-    with db_session() as repo:
-        repo.add_instance(
+    with db_session() as conn:
+        InstanceRepository(conn).add_instance(
             InstanceCreate(id="live", name="Live", url="https://live.service-now.com")
         )
     res = _ok("get_properties", {"bundle_id": SAMPLE, "instance": "live"}, fake=False)
@@ -487,8 +495,8 @@ def test_apply_then_restore_properties(library: Path) -> None:
     applied = _ok("apply_properties", {"bundle_id": SAMPLE})
     assert applied.data["applied"] > 0
     assert f"from '{SAMPLE}'" in applied.summary
-    with db_session() as repo:
-        ctx = ToolContext(repo=repo, fake_mode=True)
+    with db_session() as conn:
+        ctx = ToolContext(conn=conn, fake_mode=True)
         pending = execute_tool(ctx, "restore_properties", {"bundle_id": SAMPLE})
         assert "Restore original" in str(pending.tiles[0].props)
         done = execute_tool(ctx, "restore_properties", {"bundle_id": SAMPLE}, confirmed=True)

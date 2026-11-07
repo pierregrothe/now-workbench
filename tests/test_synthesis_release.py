@@ -4,6 +4,7 @@
 # Date: 2026-11-06
 """Tests for resolve_synthesis_release and the synthesize route's release handling."""
 
+import sqlite3
 from pathlib import Path
 
 import pytest
@@ -11,13 +12,15 @@ from fastapi.testclient import TestClient
 
 from now_workbench.api.app import create_app
 from now_workbench.db import UNKNOWN_RELEASE, InstanceCreate, InstanceProfile, db_session
+from now_workbench.db.repos.instances import InstanceRepository
 from now_workbench.synthesizer.engine import UseCaseSynthesizer
 from now_workbench.synthesizer.models import UseCaseSynthesisRequest
 from now_workbench.synthesizer.release import NoReleaseError, resolve_synthesis_release
 
 
-def _add(repo, instance_id: str, release: str, default: bool = False) -> None:
-    repo.add_instance(
+def _add(conn: sqlite3.Connection, instance_id: str, release: str, default: bool = False) -> None:
+    instances = InstanceRepository(conn)
+    instances.add_instance(
         InstanceCreate(
             id=instance_id,
             name=instance_id,
@@ -25,45 +28,45 @@ def _add(repo, instance_id: str, release: str, default: bool = False) -> None:
             is_default=default,
         )
     )
-    repo.save_instance_profile(InstanceProfile(instance_id=instance_id, release=release))
+    instances.save_instance_profile(InstanceProfile(instance_id=instance_id, release=release))
 
 
 def test_resolve_synthesis_release_explicit_value_wins(tmp_path: Path) -> None:
     """A release passed by the caller is used as-is."""
-    with db_session(tmp_path / "t.db") as repo:
-        _add(repo, "a", "Australia", default=True)
-        assert resolve_synthesis_release(repo, "Xanadu", None) == "Xanadu"
+    with db_session(tmp_path / "t.db") as conn:
+        _add(conn, "a", "Australia", default=True)
+        assert resolve_synthesis_release(conn, "Xanadu", None) == "Xanadu"
 
 
 def test_resolve_synthesis_release_uses_default_instance_profile(tmp_path: Path) -> None:
     """With no explicit value or instance id, the default instance's detected release applies."""
-    with db_session(tmp_path / "t.db") as repo:
-        _add(repo, "a", "Australia", default=True)
-        assert resolve_synthesis_release(repo, None, None) == "Australia"
+    with db_session(tmp_path / "t.db") as conn:
+        _add(conn, "a", "Australia", default=True)
+        assert resolve_synthesis_release(conn, None, None) == "Australia"
 
 
 def test_resolve_synthesis_release_uses_named_instance(tmp_path: Path) -> None:
     """A named instance overrides the default instance."""
-    with db_session(tmp_path / "t.db") as repo:
-        _add(repo, "a", "Australia", default=True)
-        _add(repo, "b", "Yokohama")
-        assert resolve_synthesis_release(repo, None, "b") == "Yokohama"
+    with db_session(tmp_path / "t.db") as conn:
+        _add(conn, "a", "Australia", default=True)
+        _add(conn, "b", "Yokohama")
+        assert resolve_synthesis_release(conn, None, "b") == "Yokohama"
 
 
 def test_resolve_synthesis_release_unknown_instance_raises(tmp_path: Path) -> None:
     """An instance id that does not exist is an error, not a silent fallback."""
-    with db_session(tmp_path / "t.db") as repo, pytest.raises(LookupError):
-        resolve_synthesis_release(repo, None, "nope")
+    with db_session(tmp_path / "t.db") as conn, pytest.raises(LookupError):
+        resolve_synthesis_release(conn, None, "nope")
 
 
 def test_resolve_synthesis_release_never_guesses(tmp_path: Path) -> None:
     """No instance, or an unknown release, raises instead of inventing a release."""
-    with db_session(tmp_path / "t.db") as repo:
+    with db_session(tmp_path / "t.db") as conn:
         with pytest.raises(NoReleaseError):
-            resolve_synthesis_release(repo, None, None)
-        _add(repo, "a", UNKNOWN_RELEASE, default=True)
+            resolve_synthesis_release(conn, None, None)
+        _add(conn, "a", UNKNOWN_RELEASE, default=True)
         with pytest.raises(NoReleaseError):
-            resolve_synthesis_release(repo, None, None)
+            resolve_synthesis_release(conn, None, None)
 
 
 def test_synthesize_engine_rejects_unresolved_release(tmp_path: Path) -> None:
@@ -75,8 +78,8 @@ def test_synthesize_engine_rejects_unresolved_release(tmp_path: Path) -> None:
 
 def test_synthesize_route_stamps_default_instance_release() -> None:
     """The route builds the bundle for the default instance's detected release."""
-    with db_session() as repo:
-        _add(repo, "route-a", "Australia", default=True)
+    with db_session() as conn:
+        _add(conn, "route-a", "Australia", default=True)
     client = TestClient(create_app())
     res = client.post("/api/demos/synthesize", json={"use_case": "Incident triage for release"})
     assert res.status_code == 200, res.text

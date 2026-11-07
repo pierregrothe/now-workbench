@@ -8,8 +8,9 @@ import sqlite3
 from datetime import UTC, datetime
 
 from now_workbench.auth.models import Role, TeamMember
+from now_workbench.db.repos.base import Repository
 
-__all__ = ["UserRepositoryMixin"]
+__all__ = ["UserRepository"]
 
 
 def _roles(row: sqlite3.Row) -> frozenset[Role]:
@@ -21,10 +22,8 @@ def _roles(row: sqlite3.Row) -> frozenset[Role]:
     return frozenset(roles)
 
 
-class UserRepositoryMixin:
-    """Mixin for the ``users`` table."""
-
-    conn: sqlite3.Connection
+class UserRepository(Repository):
+    """Repository for the ``users`` table."""
 
     def get_user_roles(self, email: str) -> frozenset[Role]:
         """Return the roles of an email (empty when it is not a member)."""

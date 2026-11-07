@@ -22,5 +22,5 @@ class _BrokenClient:
 
 
 async def test_run_agent_running_loop_fake_mode_propagates_unavailable_error() -> None:
-    with db_session() as repo, pytest.raises(AgentUnavailableError, match="boom"):
-        run_agent("hi", [], repo, _BrokenClient(), "claude-test", fake_mode=True)
+    with db_session() as conn, pytest.raises(AgentUnavailableError, match="boom"):
+        run_agent("hi", [], conn, _BrokenClient(), "claude-test", fake_mode=True)

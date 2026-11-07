@@ -15,8 +15,9 @@ from now_workbench.ai.client import validate_api_key
 from now_workbench.api.app import create_app
 from now_workbench.bundles.manager import BundleManager
 from now_workbench.cli import app as cli_app
-from now_workbench.db import DatabaseRepository, init_db
+from now_workbench.db import init_db
 from now_workbench.db.models import WorkbenchPreferencesUpdate
+from now_workbench.db.repos.preferences import PreferencesRepository
 from now_workbench.seed.date_wizard import resolve_date_expression, transform_dataset_dates
 
 runner = CliRunner(env={"COLUMNS": "250"})
@@ -307,8 +308,8 @@ def test_delete_before_replace_and_settings_endpoints(
     db_file = tmp_path / "test_settings_secure.db"
     monkeypatch.setenv("WORKBENCH_DB_PATH", str(db_file))
     conn = init_db(db_file)
-    repo = DatabaseRepository(conn)
 
+    pref_repo = PreferencesRepository(conn)
     app = create_app()
     client = TestClient(app)
 
@@ -350,7 +351,7 @@ def test_delete_before_replace_and_settings_endpoints(
 
     # Also test repository directly raises ValueError on attempted overwrite
     with pytest.raises(ValueError, match="explicitly delete"):
-        repo.update_workbench_preferences(
+        pref_repo.update_workbench_preferences(
             WorkbenchPreferencesUpdate(anthropic_api_key="sk-ant-test-key-gamma")
         )
 
@@ -362,7 +363,7 @@ def test_delete_before_replace_and_settings_endpoints(
     assert del_prefs["anthropic_api_key_masked"] == ""
 
     # Test direct repo method
-    repo.delete_anthropic_api_key()
+    pref_repo.delete_anthropic_api_key()
 
     # 6. Now setting a new key succeeds
     new_resp = client.put(

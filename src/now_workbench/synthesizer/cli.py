@@ -9,6 +9,7 @@ from rich.panel import Panel
 from now_workbench.capture.engine import CaptureFailedError, PlaywrightCaptureEngine
 from now_workbench.capture.models import CaptureRequest
 from now_workbench.config.settings import settings
+from now_workbench.db.repos.instances import InstanceRepository
 from now_workbench.db.session import db_session
 from now_workbench.synthesizer.engine import UseCaseSynthesizer
 from now_workbench.synthesizer.models import UseCaseSynthesisRequest
@@ -28,9 +29,9 @@ def synthesize_demo_cmd(
     color: str = typer.Option("#23a17e", "--color", help="Brand primary hex color"),
 ) -> None:
     """Synthesize a complete demo bundle (Fluent schema, seed data, properties, narrative)."""
-    with db_session() as repo:
+    with db_session() as conn:
         try:
-            target_release = resolve_synthesis_release(repo, release, None)
+            target_release = resolve_synthesis_release(conn, release, None)
         except NoReleaseError as exc:
             console.print(f"[red]{exc}[/red]")
             raise typer.Exit(code=1) from exc
@@ -69,8 +70,13 @@ def capture_demo_cmd(
     fake: bool = typer.Option(False, "--fake", help="Simulate capture offline"),
 ) -> None:
     """Capture a Playwright screenshot (.png) or video (.webm) of the target instance."""
-    with db_session() as repo:
-        inst = repo.get_instance(instance) if instance else repo.get_default_instance()
+    with db_session() as conn:
+        instance_repo = InstanceRepository(conn)
+        inst = (
+            instance_repo.get_instance(instance)
+            if instance
+            else instance_repo.get_default_instance()
+        )
     if inst is None:
         target = (
             f"Instance '{instance}' not found" if instance else "No default instance registered"

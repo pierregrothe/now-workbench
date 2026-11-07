@@ -4,6 +4,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from now_workbench.api.app import create_app
+from now_workbench.db.repos.instances import InstanceRepository
 
 
 def test_health_check() -> None:
@@ -117,15 +118,15 @@ def test_seed_database_populated_and_empty() -> None:
     """Verify seed_database handles populated vs empty repository."""
     from now_workbench.api.app import seed_database
     from now_workbench.config.settings import settings
-    from now_workbench.db import DatabaseRepository, InstanceCreate, init_db
+    from now_workbench.db import InstanceCreate, init_db
 
     conn = init_db(":memory:")
-    repo = DatabaseRepository(conn)
-    repo.add_instance(
+    instance_repo = InstanceRepository(conn)
+    instance_repo.add_instance(
         InstanceCreate(id="existing", name="Existing", url="https://e.sn.com", is_default=True)
     )
-    seed_database(repo)
-    instances = repo.list_instances()
+    seed_database(conn)
+    instances = instance_repo.list_instances()
     assert len(instances) == 1
     assert instances[0].id == "existing"
     conn.close()
@@ -134,10 +135,10 @@ def test_seed_database_populated_and_empty() -> None:
     try:
         settings.sn_instance_url = "https://seed-test.service-now.com"
         empty_conn = init_db(":memory:")
-        empty_repo = DatabaseRepository(empty_conn)
-        seed_database(empty_repo)
-        assert len(empty_repo.list_instances()) == 1
-        assert empty_repo.list_instances()[0].id == "default-instance"
+        instance_repo = InstanceRepository(empty_conn)
+        seed_database(empty_conn)
+        assert len(instance_repo.list_instances()) == 1
+        assert instance_repo.list_instances()[0].id == "default-instance"
         empty_conn.close()
     finally:
         settings.sn_instance_url = old_url

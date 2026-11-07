@@ -30,21 +30,21 @@ def _req(target: str) -> TemplateInstantiationRequest:
 
 @pytest.mark.parametrize("bad", ["..", "../sentinel", "a/b", "", "/tmp"])
 def test_instantiate_traversal_id_rejected_and_nothing_deleted(tmp_path: Path, bad: str) -> None:
-    engine, base, sentinel = _setup(tmp_path)
+    engine, conn, sentinel = _setup(tmp_path)
     with pytest.raises(UnsafePathError):
         engine.instantiate("base", _req(bad))
     assert (sentinel / "keep.txt").exists()
-    assert (base / "a.txt").exists()
+    assert (conn / "a.txt").exists()
 
 
 def test_instantiate_target_equals_base_rejected_and_base_kept(tmp_path: Path) -> None:
-    engine, base, _ = _setup(tmp_path)
+    engine, conn, _ = _setup(tmp_path)
     with pytest.raises(UnsafePathError):
         engine.instantiate("base", _req("base"))
-    assert (base / "a.txt").read_text(encoding="utf-8") == "{{customer_name}}"
+    assert (conn / "a.txt").read_text(encoding="utf-8") == "{{customer_name}}"
 
 
 def test_instantiate_valid_id_creates_bundle(tmp_path: Path) -> None:
-    engine, _, _ = _setup(tmp_path)
+    engine, conn, _ = _setup(tmp_path)
     out = engine.instantiate("base", _req("acme-demo"))
     assert (out / "a.txt").read_text(encoding="utf-8") == "Acme"

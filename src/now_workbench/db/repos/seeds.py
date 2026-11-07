@@ -1,19 +1,17 @@
-"""Seed operation repository mixin."""
+"""Seed operation repository."""
 
 import json
-import sqlite3
 
 from now_workbench.auth.owner import current_owner
 from now_workbench.db.models import (
     SeedOperationRecord,
     SeedRecordItem,
 )
+from now_workbench.db.repos.base import Repository
 
 
-class SeedRepositoryMixin:
-    """Mixin providing seed operation and rollback persistence."""
-
-    conn: sqlite3.Connection
+class SeedRepository(Repository):
+    """Repository for seed operation and rollback persistence."""
 
     def record_seed_operation(self, op: SeedOperationRecord) -> SeedOperationRecord:
         """Persist a completed seed operation audit log."""

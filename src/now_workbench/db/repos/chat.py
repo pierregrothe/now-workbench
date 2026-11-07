@@ -2,7 +2,7 @@
 # Repository mixin for conversation limits and attachment records (ADR-021).
 # Author: Pierre Grothe
 # Date: 2026-11-06
-"""Chat repository mixin."""
+"""Chat repository."""
 
 import json
 import sqlite3
@@ -10,8 +10,9 @@ from datetime import UTC, datetime
 
 from now_workbench.auth.owner import current_owner
 from now_workbench.chat.models import Attachment, ConversationLimits
+from now_workbench.db.repos.base import Repository
 
-__all__ = ["ChatRepositoryMixin"]
+__all__ = ["ChatRepository"]
 
 _LIMITS_KEY = "conversation_limits"
 _COLUMNS = "id, thread_id, filename, media_type, size_bytes, message_id, created_at"
@@ -21,10 +22,8 @@ def _attachment(row: sqlite3.Row) -> Attachment:
     return Attachment(**{k: row[k] for k in row.keys()})
 
 
-class ChatRepositoryMixin:
-    """Mixin for ``app_settings`` (limits) and ``chat_attachments`` (owner-scoped)."""
-
-    conn: sqlite3.Connection
+class ChatRepository(Repository):
+    """Repository for ``app_settings`` (limits) and ``chat_attachments`` (owner-scoped)."""
 
     def get_conversation_limits(self) -> ConversationLimits:
         """Return the global conversation limits (defaults until an admin changes them)."""

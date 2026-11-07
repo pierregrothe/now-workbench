@@ -4,13 +4,15 @@
 # Date: 2026-11-06
 """Profile API. Identity comes from Cloudflare Access, never from the request body."""
 
+import sqlite3
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 
 from now_workbench.auth.guard import current_user
 from now_workbench.auth.models import AuthUser
-from now_workbench.db import DatabaseRepository, db_session
+from now_workbench.db import db_session
+from now_workbench.db.repos.profile import ProfileRepository
 from now_workbench.profile.avatars import (
     MAX_AVATAR_BYTES,
     PRESET_AVATARS,
@@ -51,22 +53,24 @@ def _public(user: AuthUser, record: ProfileRecord) -> ProfilePublic:
     )
 
 
-def _profile(repo: DatabaseRepository, user: AuthUser) -> ProfileRecord:
-    return repo.get_profile(user.email)
+def _profile(conn: sqlite3.Connection, user: AuthUser) -> ProfileRecord:
+    return ProfileRepository(conn).get_profile(user.email)
 
 
 @router.get("", response_model=ProfilePublic)
 def get_profile(user: AuthUser = Depends(current_user)) -> ProfilePublic:
     """Return who is signed in, their roles and their profile."""
-    with db_session() as repo:
-        return _public(user, _profile(repo, user))
+    with db_session() as conn:
+        return _public(user, _profile(conn, user))
 
 
 @router.put("", response_model=ProfilePublic)
 def update_profile(req: ProfileUpdate, user: AuthUser = Depends(current_user)) -> ProfilePublic:
     """Save the display name."""
-    with db_session() as repo:
-        return _public(user, repo.update_profile_name(user.email, req.display_name, _now()))
+    with db_session() as conn:
+        return _public(
+            user, ProfileRepository(conn).update_profile_name(user.email, req.display_name, _now())
+        )
 
 
 @router.put("/avatar/preset", response_model=ProfilePublic)
@@ -77,8 +81,11 @@ def choose_preset_avatar(
     if req.preset not in PRESET_AVATARS:
         raise HTTPException(status_code=422, detail="Unknown avatar.")
     delete_avatar(user.email)
-    with db_session() as repo:
-        return _public(user, repo.set_profile_avatar(user.email, "preset", req.preset, _now()))
+    with db_session() as conn:
+        return _public(
+            user,
+            ProfileRepository(conn).set_profile_avatar(user.email, "preset", req.preset, _now()),
+        )
 
 
 @router.put("/avatar", response_model=ProfilePublic)
@@ -94,16 +101,20 @@ async def upload_avatar(request: Request, user: AuthUser = Depends(current_user)
     if content_type is None:
         raise HTTPException(status_code=415, detail="Use a PNG, JPEG or WebP picture.")
     save_avatar(user.email, data, content_type)
-    with db_session() as repo:
-        return _public(user, repo.set_profile_avatar(user.email, "upload", None, _now()))
+    with db_session() as conn:
+        return _public(
+            user, ProfileRepository(conn).set_profile_avatar(user.email, "upload", None, _now())
+        )
 
 
 @router.delete("/avatar", response_model=ProfilePublic)
 def remove_avatar(user: AuthUser = Depends(current_user)) -> ProfilePublic:
     """Remove the avatar (initials are shown instead)."""
     delete_avatar(user.email)
-    with db_session() as repo:
-        return _public(user, repo.set_profile_avatar(user.email, "none", None, _now()))
+    with db_session() as conn:
+        return _public(
+            user, ProfileRepository(conn).set_profile_avatar(user.email, "none", None, _now())
+        )
 
 
 @router.get("/avatar")

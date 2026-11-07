@@ -1,10 +1,12 @@
 """Live ServiceNow instance connectivity and authentication verification."""
 
+import sqlite3
+
 import httpx
 
 from now_workbench.config.settings import settings
 from now_workbench.db.models import InstanceRecord
-from now_workbench.db.repository import DatabaseRepository
+from now_workbench.db.repos.instances import InstanceRepository
 from now_workbench.instance_profile import collect_instance_profile
 
 __all__ = ["check_and_record_instance", "verify_instance_authentication"]
@@ -63,7 +65,7 @@ def _is_simulated(inst: InstanceRecord, fake_mode: bool) -> bool:
 
 
 def check_and_record_instance(
-    repo: DatabaseRepository,
+    conn: sqlite3.Connection,
     inst: InstanceRecord,
     timeout: float = 5.0,
     fake_mode: bool = False,
@@ -76,7 +78,7 @@ def check_and_record_instance(
     facts always come from the live instance -- never from user input.
 
     Args:
-        repo: Repository to record the result in.
+        conn: Open database connection to record the result in.
         inst: Instance with decrypted credentials.
         timeout: Per-request timeout in seconds.
         fake_mode: Simulate instead of contacting the network.
@@ -86,6 +88,8 @@ def check_and_record_instance(
         ``(status, message, http_code)`` from the authentication check.
     """
 
+    instance_repo = InstanceRepository(conn)
+
     def client() -> httpx.Client | None:
         if transport is None:
             return None
@@ -94,9 +98,9 @@ def check_and_record_instance(
     status, message, code = verify_instance_authentication(
         inst, timeout=timeout, client=client(), fake_mode=fake_mode
     )
-    repo.update_instance_status(inst.id, status)
+    instance_repo.update_instance_status(inst.id, status)
     if status == "authenticated" and not _is_simulated(inst, fake_mode):
         profile = collect_instance_profile(inst, client=client(), timeout=timeout)
         if profile is not None:
-            repo.save_instance_profile(profile)
+            instance_repo.save_instance_profile(profile)
     return status, message, code

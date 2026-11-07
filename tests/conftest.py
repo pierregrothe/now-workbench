@@ -9,6 +9,8 @@ from now_workbench.auth.models import LOCAL_EMAIL
 from now_workbench.auth.owner import owner_scope
 from now_workbench.config.settings import settings
 from now_workbench.db import InstanceCreate, TemplateRecord, db_session
+from now_workbench.db.repos.instances import InstanceRepository
+from now_workbench.db.repos.templates import TemplateRepository
 
 
 @pytest.fixture(autouse=True)
@@ -35,8 +37,8 @@ def isolate_workbench_db(
     monkeypatch.setattr(settings, "anthropic_api_key", "")
     test_db = data_dir / "workbench.db"
 
-    with db_session(test_db) as repo:
-        repo.add_instance(
+    with db_session(test_db) as conn:
+        InstanceRepository(conn).add_instance(
             InstanceCreate(
                 id="default-instance",
                 name="Primary ServiceNow Instance",
@@ -47,7 +49,7 @@ def isolate_workbench_db(
                 is_default=True,
             )
         )
-        repo.save_template(
+        TemplateRepository(conn).save_template(
             TemplateRecord(
                 id="agentic-router-template",
                 name="GenAI Agentic Incident Router Template",

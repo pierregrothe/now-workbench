@@ -32,9 +32,9 @@ def _setup(tmp_path: Path, props: dict[str, str]) -> tuple[PropertyEngine, Path,
 
 
 async def test_apply_bundle_properties_partial_failure_reports_failure(tmp_path: Path) -> None:
-    engine, bundle, inst = _setup(tmp_path, {"good": "1", "bad": "2"})
+    engine, conn, inst = _setup(tmp_path, {"good": "1", "bad": "2"})
     client = httpx.AsyncClient(transport=httpx.MockTransport(_handler))
-    result = await engine.apply_bundle_properties("b1", bundle, inst, client=client)
+    result = await engine.apply_bundle_properties("b1", conn, inst, client=client)
     assert result.success is False
     assert result.applied_count == 1
     assert "Failed to update 'bad'" in result.details
@@ -42,8 +42,8 @@ async def test_apply_bundle_properties_partial_failure_reports_failure(tmp_path:
 
 
 async def test_apply_bundle_properties_all_ok_reports_success(tmp_path: Path) -> None:
-    engine, bundle, inst = _setup(tmp_path, {"good": "1"})
+    engine, conn, inst = _setup(tmp_path, {"good": "1"})
     client = httpx.AsyncClient(transport=httpx.MockTransport(_handler))
-    result = await engine.apply_bundle_properties("b1", bundle, inst, client=client)
+    result = await engine.apply_bundle_properties("b1", conn, inst, client=client)
     assert result.success is True
     assert result.applied_count == 1

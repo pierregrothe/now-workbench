@@ -19,7 +19,6 @@ from now_workbench.db.models import (
     TemplateInstantiationRequest,
     TemplateRecord,
 )
-from now_workbench.db.repository import DatabaseRepository
 from now_workbench.db.session import db_session, get_db_path, init_db
 
 __all__ = [
@@ -30,7 +29,6 @@ __all__ = [
     "ChatThreadCreate",
     "ChatThreadRecord",
     "ChatThreadUpdate",
-    "DatabaseRepository",
     "UNKNOWN_RELEASE",
     "InstanceCreate",
     "InstanceNode",

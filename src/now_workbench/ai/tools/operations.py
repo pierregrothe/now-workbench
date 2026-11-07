@@ -14,6 +14,8 @@ from now_workbench.ai.tools.base import (
 )
 from now_workbench.ai.tools.bundles import bundle_path
 from now_workbench.db import InstanceRecord
+from now_workbench.db.repos.instances import InstanceRepository
+from now_workbench.db.repos.seeds import SeedRepository
 from now_workbench.properties.engine import PropertyEngine
 from now_workbench.runbooks.engine import RunbookEngine
 from now_workbench.seed.engine import SeedEngine
@@ -28,9 +30,9 @@ def _is_fake(ctx: ToolContext, inst: InstanceRecord) -> bool:
 
 def _seed(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
     bundle_id = str(args["bundle_id"])
-    inst = resolve_instance(ctx.repo, args.get("instance"))
-    engine = SeedEngine(repository=ctx.repo, fake_mode=_is_fake(ctx, inst))
-    path = bundle_path(ctx.repo, bundle_id)
+    inst = resolve_instance(ctx.conn, args.get("instance"))
+    engine = SeedEngine(conn=ctx.conn, fake_mode=_is_fake(ctx, inst))
+    path = bundle_path(ctx.conn, bundle_id)
     op = run_async(engine.load_and_seed(bundle_id, path, instance_id=inst.id))
     return ToolResult(
         summary=f"Seeded '{bundle_id}' to '{inst.name}': {len(op.created_records)} record(s) "
@@ -47,7 +49,7 @@ def _seed(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
 
 
 def _plan_rollback(ctx: ToolContext, args: dict[str, Any]) -> str:
-    op = ctx.repo.get_seed_operation(str(args["operation_id"]))
+    op = SeedRepository(ctx.conn).get_seed_operation(str(args["operation_id"]))
     if not op:
         return f"Seed operation '{args['operation_id']}' was not found."
     return (
@@ -58,12 +60,12 @@ def _plan_rollback(ctx: ToolContext, args: dict[str, Any]) -> str:
 
 def _rollback(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
     op_id = str(args["operation_id"])
-    op = ctx.repo.get_seed_operation(op_id)
+    op = SeedRepository(ctx.conn).get_seed_operation(op_id)
     fake = ctx.fake_mode
     if op:
-        target = ctx.repo.get_instance(op.instance_id)
+        target = InstanceRepository(ctx.conn).get_instance(op.instance_id)
         fake = fake or bool(target and target.url.startswith("fake://"))
-    engine = SeedEngine(repository=ctx.repo, fake_mode=fake)
+    engine = SeedEngine(conn=ctx.conn, fake_mode=fake)
     deleted, errors = run_async(engine.rollback(op_id))
     return ToolResult(
         summary=f"Rolled back {op_id}: {deleted} record(s) deleted, {len(errors)} error(s).",
@@ -76,7 +78,7 @@ def _rollback(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
 
 
 def _seed_history(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
-    ops = ctx.repo.list_seed_operations(limit=int(args.get("limit") or 10))
+    ops = SeedRepository(ctx.conn).list_seed_operations(limit=int(args.get("limit") or 10))
     rows = [
         [o.id, o.bundle_id, o.instance_id, o.status, len(o.created_records), o.error or "-"]
         for o in ops
@@ -96,12 +98,12 @@ def _seed_history(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
 
 def _verify_seed(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
     op_id = str(args["operation_id"])
-    op = ctx.repo.get_seed_operation(op_id)
+    op = SeedRepository(ctx.conn).get_seed_operation(op_id)
     fake = ctx.fake_mode
     if op:
-        target = ctx.repo.get_instance(op.instance_id)
+        target = InstanceRepository(ctx.conn).get_instance(op.instance_id)
         fake = fake or bool(target and target.url.startswith("fake://"))
-    checks = run_async(SeedEngine(repository=ctx.repo, fake_mode=fake).verify(op_id))
+    checks = run_async(SeedEngine(conn=ctx.conn, fake_mode=fake).verify(op_id))
     present = sum(1 for _item, ok, _d in checks if ok)
     rows = [[i.table, i.sys_id, "present" if ok else "MISSING", d] for i, ok, d in checks]
     tile = table_tile(
@@ -124,13 +126,13 @@ def _plan_reset(ctx: ToolContext, args: dict[str, Any]) -> str:
 
 def _reset(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
     bundle_id = str(args["bundle_id"])
-    bundle_path(ctx.repo, bundle_id)
-    inst = resolve_instance(ctx.repo, args.get("instance"))
+    bundle_path(ctx.conn, bundle_id)
+    inst = resolve_instance(ctx.conn, args.get("instance"))
     fake = _is_fake(ctx, inst)
-    seed_engine = SeedEngine(repository=ctx.repo, fake_mode=fake)
+    seed_engine = SeedEngine(conn=ctx.conn, fake_mode=fake)
     ops = [
         o
-        for o in ctx.repo.list_seed_operations(limit=100)
+        for o in SeedRepository(ctx.conn).list_seed_operations(limit=100)
         if o.bundle_id == bundle_id and o.status != "rolled_back" and o.instance_id == inst.id
     ]
     rolled = 0
@@ -156,14 +158,14 @@ def _reset(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
 
 def _verify_stage(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
     bundle_id = str(args["bundle_id"])
-    guide = RunbookEngine().load_runbook(bundle_path(ctx.repo, bundle_id), bundle_id=bundle_id)
+    guide = RunbookEngine().load_runbook(bundle_path(ctx.conn, bundle_id), bundle_id=bundle_id)
     if not guide:
         return ToolResult(summary=f"'{bundle_id}' has no walkthrough guide.", ok=False)
     step = int(args["step_number"])
     stage = next((s for s in guide.stages if s.step_number == step), None)
     if not stage:
         return ToolResult(summary=f"Stage {step} not found in '{bundle_id}'.", ok=False)
-    inst = resolve_instance(ctx.repo, args.get("instance"))
+    inst = resolve_instance(ctx.conn, args.get("instance"))
     ok, msg = run_async(RunbookEngine().verify_stage(stage, inst, fake_mode=_is_fake(ctx, inst)))
     return ToolResult(
         summary=f"Stage {step} '{stage.title}': {'PASS' if ok else 'FAIL'} - {msg}",
@@ -175,8 +177,8 @@ def _verify_stage(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
 def _get_properties(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
     bundle_id = str(args["bundle_id"])
     engine = PropertyEngine()
-    props = engine.read_bundle_properties(bundle_path(ctx.repo, bundle_id))
-    inst = resolve_instance(ctx.repo, args.get("instance"))
+    props = engine.read_bundle_properties(bundle_path(ctx.conn, bundle_id))
+    inst = resolve_instance(ctx.conn, args.get("instance"))
     snap = engine.load_snapshot(bundle_id, inst.id)
     live: dict[str, str | None] = {}
     note = "live values not read (simulated instance)"
@@ -207,11 +209,11 @@ def _live_label(live: dict[str, str | None], name: str) -> str:
 
 def _apply_properties(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
     bundle_id = str(args["bundle_id"])
-    inst = resolve_instance(ctx.repo, args.get("instance"))
+    inst = resolve_instance(ctx.conn, args.get("instance"))
     res = run_async(
         PropertyEngine().apply_bundle_properties(
             bundle_id=bundle_id,
-            bundle_path=bundle_path(ctx.repo, bundle_id),
+            bundle_path=bundle_path(ctx.conn, bundle_id),
             instance=inst,
             fake_mode=_is_fake(ctx, inst),
         )
@@ -232,7 +234,7 @@ def _plan_restore(ctx: ToolContext, args: dict[str, Any]) -> str:
 
 def _restore_properties(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
     bundle_id = str(args["bundle_id"])
-    inst = resolve_instance(ctx.repo, args.get("instance"))
+    inst = resolve_instance(ctx.conn, args.get("instance"))
     res = run_async(
         PropertyEngine().restore_properties(
             bundle_id=bundle_id, instance=inst, fake_mode=_is_fake(ctx, inst)

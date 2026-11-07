@@ -23,13 +23,14 @@ from now_workbench.capture.engine import CaptureFailedError, PlaywrightCaptureEn
 from now_workbench.capture.models import CaptureArtifact, CaptureRequest
 from now_workbench.cli import app
 from now_workbench.db import (
-    DatabaseRepository,
     InstanceCreate,
     InstanceProfile,
     db_session,
     init_db,
 )
 from now_workbench.db.models import InstanceRecord, SeedOperationRecord, SeedRecordItem
+from now_workbench.db.repos.instances import InstanceRepository
+from now_workbench.db.repos.seeds import SeedRepository
 from now_workbench.db.schema import MIGRATIONS, SCHEMA_VERSION
 from now_workbench.db.schema import apply_migrations as migrate
 from now_workbench.plugins.manager import PluginManager
@@ -60,8 +61,10 @@ def bundles(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 
 
 def _detect_release(release: str = "Zurich", instance_id: str = "default-instance") -> None:
-    with db_session() as repo:
-        repo.save_instance_profile(InstanceProfile(instance_id=instance_id, release=release))
+    with db_session() as conn:
+        InstanceRepository(conn).save_instance_profile(
+            InstanceProfile(instance_id=instance_id, release=release)
+        )
 
 
 def _instance(release: str = "Zurich") -> InstanceRecord:
@@ -250,8 +253,8 @@ def test_capture_cmds_list_update_delete(bundles: Path) -> None:
 
 
 def test_get_bundle_path_missing_raises(bundles: Path) -> None:
-    with db_session() as repo:
-        engine = DemoPipelineEngine(bundles_dir=bundles, repo=repo)
+    with db_session() as conn:
+        engine = DemoPipelineEngine(bundles_dir=bundles, conn=conn)
         with pytest.raises(FileNotFoundError, match="not found"):
             engine._get_bundle_path("ghost")
 
@@ -262,9 +265,9 @@ def test_evaluate_bundle_ignores_unreadable_seed_files(bundles: Path) -> None:
     (seed / "zz_broken.json").write_text("{not json", encoding="utf-8")
     (seed / "zz_obj.json").write_text('{"a": 1}', encoding="utf-8")
     (seed / "zz_mixed.json").write_text('[1, {"table": "zz_tbl"}]', encoding="utf-8")
-    with db_session() as repo:
-        engine = DemoPipelineEngine(bundles_dir=bundles, repo=repo)
-        inst = repo.get_default_instance()
+    with db_session() as conn:
+        engine = DemoPipelineEngine(bundles_dir=bundles, conn=conn)
+        inst = InstanceRepository(conn).get_default_instance()
         assert inst is not None
         res = engine.evaluate_bundle(SAMPLE, inst, fake_mode=True)
     assert "zz_tbl" in res.target_tables
@@ -273,10 +276,10 @@ def test_evaluate_bundle_ignores_unreadable_seed_files(bundles: Path) -> None:
 async def test_test_demo_script_without_runbook_passes_empty(
     bundles: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    with db_session() as repo:
-        engine = DemoPipelineEngine(bundles_dir=bundles, repo=repo)
+    with db_session() as conn:
+        engine = DemoPipelineEngine(bundles_dir=bundles, conn=conn)
         monkeypatch.setattr(engine.runbook_engine, "load_runbook", lambda *a, **k: None)
-        inst = repo.get_default_instance()
+        inst = InstanceRepository(conn).get_default_instance()
         assert inst is not None
         res = await engine.test_demo_script(SAMPLE, inst, fake_mode=True)
     assert res.total_stages == 0
@@ -284,9 +287,9 @@ async def test_test_demo_script_without_runbook_passes_empty(
 
 
 async def test_run_full_pipeline_incompatible_release_aborts(bundles: Path) -> None:
-    with db_session() as repo:
-        engine = DemoPipelineEngine(bundles_dir=bundles, repo=repo)
-        inst = repo.get_default_instance()
+    with db_session() as conn:
+        engine = DemoPipelineEngine(bundles_dir=bundles, conn=conn)
+        inst = InstanceRepository(conn).get_default_instance()
         assert inst is not None
         summary = await engine.run_full_pipeline(SAMPLE, inst, fake_mode=True, record_video=False)
     assert summary.status == "incompatible"
@@ -301,9 +304,9 @@ async def test_run_full_pipeline_video_failure_is_reported_partial(
 
     monkeypatch.setattr(DemoPipelineEngine, "record_video_proof", boom)
     _detect_release()
-    with db_session() as repo:
-        engine = DemoPipelineEngine(bundles_dir=bundles, repo=repo)
-        inst = repo.get_default_instance()
+    with db_session() as conn:
+        engine = DemoPipelineEngine(bundles_dir=bundles, conn=conn)
+        inst = InstanceRepository(conn).get_default_instance()
         assert inst is not None
         summary = await engine.run_full_pipeline(SAMPLE, inst, fake_mode=True, record_video=True)
     assert summary.status == "partial"
@@ -317,10 +320,10 @@ async def test_run_full_pipeline_missing_plugin_reports_partial(bundles: Path) -
     def refuse(request: httpx.Request) -> httpx.Response:
         return httpx.Response(500)
 
-    with db_session() as repo:
-        engine = DemoPipelineEngine(bundles_dir=bundles, repo=repo)
-        engine.plugin_manager = PluginManager(repo, transport=httpx.MockTransport(refuse))
-        inst = repo.get_default_instance()
+    with db_session() as conn:
+        engine = DemoPipelineEngine(bundles_dir=bundles, conn=conn)
+        engine.plugin_manager = PluginManager(conn, transport=httpx.MockTransport(refuse))
+        inst = InstanceRepository(conn).get_default_instance()
         assert inst is not None
         live = inst.model_copy(update={"url": "https://live.service-now.com"})
         eval_res = engine.evaluate_bundle(SAMPLE, live)
@@ -634,9 +637,9 @@ def test_translate_workspace_url_branches() -> None:
 # --------------------------------------------------------------------------- seed / plugins
 
 
-def _seed_repo() -> DatabaseRepository:
-    repo = DatabaseRepository(init_db(":memory:"))
-    repo.add_instance(
+def _seed_repo() -> sqlite3.Connection:
+    conn = init_db(":memory:")
+    InstanceRepository(conn).add_instance(
         InstanceCreate(
             id="inst",
             name="Inst",
@@ -646,11 +649,11 @@ def _seed_repo() -> DatabaseRepository:
             is_default=True,
         )
     )
-    return repo
+    return conn
 
 
 async def test_seed_verify_branches() -> None:
-    repo = _seed_repo()
+    conn = _seed_repo()
 
     def handler(request: httpx.Request) -> httpx.Response:
         if "gone" in request.url.path:
@@ -664,10 +667,10 @@ async def test_seed_verify_branches() -> None:
         SeedRecordItem(table="incident", sys_id="gone"),
         SeedRecordItem(table="incident", sys_id="boom"),
     ]
-    repo.record_seed_operation(
+    SeedRepository(conn).record_seed_operation(
         SeedOperationRecord(id="op", bundle_id="b", instance_id="inst", created_records=items)
     )
-    engine = SeedEngine(repo, transport=httpx.MockTransport(handler))
+    engine = SeedEngine(conn, transport=httpx.MockTransport(handler))
     out = await engine.verify("op")
     assert [(ok, why[:12]) for _i, ok, why in out] == [
         (True, "INC1"),
@@ -676,13 +679,13 @@ async def test_seed_verify_branches() -> None:
     ]
     with pytest.raises(ValueError, match="not found"):
         await engine.verify("missing")
-    simulated = await SeedEngine(repo, fake_mode=True).verify("op")
+    simulated = await SeedEngine(conn, fake_mode=True).verify("op")
     assert all(ok and why == "simulated" for _i, ok, why in simulated)
 
 
 def test_plugin_manager_evaluate_and_install_paths() -> None:
-    repo = _seed_repo()
-    inst = repo.get_instance("inst")
+    conn = _seed_repo()
+    inst = InstanceRepository(conn).get_instance("inst")
     assert inst is not None
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -695,7 +698,7 @@ def test_plugin_manager_evaluate_and_install_paths() -> None:
             return httpx.Response(200, json={"result": [{"active": "inactive"}]})
         return httpx.Response(200, json={"result": [{"active": "active"}]})
 
-    mgr = PluginManager(repo, transport=httpx.MockTransport(handler))
+    mgr = PluginManager(conn, transport=httpx.MockTransport(handler))
     res = mgr.evaluate_plugins(inst, ["com.snc.incident", "", "bad.status", "bad.json", "inactive"])
     assert res.installed == ["com.snc.incident"]
     assert res.missing == ["bad.status", "bad.json", "inactive"]

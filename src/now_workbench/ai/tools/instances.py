@@ -12,6 +12,7 @@ from now_workbench.ai.tools.base import (
 )
 from now_workbench.connectivity import check_and_record_instance
 from now_workbench.db import INSTANCE_PURPOSES, InstanceCreate, InstanceRecord, InstanceUpdate
+from now_workbench.db.repos.instances import InstanceRepository
 
 
 def _dicts(instances: list[InstanceRecord]) -> list[dict[str, Any]]:
@@ -30,7 +31,7 @@ def _dicts(instances: list[InstanceRecord]) -> list[dict[str, Any]]:
 
 def _view(ctx: ToolContext, summary: str, detailed: bool = False) -> ToolResult:
     """Return the current registry as summary KPI or detailed cards."""
-    instances = ctx.repo.list_instances()
+    instances = InstanceRepository(ctx.conn).list_instances()
     resp: GenerativeUIResponse = build_instance_response(
         _dicts(instances), detail_level="detailed" if detailed else "summary"
     )
@@ -43,14 +44,15 @@ def _view(ctx: ToolContext, summary: str, detailed: bool = False) -> ToolResult:
 
 
 def _list_instances(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
-    count = len(ctx.repo.list_instances())
+    count = len(InstanceRepository(ctx.conn).list_instances())
     return _view(ctx, f"{count} instance(s) registered.", bool(args.get("detailed")))
 
 
 def _add_instance(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
+    instance_repo = InstanceRepository(ctx.conn)
     url = str(args["url"]).strip().rstrip("/")
-    existing = ctx.repo.list_instances()
-    created = ctx.repo.add_instance(
+    existing = instance_repo.list_instances()
+    created = instance_repo.add_instance(
         InstanceCreate.model_validate(
             {
                 "name": str(args.get("name") or url.split("://")[-1].split(".")[0]),
@@ -63,46 +65,50 @@ def _add_instance(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
         )
     )
     status, msg, _ = check_and_record_instance(
-        ctx.repo, created, timeout=3.0, fake_mode=ctx.fake_mode
+        ctx.conn, created, timeout=3.0, fake_mode=ctx.fake_mode
     )
     return _view(ctx, f"Registered '{created.name}' ({url}); authentication: {status} - {msg}.")
 
 
 def _rename_instance(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
-    inst = resolve_instance(ctx.repo, args.get("instance"))
+    inst = resolve_instance(ctx.conn, args.get("instance"))
     new_name = str(args["new_name"]).strip()
-    ctx.repo.update_instance(inst.id, InstanceUpdate(name=new_name))
+    InstanceRepository(ctx.conn).update_instance(inst.id, InstanceUpdate(name=new_name))
     return _view(ctx, f"Renamed '{inst.name}' to '{new_name}'.", detailed=True)
 
 
 def _update_instance(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
-    inst = resolve_instance(ctx.repo, args.get("instance"))
+    inst = resolve_instance(ctx.conn, args.get("instance"))
     fields = {
         k: args[k] for k in ("url", "username", "password", "purpose") if args.get(k) is not None
     }
     if not fields:
         return ToolResult(summary="No fields to update were provided.", ok=False)
-    rec = ctx.repo.update_instance(inst.id, InstanceUpdate(**fields))
+    rec = InstanceRepository(ctx.conn).update_instance(inst.id, InstanceUpdate(**fields))
     if rec:
-        check_and_record_instance(ctx.repo, rec, timeout=3.0, fake_mode=ctx.fake_mode)
+        check_and_record_instance(ctx.conn, rec, timeout=3.0, fake_mode=ctx.fake_mode)
     changed = ", ".join(k for k in fields if k != "password") or "credentials"
     return _view(ctx, f"Updated {changed} on '{inst.name}'.", detailed=True)
 
 
 def _set_default(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
-    inst = resolve_instance(ctx.repo, args.get("instance"))
-    ctx.repo.set_default_instance(inst.id)
+    inst = resolve_instance(ctx.conn, args.get("instance"))
+    InstanceRepository(ctx.conn).set_default_instance(inst.id)
     return _view(ctx, f"'{inst.name}' is now the default target.")
 
 
 def _test_instances(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
     refs = args.get("instances") or []
-    targets = [resolve_instance(ctx.repo, r) for r in refs] if refs else ctx.repo.list_instances()
+    targets = (
+        [resolve_instance(ctx.conn, r) for r in refs]
+        if refs
+        else InstanceRepository(ctx.conn).list_instances()
+    )
     lines: list[str] = []
     ok = 0
     for inst in targets:
         status, msg, _ = check_and_record_instance(
-            ctx.repo, inst, timeout=3.5, fake_mode=ctx.fake_mode
+            ctx.conn, inst, timeout=3.5, fake_mode=ctx.fake_mode
         )
         ok += 1 if status == "authenticated" else 0
         lines.append(f"{inst.name}: {status} ({msg})")
@@ -117,13 +123,13 @@ def _test_instances(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
 
 
 def _select_for_delete(ctx: ToolContext, args: dict[str, Any]) -> list[InstanceRecord]:
-    instances = ctx.repo.list_instances()
+    instances = InstanceRepository(ctx.conn).list_instances()
     mode = args.get("filter")
     if mode == "unauthenticated":
         return [i for i in instances if i.status != "authenticated"]
     if mode == "all_except_default":
         return [i for i in instances if not i.is_default]
-    return [resolve_instance(ctx.repo, r) for r in (args.get("instances") or [])]
+    return [resolve_instance(ctx.conn, r) for r in (args.get("instances") or [])]
 
 
 def _plan_delete(ctx: ToolContext, args: dict[str, Any]) -> str:
@@ -139,7 +145,7 @@ def _delete_instances(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
     if not targets:
         return _view(ctx, "No matching instances were found; nothing deleted.")
     # delete_instance re-elects a default itself.
-    deleted = [t.name for t in targets if ctx.repo.delete_instance(t.id)]
+    deleted = [t.name for t in targets if InstanceRepository(ctx.conn).delete_instance(t.id)]
     preview = ", ".join(deleted[:5]) + ("..." if len(deleted) > 5 else "")
     return _view(ctx, f"Deleted {len(deleted)} instance(s) ({preview}).")
 

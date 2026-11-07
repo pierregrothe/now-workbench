@@ -9,6 +9,7 @@ from fastapi.testclient import TestClient
 
 from now_workbench.api.app import create_app
 from now_workbench.db import db_session
+from now_workbench.db.repos.instances import InstanceRepository
 
 _BODY = {
     "bundle_id": "sample-ai-assistant",
@@ -35,9 +36,10 @@ def test_create_capture_unknown_instance_id_returns_not_found(client: TestClient
 
 def test_create_capture_without_any_instance_returns_conflict(client: TestClient) -> None:
     """With no instance id and nothing registered there is no target, so the route says so."""
-    with db_session() as repo:
-        for inst in repo.list_instances():
-            repo.delete_instance(inst.id)
+    with db_session() as conn:
+        instance_repo = InstanceRepository(conn)
+        for inst in instance_repo.list_instances():
+            instance_repo.delete_instance(inst.id)
     res = client.post("/api/demos/sample-ai-assistant/captures", json=_BODY)
     assert res.status_code == 409
     assert "No target instance registered" in res.json()["detail"]

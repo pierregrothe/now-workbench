@@ -16,6 +16,8 @@ from now_workbench.capture.models import CaptureRequest
 from now_workbench.cli import app as cli_app
 from now_workbench.config.settings import settings
 from now_workbench.db import InstanceCreate, InstanceProfile, db_session
+from now_workbench.db.repos.instances import InstanceRepository
+from now_workbench.db.repos.preferences import PreferencesRepository
 from now_workbench.synthesizer.engine import (
     UseCaseSynthesizer,
     _extract_persona_parts,
@@ -284,13 +286,16 @@ def test_cli_demo_synthesize_and_capture(tmp_path: Path) -> None:
         assert no_instance.exit_code == 1
         assert "register an instance" in no_instance.stdout
 
-        with db_session() as repo:
-            repo.add_instance(
+        with db_session() as conn:
+            instance_repo = InstanceRepository(conn)
+            instance_repo.add_instance(
                 InstanceCreate(
                     id="cli-inst", name="CLI", url="https://cli.service-now.com", is_default=True
                 )
             )
-            repo.save_instance_profile(InstanceProfile(instance_id="cli-inst", release="Australia"))
+            instance_repo.save_instance_profile(
+                InstanceProfile(instance_id="cli-inst", release="Australia")
+            )
         synth_result = runner.invoke(
             cli_app,
             [
@@ -456,16 +461,16 @@ def _run_workbench_settings_assertions() -> None:
     assert updated["sc_author_name"] == "Pierre Grothe"
 
     # Verify the raw SQLite payload is encrypted at rest and never contains the raw secret
-    with db_session() as repo:
-        payload = repo.conn.execute(
+    with db_session() as conn:
+        payload = conn.execute(
             "SELECT payload FROM user_preferences WHERE email = 'local@localhost';"
         ).fetchone()["payload"]
-        sealed = repo.conn.execute(
+        sealed = conn.execute(
             "SELECT sealed FROM secrets WHERE name = 'anthropic_api_key';"
         ).fetchone()["sealed"]
         assert raw_secret not in payload
         assert raw_secret.encode() not in sealed
-        assert repo.get_decrypted_anthropic_api_key() == raw_secret
+        assert PreferencesRepository(conn).get_decrypted_anthropic_api_key() == raw_secret
 
     # Verify echoing a masked string does not overwrite the encrypted key
     echo_res = client.put("/api/settings", json={"anthropic_api_key": "sk-ant-...9876"})

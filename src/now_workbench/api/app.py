@@ -1,6 +1,7 @@
 """FastAPI backend server for now-workbench."""
 
 import logging
+import sqlite3
 import uuid
 from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
@@ -40,11 +41,16 @@ from now_workbench.config.paths import UnsafePathError
 from now_workbench.config.settings import settings
 from now_workbench.db import (
     ChatMessageRecord,
-    DatabaseRepository,
     InstanceCreate,
     TemplateRecord,
     db_session,
 )
+from now_workbench.db.repos.chat import ChatRepository
+from now_workbench.db.repos.instances import InstanceRepository
+from now_workbench.db.repos.preferences import PreferencesRepository
+from now_workbench.db.repos.templates import TemplateRepository
+from now_workbench.db.repos.threads import ThreadRepository
+from now_workbench.db.repos.users import UserRepository
 from now_workbench.sdk.runner import NowSdkRunner
 from now_workbench.sharing.access import resolve_bundle, sync_registry
 
@@ -84,10 +90,12 @@ class LogBroadcaster:
                 self.disconnect(connection)
 
 
-def seed_database(repo: DatabaseRepository) -> None:
+def seed_database(conn: sqlite3.Connection) -> None:
     """Seed initial instance and template if database is empty."""
-    if not repo.list_instances() and settings.sn_instance_url:
-        repo.add_instance(
+    instance_repo = InstanceRepository(conn)
+    template_repo = TemplateRepository(conn)
+    if not instance_repo.list_instances() and settings.sn_instance_url:
+        instance_repo.add_instance(
             InstanceCreate(
                 id="default-instance",
                 name="Primary ServiceNow Instance",
@@ -99,8 +107,8 @@ def seed_database(repo: DatabaseRepository) -> None:
             )
         )
 
-    if not repo.list_templates():
-        repo.save_template(
+    if not template_repo.list_templates():
+        template_repo.save_template(
             TemplateRecord(
                 id="agentic-router-template",
                 name="GenAI Agentic Incident Router Template",
@@ -133,18 +141,18 @@ def _log_setup_code(code: str) -> None:
 
 
 def _stored_roles(email: str) -> frozenset[Role]:
-    with db_session() as repo:
-        return repo.get_user_roles(email)
+    with db_session() as conn:
+        return UserRepository(conn).get_user_roles(email)
 
 
 def _act_as(user: AuthUser) -> AuthUser:
-    with db_session() as repo:
-        return effective_user(repo, user)
+    with db_session() as conn:
+        return effective_user(conn, user)
 
 
 def _setup_pending() -> bool:
-    with db_session() as repo:
-        return repo.count_admins() == 0
+    with db_session() as conn:
+        return UserRepository(conn).count_admins() == 0
 
 
 @asynccontextmanager
@@ -152,12 +160,12 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Check the binding, then seed the database (never at import)."""
     assert_safe_binding(settings.get_host(), app.state.access_validator)
     configured = app.state.access_validator.configured
-    with db_session() as repo:
-        operator = operator_owner(repo, local_mode=not configured)
+    with db_session() as conn:
+        operator = operator_owner(conn, local_mode=not configured)
         with owner_scope(operator):
-            seed_database(repo)
-        sync_registry(repo, operator)
-        needs_setup = configured and repo.count_admins() == 0
+            seed_database(conn)
+        sync_registry(conn, operator)
+        needs_setup = configured and UserRepository(conn).count_admins() == 0
     if needs_setup:
         app.state.setup_codes.issue()
     yield
@@ -239,8 +247,8 @@ def _register_diagnostics(app: FastAPI, sdk_runner: NowSdkRunner) -> None:
 
     @app.get("/api/health")
     def health_check() -> dict[str, Any]:
-        with db_session() as repo:
-            default_inst = repo.get_default_instance()
+        with db_session() as conn:
+            default_inst = InstanceRepository(conn).get_default_instance()
         return {
             "status": "healthy",
             "app": settings.app_name,
@@ -256,9 +264,10 @@ def _register_diagnostics(app: FastAPI, sdk_runner: NowSdkRunner) -> None:
     @app.get("/api/admin/diagnostics")
     def admin_diagnostics() -> dict[str, Any]:
         env_probe = sdk_runner.probe_environment()
-        with db_session() as repo:
-            instances = repo.list_instances()
-            default_inst = repo.get_default_instance()
+        with db_session() as conn:
+            instance_repo = InstanceRepository(conn)
+            instances = instance_repo.list_instances()
+            default_inst = instance_repo.get_default_instance()
         return {
             "app_version": "0.2.0",
             "python_runtime": "3.14.10",
@@ -279,16 +288,16 @@ def _register_ai_tiles(app: FastAPI) -> None:
 
     @app.post("/api/ai/tiles", response_model=GenerativeUIResponse)
     def query_generative_ui(req: GenerativeUIQueryRequest) -> GenerativeUIResponse:
-        with db_session() as repo:
-            instances = _load_verified_instances_dict(repo)
+        with db_session() as conn:
+            instances = _load_verified_instances_dict(conn)
         return resolve_query_to_tiles(req.query, instances=instances)
 
 
 def _accessible_bundle(bundle_id: str) -> Path:
     """Return a bundle the signed-in person owns or was shared (ADR-018), else 404."""
-    with db_session() as repo:
+    with db_session() as conn:
         try:
-            return resolve_bundle(repo, bundle_id).path
+            return resolve_bundle(conn, bundle_id).path
         except LookupError as exc:
             raise HTTPException(status_code=404, detail="Demo bundle not found.") from exc
 
@@ -324,11 +333,12 @@ def _register_build_deploy(
     async def deploy_demo(bundle_id: str, req: BuildRequest) -> dict[str, Any]:
         target = _accessible_bundle(bundle_id)
 
-        with db_session() as repo:
+        with db_session() as conn:
+            instance_repo = InstanceRepository(conn)
             target_inst = (
-                repo.get_instance(req.instance_id)
+                instance_repo.get_instance(req.instance_id)
                 if req.instance_id
-                else repo.get_default_instance()
+                else instance_repo.get_default_instance()
             )
         if target_inst is None:
             if req.instance_id:
@@ -387,10 +397,11 @@ def _register_websockets(app: FastAPI, log_broadcaster: LogBroadcaster) -> None:
 
 
 def _save_thread_turn(
-    repo: DatabaseRepository, thread_id: str, prompt: str, final_resp: dict[str, Any]
+    conn: sqlite3.Connection, thread_id: str, prompt: str, final_resp: dict[str, Any]
 ) -> None:
     """Persist completed user prompt and agent response to SQLite thread."""
-    repo.add_message(
+    thread_repo = ThreadRepository(conn)
+    thread_repo.add_message(
         ChatMessageRecord(
             id=f"msg-{uuid.uuid4().hex[:8]}",
             thread_id=thread_id,
@@ -398,7 +409,7 @@ def _save_thread_turn(
             content=prompt,
         )
     )
-    repo.add_message(
+    thread_repo.add_message(
         ChatMessageRecord(
             id=f"msg-{uuid.uuid4().hex[:8]}",
             thread_id=thread_id,
@@ -415,17 +426,18 @@ async def _stream_agent_to_ws(
     runner: ClaudeAgentRunner,
     prompt: str,
     thread_id: str | None,
-    repo: DatabaseRepository,
+    conn: sqlite3.Connection,
 ) -> None:
     """Stream Claude agent lifecycle events to WebSocket and persist to SQLite."""
-    history = repo.list_messages(str(thread_id)) if thread_id else []
-    thread = repo.get_thread(str(thread_id)) if thread_id else None
+    thread_repo = ThreadRepository(conn)
+    history = thread_repo.list_messages(str(thread_id)) if thread_id else []
+    thread = thread_repo.get_thread(str(thread_id)) if thread_id else None
     if thread_id and thread is None:
         await websocket.send_json({"type": "error", "message": "Thread not found."})
         return
     if thread is not None:
         try:
-            check_can_ask(thread, repo.get_conversation_limits())
+            check_can_ask(thread, ChatRepository(conn).get_conversation_limits())
         except LimitReachedError as exc:
             await websocket.send_json({"type": "error", "message": str(exc)})
             return
@@ -438,7 +450,7 @@ async def _stream_agent_to_ws(
             final_resp = event.payload.get("response")
 
     if thread_id and final_resp:
-        _save_thread_turn(repo, str(thread_id), str(prompt), final_resp)
+        _save_thread_turn(conn, str(thread_id), str(prompt), final_resp)
     await websocket.send_json({"type": "done"})
 
 
@@ -449,20 +461,21 @@ async def _handle_ws_otto_message(websocket: WebSocket, data: dict[str, Any]) ->
     messages = data.get("messages", [])
     context = data.get("context", {})
 
-    with db_session() as repo:
-        api_key = repo.get_decrypted_anthropic_api_key()
-        prefs = repo.get_workbench_preferences()
+    with db_session() as conn:
+        pref_repo = PreferencesRepository(conn)
+        api_key = pref_repo.get_decrypted_anthropic_api_key()
+        prefs = pref_repo.get_workbench_preferences()
         active_key = api_key or settings.anthropic_api_key
         model = prefs.claude_model if api_key else settings.claude_model
         fake_mode = prefs.sdk_fake_mode
 
     if prompt and active_key:
         async with make_async_client(active_key) as claude:
-            with db_session() as repo:
+            with db_session() as conn:
                 runner = ClaudeAgentRunner(
-                    client=claude, model=model, repo=repo, fake_mode=fake_mode
+                    client=claude, model=model, conn=conn, fake_mode=fake_mode
                 )
-                await _stream_agent_to_ws(websocket, runner, str(prompt), thread_id, repo)
+                await _stream_agent_to_ws(websocket, runner, str(prompt), thread_id, conn)
     else:
         live_client = OttoClient(api_key=active_key, model=model)
         try:

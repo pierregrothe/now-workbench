@@ -12,6 +12,7 @@ from pydantic import BaseModel, ConfigDict
 from now_workbench.auth.guard import require_role
 from now_workbench.auth.models import AuthUser, Role, TeamMember
 from now_workbench.db import db_session
+from now_workbench.db.repos.users import UserRepository
 
 __all__ = ["router"]
 
@@ -39,8 +40,8 @@ def _email(raw: str) -> str:
 @router.get("", response_model=list[TeamMember])
 def list_members(_user: AuthUser = Depends(_admin)) -> list[TeamMember]:
     """List everyone allowed in, with their roles."""
-    with db_session() as repo:
-        return repo.list_users()
+    with db_session() as conn:
+        return UserRepository(conn).list_users()
 
 
 @router.put("/{email}", response_model=list[TeamMember])
@@ -54,27 +55,29 @@ def put_member(email: str, req: MemberRoles, user: AuthUser = Depends(_admin)) -
     )
     if not roles:
         raise HTTPException(status_code=422, detail="Give at least one role, or remove the person.")
-    with db_session() as repo:
-        current = repo.get_user_roles(address)
-        if Role.ADMIN in current and Role.ADMIN not in roles and repo.count_admins() == 1:
+    with db_session() as conn:
+        user_repo = UserRepository(conn)
+        current = user_repo.get_user_roles(address)
+        if Role.ADMIN in current and Role.ADMIN not in roles and user_repo.count_admins() == 1:
             raise HTTPException(
                 status_code=409, detail="The workbench needs at least one administrator."
             )
-        repo.put_user(address, roles, added_by=user.email)
-        return repo.list_users()
+        user_repo.put_user(address, roles, added_by=user.email)
+        return user_repo.list_users()
 
 
 @router.delete("/{email}", response_model=list[TeamMember])
 def remove_member(email: str, _user: AuthUser = Depends(_admin)) -> list[TeamMember]:
     """Remove a person's access."""
     address = _email(email)
-    with db_session() as repo:
-        current = repo.get_user_roles(address)
+    with db_session() as conn:
+        user_repo = UserRepository(conn)
+        current = user_repo.get_user_roles(address)
         if not current:
             raise HTTPException(status_code=404, detail="No such member.")
-        if Role.ADMIN in current and repo.count_admins() == 1:
+        if Role.ADMIN in current and user_repo.count_admins() == 1:
             raise HTTPException(
                 status_code=409, detail="The workbench needs at least one administrator."
             )
-        repo.delete_user(address)
-        return repo.list_users()
+        user_repo.delete_user(address)
+        return user_repo.list_users()

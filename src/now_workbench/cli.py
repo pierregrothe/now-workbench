@@ -25,6 +25,9 @@ from now_workbench.bundles.pipeline_cli import (
 )
 from now_workbench.config.cli import config_app
 from now_workbench.config.settings import settings
+from now_workbench.db.repos.instances import InstanceRepository
+from now_workbench.db.repos.preferences import PreferencesRepository
+from now_workbench.db.repos.seeds import SeedRepository
 from now_workbench.db.session import db_session
 from now_workbench.fluent.cli import fluent_app
 from now_workbench.instances.cli import format_instance_status, instance_app
@@ -76,16 +79,16 @@ console = Console()
 @app.callback()
 def _act_as_operator(ctx: typer.Context) -> None:
     """Run every command as the first administrator, or the local operator (ADR-018)."""
-    with db_session() as repo:
-        owner = operator_owner(repo, local_mode=not settings.get_access_audience())
+    with db_session() as conn:
+        owner = operator_owner(conn, local_mode=not settings.get_access_audience())
     ctx.with_resource(owner_scope(owner))
     ctx.call_on_close(lambda: _register_new_bundles(owner))
 
 
 def _register_new_bundles(owner: str) -> None:
     """Bundles a command put on disk (clone, synthesize, import) belong to the operator."""
-    with db_session() as repo:
-        sync_registry(repo, owner)
+    with db_session() as conn:
+        sync_registry(conn, owner)
 
 
 def _render_doctor_table(probe: dict[str, str | bool]) -> None:
@@ -114,9 +117,10 @@ def _render_doctor_table(probe: dict[str, str | bool]) -> None:
         )
 
     # Multi-Instance Registry
-    with db_session() as repo:
-        instances = repo.list_instances()
-        active_inst = repo.get_default_instance()
+    with db_session() as conn:
+        instance_repo = InstanceRepository(conn)
+        instances = instance_repo.list_instances()
+        active_inst = instance_repo.get_default_instance()
 
     if instances:
         auth_count = sum(1 for inst in instances if inst.status == "authenticated")
@@ -140,8 +144,8 @@ def _render_doctor_table(probe: dict[str, str | bool]) -> None:
     claude_key = os.environ.get("WORKBENCH_ANTHROPIC_API_KEY", settings.anthropic_api_key)
     if not claude_key:
         try:
-            with db_session() as repo:
-                claude_key = repo.get_decrypted_anthropic_api_key()
+            with db_session() as conn:
+                claude_key = PreferencesRepository(conn).get_decrypted_anthropic_api_key()
         except Exception:
             pass
     if claude_key:
@@ -392,8 +396,13 @@ def verify_stage_demo(
         console.print(f"[red]Stage {step_number} not found in runbook.[/red]")
         raise typer.Exit(code=1)
 
-    with db_session() as repo:
-        inst = repo.get_instance(instance_id) if instance_id else repo.get_default_instance()
+    with db_session() as conn:
+        instance_repo = InstanceRepository(conn)
+        inst = (
+            instance_repo.get_instance(instance_id)
+            if instance_id
+            else instance_repo.get_default_instance()
+        )
     if not inst:
         console.print("[red]Target instance not found in registry.[/red]")
         raise typer.Exit(code=1)
@@ -420,8 +429,8 @@ def seed_demo(
         raise typer.Exit(code=1)
 
     console.print(f"Seeding records from [bold]{bundle_id}[/bold]...")
-    with db_session() as repo:
-        engine = SeedEngine(repository=repo, fake_mode=fake)
+    with db_session() as conn:
+        engine = SeedEngine(conn=conn, fake_mode=fake)
         try:
             op = asyncio.run(engine.load_and_seed(bundle_id, bundle_path, instance_id=instance_id))
             msg = (
@@ -444,8 +453,8 @@ def rollback_demo(
 ) -> None:
     """Roll back (delete) records created in a previous seed operation."""
     console.print(f"Rolling back operation [cyan]{operation_id}[/cyan]...")
-    with db_session() as repo:
-        engine = SeedEngine(repository=repo, fake_mode=fake)
+    with db_session() as conn:
+        engine = SeedEngine(conn=conn, fake_mode=fake)
         try:
             deleted_count, errors = asyncio.run(engine.rollback(operation_id))
             console.print(f"[green][OK][/green] Deleted {deleted_count} seed records.")
@@ -462,8 +471,8 @@ def seed_history_demo(
     limit: int = typer.Option(20, "--limit", "-l", help="Max operations to show"),
 ) -> None:
     """Show audit history of demo seed runs and rollback states."""
-    with db_session() as repo:
-        ops = repo.list_seed_operations(limit=limit)
+    with db_session() as conn:
+        ops = SeedRepository(conn).list_seed_operations(limit=limit)
 
     if not ops:
         console.print("[yellow]No seed operations recorded yet.[/yellow]")

@@ -11,6 +11,8 @@ from now_workbench.ai.tools import REGISTRY, ToolContext, execute_tool
 from now_workbench.api.app import create_app
 from now_workbench.cli import app as cli_app
 from now_workbench.db import InstanceCreate, db_session
+from now_workbench.db.repos.instances import InstanceRepository
+from now_workbench.db.repos.preferences import PreferencesRepository
 
 # Operator commands, not chat actions: Otto must never stream the database into a conversation.
 CLI_EXCLUDED = {"serve", "version", "backup"}
@@ -70,8 +72,9 @@ def _tool_call(call_id: str, name: str, args: dict[str, Any]) -> _Resp:
 
 
 def test_agent_chains_tools_and_gates_destructive_actions() -> None:
-    with db_session() as repo:
-        repo.add_instance(
+    with db_session() as conn:
+        instance_repo = InstanceRepository(conn)
+        instance_repo.add_instance(
             InstanceCreate(id="bad", name="Bad One", url="fake://auth-failed.service-now.com")
         )
         client = _FakeClient(
@@ -81,44 +84,45 @@ def test_agent_chains_tools_and_gates_destructive_actions() -> None:
                 _Resp([_Block("text", text="Waiting for your confirmation.")], "end_turn"),
             ]
         )
-        resp = run_agent("delete failing instances", [], repo, client, "claude-test")
+        resp = run_agent("delete failing instances", [], conn, client, "claude-test")
         assert resp.summary == "Waiting for your confirmation."
         confirm = [t for t in resp.tiles if t.id == "tile-confirm-delete_instances"]
         assert confirm, "destructive tool must produce a confirmation tile"
         assert "Bad One" in confirm[0].props["body"]
-        assert repo.get_instance("bad") is not None  # not deleted yet
+        assert instance_repo.get_instance("bad") is not None  # not deleted yet
         # tool results were sent back to the model
         last_user = client.messages.calls[-1]["messages"][-1]
         assert last_user["content"][0]["type"] == "tool_result"
 
-        ctx = ToolContext(repo=repo)
+        ctx = ToolContext(conn=conn)
         done = execute_tool(ctx, "delete_instances", {"filter": "unauthenticated"}, confirmed=True)
-        assert done.ok and repo.get_instance("bad") is None
+        assert done.ok and instance_repo.get_instance("bad") is None
 
 
 def test_agent_plain_answer_without_tools() -> None:
-    with db_session() as repo:
+    with db_session() as conn:
         client = _FakeClient([_Resp([_Block("text", text="Hello there.")], "end_turn")])
-        resp = run_agent("hi", [], repo, client, "claude-test")
+        resp = run_agent("hi", [], conn, client, "claude-test")
         assert resp.summary == "Hello there."
         assert resp.tiles[0].type == "rich-text"
 
 
 def test_tools_cover_instance_bundle_seed_and_settings_actions() -> None:
-    with db_session() as repo:
-        ctx = ToolContext(repo=repo, fake_mode=True)
+    with db_session() as conn:
+        instance_repo = InstanceRepository(conn)
+        ctx = ToolContext(conn=conn, fake_mode=True)
 
         renamed = execute_tool(
             ctx, "rename_instance", {"instance": "default-instance", "new_name": "Main Dev"}
         )
-        inst = repo.get_instance("default-instance")
+        inst = instance_repo.get_instance("default-instance")
         assert renamed.ok and inst is not None and inst.name == "Main Dev"
 
-        repo.add_instance(
+        instance_repo.add_instance(
             InstanceCreate(id="b", name="Second", url="fake://second.service-now.com")
         )
         assert execute_tool(ctx, "set_default_instance", {"instance": "Second"}).ok
-        default = repo.get_default_instance()
+        default = instance_repo.get_default_instance()
         assert default is not None and default.id == "b"
         assert not execute_tool(ctx, "rename_instance", {"instance": "zzz", "new_name": "x"}).ok
 
@@ -138,14 +142,14 @@ def test_tools_cover_instance_bundle_seed_and_settings_actions() -> None:
         assert rolled.ok
 
         assert execute_tool(ctx, "update_settings", {"narrative_tone": "technical"}).ok
-        assert repo.get_workbench_preferences().narrative_tone == "technical"
+        assert PreferencesRepository(conn).get_workbench_preferences().narrative_tone == "technical"
         assert execute_tool(ctx, "reset_settings", {}).pending
         assert not execute_tool(ctx, "no_such_tool", {}).ok
 
 
 def test_confirm_message_executes_tool_through_thread_api() -> None:
-    with db_session() as repo:
-        repo.add_instance(
+    with db_session() as conn:
+        InstanceRepository(conn).add_instance(
             InstanceCreate(id="bad", name="Bad One", url="fake://auth-failed.service-now.com")
         )
     client = TestClient(create_app())
@@ -161,22 +165,22 @@ def test_confirm_message_executes_tool_through_thread_api() -> None:
     )
     assert resp.status_code == 200
     assert "Deleted 1 instance" in resp.json()[-1]["content"]
-    with db_session() as repo:
-        assert repo.get_instance("bad") is None
+    with db_session() as conn:
+        assert InstanceRepository(conn).get_instance("bad") is None
 
 
 async def test_claude_agent_runner_stream_events() -> None:
     """Verify real-time event streaming in ClaudeAgentRunner (ADR-011)."""
     from now_workbench.ai.agent import AgentEventType, ClaudeAgentRunner
 
-    with db_session() as repo:
+    with db_session() as conn:
         client = _FakeClient(
             [
                 _tool_call("t1", "list_bundles", {}),
                 _Resp([_Block("text", text="Found installed bundles.")], "end_turn"),
             ]
         )
-        runner = ClaudeAgentRunner(client=client, model="claude-test", repo=repo, fake_mode=True)
+        runner = ClaudeAgentRunner(client=client, model="claude-test", conn=conn, fake_mode=True)
         events = [ev async for ev in runner.stream_run("show me bundles", [])]
 
         types = [e.event_type for e in events]
@@ -200,9 +204,9 @@ async def test_agent_live_mode_diagnostic_tile_on_error() -> None:
     class _ErrorClient:
         messages = _ErrorMessages()
 
-    with db_session() as repo:
+    with db_session() as conn:
         runner = ClaudeAgentRunner(
-            client=_ErrorClient(), model="claude-live", repo=repo, fake_mode=False
+            client=_ErrorClient(), model="claude-live", conn=conn, fake_mode=False
         )
         resp = await runner.run("test instances", [])
         assert "Diagnostic Warning" in resp.summary
@@ -250,11 +254,11 @@ def test_result_content_sends_attached_images_to_claude() -> None:
 
 def test_agent_long_tool_chain_keeps_at_most_four_cache_breakpoints() -> None:
     """Many tool rounds never exceed the API's four cache_control blocks."""
-    with db_session() as repo:
+    with db_session() as conn:
         script = [_tool_call(f"t{i}", "list_bundles", {}) for i in range(7)]
         script.append(_Resp([_Block("text", text="Done.")], "end_turn"))
         client = _FakeClient(script)
-        run_agent("check everything", [], repo, client, "claude-test")
+        run_agent("check everything", [], conn, client, "claude-test")
         for call in client.messages.calls:
             marks = sum(1 for t in call["tools"] if "cache_control" in t)
             marks += sum(1 for b in call["system"] if "cache_control" in b)

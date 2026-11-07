@@ -7,6 +7,7 @@ from now_workbench.ai.client import validate_api_key
 from now_workbench.auth.guard import current_user, require_role
 from now_workbench.auth.models import AuthUser, Role
 from now_workbench.db.models import WorkbenchPreferences, WorkbenchPreferencesUpdate
+from now_workbench.db.repos.preferences import PreferencesRepository
 from now_workbench.db.session import db_session
 
 _ADMIN_ONLY = [Depends(require_role(Role.ADMIN))]
@@ -33,8 +34,8 @@ class ValidateKeyResponse(BaseModel):
 @router.get("", response_model=WorkbenchPreferences)
 def get_workbench_settings() -> WorkbenchPreferences:
     """Return current Now Workbench settings and preferences."""
-    with db_session() as repo:
-        return repo.get_workbench_preferences()
+    with db_session() as conn:
+        return PreferencesRepository(conn).get_workbench_preferences()
 
 
 @router.put("", response_model=WorkbenchPreferences)
@@ -57,9 +58,9 @@ async def update_workbench_settings(
                     detail=f"Claude API key verification failed: {msg}",
                 )
 
-    with db_session() as repo:
+    with db_session() as conn:
         try:
-            return repo.update_workbench_preferences(req)
+            return PreferencesRepository(conn).update_workbench_preferences(req)
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc))
 
@@ -71,8 +72,8 @@ async def update_workbench_settings(
 )
 def delete_workbench_api_key() -> WorkbenchPreferences:
     """Explicitly delete the configured Claude AI API key."""
-    with db_session() as repo:
-        return repo.delete_anthropic_api_key()
+    with db_session() as conn:
+        return PreferencesRepository(conn).delete_anthropic_api_key()
 
 
 @router.post(
@@ -89,5 +90,5 @@ async def validate_key_endpoint(req: ValidateKeyRequest) -> ValidateKeyResponse:
 @router.post("/reset", response_model=WorkbenchPreferences)
 def reset_workbench_settings() -> WorkbenchPreferences:
     """Reset the signed-in person's settings to defaults (the shared Claude key stays)."""
-    with db_session() as repo:
-        return repo.reset_workbench_preferences()
+    with db_session() as conn:
+        return PreferencesRepository(conn).reset_workbench_preferences()

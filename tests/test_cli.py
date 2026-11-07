@@ -6,8 +6,10 @@ from pathlib import Path
 from typer.testing import CliRunner
 
 from now_workbench.cli import app
-from now_workbench.db import DatabaseRepository, init_db
+from now_workbench.db import init_db
 from now_workbench.db.models import InstanceCreate, SeedOperationRecord, SeedRecordItem
+from now_workbench.db.repos.instances import InstanceRepository
+from now_workbench.db.repos.seeds import SeedRepository
 from now_workbench.properties import PropertyEngine, PropertySnapshot
 
 runner = CliRunner(env={"COLUMNS": "250", "REMEDIATION_TIMEOUT": "1"})
@@ -327,10 +329,10 @@ def test_cli_seed_and_rollback_flow() -> None:
     assert "Created" in res_seed.stdout
 
     # Extract operation ID from database
-    from now_workbench.db import DatabaseRepository, init_db
+    from now_workbench.db import init_db
 
     conn = init_db()
-    ops = DatabaseRepository(conn).list_seed_operations()
+    ops = SeedRepository(conn).list_seed_operations()
     assert len(ops) > 0
     latest_op_id = ops[0].id
     conn.close()
@@ -349,8 +351,7 @@ def test_cli_seed_and_rollback_flow() -> None:
     err_inst_id = f"inst-refused-{uuid.uuid4().hex[:8]}"
 
     conn_err = init_db()
-    repo_err = DatabaseRepository(conn_err)
-    repo_err.add_instance(
+    InstanceRepository(conn_err).add_instance(
         InstanceCreate(
             id=err_inst_id,
             name="Refused Inst",
@@ -364,7 +365,7 @@ def test_cli_seed_and_rollback_flow() -> None:
         instance_id=err_inst_id,
         created_records=[SeedRecordItem(table="incident", sys_id="rec-123")],
     )
-    repo_err.record_seed_operation(err_op)
+    SeedRepository(conn_err).record_seed_operation(err_op)
     conn_err.close()
 
     res_rb_err = runner.invoke(app, ["demo", "rollback", err_op_id])
@@ -539,8 +540,7 @@ def test_cli_runbook_commands(tmp_path: Path) -> None:
 
     refused_id = f"refused-inst-{uuid.uuid4().hex[:8]}"
     conn = init_db()
-    repo = DatabaseRepository(conn)
-    repo.add_instance(
+    InstanceRepository(conn).add_instance(
         InstanceCreate(
             id=refused_id,
             name="Refused Host",
@@ -645,11 +645,10 @@ def test_cli_properties_and_reset_commands(tmp_path: Path) -> None:
 
     # Demo reset with active seed records to roll back
     db_conn = init_db()
-    db_repo = DatabaseRepository(db_conn)
-    default_inst = db_repo.get_default_instance()
+    default_inst = InstanceRepository(db_conn).get_default_instance()
     assert default_inst is not None
     unique_op_id = f"seed-op-test-{uuid.uuid4().hex[:8]}"
-    db_repo.record_seed_operation(
+    SeedRepository(db_conn).record_seed_operation(
         SeedOperationRecord(
             id=unique_op_id,
             bundle_id="valid-props-demo",
@@ -679,8 +678,7 @@ def test_cli_properties_and_reset_commands(tmp_path: Path) -> None:
     # Live connection error paths for apply and restore (triggering error branch)
     refused_id = "refused-inst-props"
     conn = init_db()
-    repo = DatabaseRepository(conn)
-    repo.add_instance(
+    InstanceRepository(conn).add_instance(
         InstanceCreate(
             id=refused_id,
             name="Refused Host",

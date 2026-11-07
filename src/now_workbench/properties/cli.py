@@ -1,6 +1,7 @@
 """CLI subcommands for system property management and demo reset."""
 
 import asyncio
+import sqlite3
 
 import typer
 from rich.console import Console
@@ -9,7 +10,8 @@ from rich.table import Table
 
 from now_workbench.config.settings import settings
 from now_workbench.db.models import InstanceRecord
-from now_workbench.db.repository import DatabaseRepository
+from now_workbench.db.repos.instances import InstanceRepository
+from now_workbench.db.repos.seeds import SeedRepository
 from now_workbench.db.session import db_session
 from now_workbench.properties.engine import PropertyEngine
 from now_workbench.seed.engine import SeedEngine
@@ -22,12 +24,13 @@ console = Console()
 
 
 def _get_target_instance(
-    repo: DatabaseRepository, instance_id: str | None
+    conn: sqlite3.Connection, instance_id: str | None
 ) -> InstanceRecord | None:
     """Resolve target instance from repository."""
+    instance_repo = InstanceRepository(conn)
     if instance_id:
-        return repo.get_instance(instance_id)
-    return repo.get_default_instance()
+        return instance_repo.get_instance(instance_id)
+    return instance_repo.get_default_instance()
 
 
 @properties_app.command("inspect")
@@ -70,8 +73,8 @@ def apply_properties(
         console.print(f"[bold red]Error:[/bold red] Demo bundle '{bundle_id}' not found.")
         raise typer.Exit(code=1)
 
-    with db_session() as repo:
-        inst = _get_target_instance(repo, instance)
+    with db_session() as conn:
+        inst = _get_target_instance(conn, instance)
     if not inst:
         console.print("[bold red]Error:[/bold red] Target instance not found.")
         raise typer.Exit(code=1)
@@ -108,8 +111,8 @@ def restore_properties(
     fake: bool = typer.Option(False, "--fake", help="Simulate Table API property restoration"),
 ) -> None:
     """Restore original system properties from snapshot."""
-    with db_session() as repo:
-        inst = _get_target_instance(repo, instance)
+    with db_session() as conn:
+        inst = _get_target_instance(conn, instance)
     if not inst:
         console.print("[bold red]Error:[/bold red] Target instance not found.")
         raise typer.Exit(code=1)
@@ -149,17 +152,17 @@ def reset_demo_cmd(
         console.print(f"[bold red]Error:[/bold red] Demo bundle '{bundle_id}' not found.")
         raise typer.Exit(code=1)
 
-    with db_session() as repo:
-        inst = _get_target_instance(repo, instance)
+    with db_session() as conn:
+        inst = _get_target_instance(conn, instance)
         if not inst:
             console.print("[bold red]Error:[/bold red] Target instance not found.")
             raise typer.Exit(code=1)
 
         # 1. Rollback active seed records for this bundle and instance
-        seed_engine = SeedEngine(repository=repo, fake_mode=fake)
+        seed_engine = SeedEngine(conn=conn, fake_mode=fake)
         active_ops = [
             op
-            for op in repo.list_seed_operations(limit=100)
+            for op in SeedRepository(conn).list_seed_operations(limit=100)
             if op.bundle_id == bundle_id
             and op.status != "rolled_back"
             and op.instance_id == inst.id

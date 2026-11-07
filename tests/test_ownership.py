@@ -16,10 +16,13 @@ from now_workbench.auth.models import LOCAL_EMAIL, Role
 from now_workbench.auth.owner import NoOwnerError, current_owner, operator_owner, owner_scope
 from now_workbench.db import (
     ChatThreadCreate,
-    DatabaseRepository,
     InstanceCreate,
     init_db,
 )
+from now_workbench.db.repos.instances import InstanceRepository
+from now_workbench.db.repos.preferences import PreferencesRepository
+from now_workbench.db.repos.threads import ThreadRepository
+from now_workbench.db.repos.users import UserRepository
 from now_workbench.db.schema import MIGRATIONS, SCHEMA_VERSION, apply_migrations
 
 ADMIN, ANA, BEN = "admin@example.com", "ana@example.com", "ben@example.com"
@@ -39,84 +42,91 @@ def test_current_owner_outside_any_scope_raises() -> None:
 
 def test_list_instances_shows_only_the_owners_rows() -> None:
     """Two people with the same instance name each see only their own."""
-    repo = DatabaseRepository(init_db(":memory:"))
+    conn = init_db(":memory:")
+    instance_repo = InstanceRepository(conn)
     with owner_scope(ANA):
-        repo.add_instance(_instance("Dev", "inst-ana"))
+        instance_repo.add_instance(_instance("Dev", "inst-ana"))
     with owner_scope(BEN):
-        repo.add_instance(_instance("Dev", "inst-ben"))
-        assert [i.id for i in repo.list_instances()] == ["inst-ben"]
-        assert repo.get_instance("inst-ana") is None
-        assert repo.get_default_instance() is not None
-        assert repo.delete_instance("inst-ana") is False
+        instance_repo.add_instance(_instance("Dev", "inst-ben"))
+        assert [i.id for i in instance_repo.list_instances()] == ["inst-ben"]
+        assert instance_repo.get_instance("inst-ana") is None
+        assert instance_repo.get_default_instance() is not None
+        assert instance_repo.delete_instance("inst-ana") is False
     with owner_scope(ANA):
-        assert [i.id for i in repo.list_instances()] == ["inst-ana"]
-    repo.close()
+        assert [i.id for i in instance_repo.list_instances()] == ["inst-ana"]
+    conn.close()
 
 
 def test_add_instance_with_another_owners_id_gets_a_new_id() -> None:
     """Reusing someone else's id never overwrites their instance."""
-    repo = DatabaseRepository(init_db(":memory:"))
+    conn = init_db(":memory:")
+    instance_repo = InstanceRepository(conn)
     with owner_scope(ANA):
-        repo.add_instance(_instance("Ana", "shared-id"))
+        instance_repo.add_instance(_instance("Ana", "shared-id"))
     with owner_scope(BEN):
-        created = repo.add_instance(_instance("Ben", "shared-id"))
+        created = instance_repo.add_instance(_instance("Ben", "shared-id"))
         assert created.id != "shared-id"
     with owner_scope(ANA):
-        mine = repo.get_instance("shared-id")
+        mine = instance_repo.get_instance("shared-id")
         assert mine is not None
         assert mine.name == "Ana"
-    repo.close()
+    conn.close()
 
 
 def test_threads_are_private_and_ids_cannot_be_hijacked() -> None:
     """Another owner can neither read, rename, delete nor write into a thread."""
-    repo = DatabaseRepository(init_db(":memory:"))
+    conn = init_db(":memory:")
+    thread_repo = ThreadRepository(conn)
     with owner_scope(ANA):
-        repo.create_thread(ChatThreadCreate(id="t-1", title="Ana's"))
+        thread_repo.create_thread(ChatThreadCreate(id="t-1", title="Ana's"))
     with owner_scope(BEN):
-        assert repo.list_threads() == []
-        assert repo.get_thread("t-1") is None
-        assert repo.list_messages("t-1") == []
-        assert repo.delete_thread("t-1") is False
-        hijack = repo.create_thread(ChatThreadCreate(id="t-1", title="Ben's"))
+        assert thread_repo.list_threads() == []
+        assert thread_repo.get_thread("t-1") is None
+        assert thread_repo.list_messages("t-1") == []
+        assert thread_repo.delete_thread("t-1") is False
+        hijack = thread_repo.create_thread(ChatThreadCreate(id="t-1", title="Ben's"))
         assert hijack.id != "t-1"
     with owner_scope(ANA):
-        thread = repo.get_thread("t-1")
+        thread = thread_repo.get_thread("t-1")
         assert thread is not None
         assert thread.title == "Ana's"
-    repo.close()
+    conn.close()
 
 
 def test_preferences_are_per_user() -> None:
     """One person's settings do not change another's."""
     from now_workbench.db.models import WorkbenchPreferencesUpdate
 
-    repo = DatabaseRepository(init_db(":memory:"))
+    conn = init_db(":memory:")
+    pref_repo = PreferencesRepository(conn)
     with owner_scope(ANA):
-        repo.update_workbench_preferences(WorkbenchPreferencesUpdate(narrative_tone="technical"))
+        pref_repo.update_workbench_preferences(
+            WorkbenchPreferencesUpdate(narrative_tone="technical")
+        )
     with owner_scope(BEN):
-        assert repo.get_workbench_preferences().narrative_tone == "executive"
-    repo.close()
+        assert pref_repo.get_workbench_preferences().narrative_tone == "executive"
+    conn.close()
 
 
 def test_operator_owner_claims_orphans_for_the_first_admin() -> None:
     """Rows created before any admin go to the first admin (or the local operator)."""
-    repo = DatabaseRepository(init_db(":memory:"))
+    conn = init_db(":memory:")
+    instance_repo = InstanceRepository(conn)
     with owner_scope(""):
-        repo.add_instance(_instance("Early", "inst-early"))
-    assert operator_owner(repo, local_mode=False) == ""
-    repo.put_user(ADMIN, frozenset(Role), added_by="test")
-    assert operator_owner(repo, local_mode=False) == ADMIN
+        instance_repo.add_instance(_instance("Early", "inst-early"))
+    assert operator_owner(conn, local_mode=False) == ""
+    UserRepository(conn).put_user(ADMIN, frozenset(Role), added_by="test")
+    assert operator_owner(conn, local_mode=False) == ADMIN
     with owner_scope(ADMIN):
-        assert [i.id for i in repo.list_instances()] == ["inst-early"]
-    repo.close()
+        assert [i.id for i in instance_repo.list_instances()] == ["inst-early"]
+    conn.close()
 
 
 def test_operator_owner_in_local_mode_is_the_local_operator() -> None:
     """Without Access and without admins the local operator owns start-up data."""
-    repo = DatabaseRepository(init_db(":memory:"))
-    assert operator_owner(repo, local_mode=True) == LOCAL_EMAIL
-    repo.close()
+    conn = init_db(":memory:")
+    assert operator_owner(conn, local_mode=True) == LOCAL_EMAIL
+    conn.close()
 
 
 def test_run_async_keeps_the_owner_in_the_worker_thread() -> None:

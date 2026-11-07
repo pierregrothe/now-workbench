@@ -8,6 +8,7 @@ import sqlite3
 import uuid
 from datetime import UTC, datetime
 
+from now_workbench.db.repos.base import Repository
 from now_workbench.sharing.models import (
     ArtifactShare,
     ArtifactVersion,
@@ -15,7 +16,7 @@ from now_workbench.sharing.models import (
     ShareTarget,
 )
 
-__all__ = ["ArtifactRepositoryMixin"]
+__all__ = ["ArtifactRepository"]
 
 _SHARE_SELECT = """
     SELECT s.id, s.artifact_id, s.version, s.target, s.group_id, s.status, s.requested_by,
@@ -61,10 +62,8 @@ def _share(row: sqlite3.Row) -> ArtifactShare:
     )
 
 
-class ArtifactRepositoryMixin:
-    """Mixin for ``artifacts``, ``artifact_versions`` and ``artifact_shares``."""
-
-    conn: sqlite3.Connection
+class ArtifactRepository(Repository):
+    """Repository for ``artifacts``, ``artifact_versions`` and ``artifact_shares``."""
 
     def artifact_owners(self) -> dict[str, str]:
         """Return every registered artifact id with its owner."""

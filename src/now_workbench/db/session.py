@@ -9,7 +9,8 @@ from contextlib import contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
 
-from now_workbench.db.repository import DatabaseRepository
+from now_workbench.db.repos.instances import InstanceRepository
+from now_workbench.db.repos.users import UserRepository
 from now_workbench.db.schema import SCHEMA_VERSION, apply_migrations
 
 __all__ = ["db_session", "get_db_path", "init_db"]
@@ -116,10 +117,17 @@ def init_db(db_path: str | Path | None = None) -> sqlite3.Connection:
 
 
 @contextmanager
-def db_session(db_path: str | Path | None = None) -> Iterator[DatabaseRepository]:
-    """Yield a DatabaseRepository and guarantee the connection is closed."""
-    with DatabaseRepository(init_db(db_path=db_path)) as repo:
-        yield repo
+def db_session(db_path: str | Path | None = None) -> Iterator[sqlite3.Connection]:
+    """Yield a migrated connection and guarantee it is closed.
+
+    Domains wrap it in their own repositories (``ThreadRepository(conn)``); one connection
+    is the unit of work shared by every repository opened on it (ADR-015).
+    """
+    conn = init_db(db_path=db_path)
+    try:
+        yield conn
+    finally:
+        conn.close()
 
 
 def seed_default_instance_if_empty(conn: sqlite3.Connection) -> None:
@@ -130,12 +138,12 @@ def seed_default_instance_if_empty(conn: sqlite3.Connection) -> None:
 
     if not settings.sn_instance_url:
         return
-    repo = DatabaseRepository(conn)
     # Owned by the first administrator, or orphaned until one exists (ADR-018).
-    with owner_scope(repo.first_admin_email()):
-        if repo.list_instances():
+    instance_repo = InstanceRepository(conn)
+    with owner_scope(UserRepository(conn).first_admin_email()):
+        if instance_repo.list_instances():
             return
-        repo.add_instance(
+        instance_repo.add_instance(
             InstanceCreate(
                 id="primary-instance",
                 name="Primary Instance",

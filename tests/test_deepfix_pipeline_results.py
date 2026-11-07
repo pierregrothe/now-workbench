@@ -10,6 +10,7 @@ import pytest
 from now_workbench.bundles import pipeline as pipeline_mod
 from now_workbench.bundles.pipeline import DemoPipelineEngine, PipelineStepError
 from now_workbench.db import InstanceCreate, InstanceProfile, db_session
+from now_workbench.db.repos.instances import InstanceRepository
 from now_workbench.properties.engine import PropertyEngine
 from now_workbench.properties.models import PropertyApplyResult
 from now_workbench.sdk.runner import SdkExecutionResult
@@ -51,11 +52,11 @@ def _setup(tmp_path: Path):
 async def test_deploy_and_seed_deploy_failure_raises(tmp_path: Path, monkeypatch):
     bundles_dir, bundle_id = _setup(tmp_path)
     monkeypatch.setattr(pipeline_mod, "NowSdkRunner", _FailingRunner)
-    with db_session(tmp_path / "t.db") as repo:
-        inst = repo.add_instance(
+    with db_session(tmp_path / "t.db") as conn:
+        inst = InstanceRepository(conn).add_instance(
             InstanceCreate(id="i1", name="I1", url="https://a.service-now.com", is_default=True)
         )
-        engine = DemoPipelineEngine(bundles_dir=bundles_dir, repo=repo)
+        engine = DemoPipelineEngine(bundles_dir=bundles_dir, conn=conn)
         with pytest.raises(PipelineStepError, match="exit code 2"):
             await engine.deploy_and_seed(bundle_id, inst, fake_mode=True)
 
@@ -64,14 +65,15 @@ async def test_deploy_and_seed_deploy_failure_raises(tmp_path: Path, monkeypatch
 async def test_run_full_pipeline_deploy_failure_reports_failed(tmp_path: Path, monkeypatch):
     bundles_dir, bundle_id = _setup(tmp_path)
     monkeypatch.setattr(pipeline_mod, "NowSdkRunner", _FailingRunner)
-    with db_session(tmp_path / "t.db") as repo:
-        repo.add_instance(
+    with db_session(tmp_path / "t.db") as conn:
+        instance_repo = InstanceRepository(conn)
+        instance_repo.add_instance(
             InstanceCreate(id="i1", name="I1", url="https://a.service-now.com", is_default=True)
         )
-        repo.save_instance_profile(InstanceProfile(instance_id="i1", release="Zurich"))
-        inst = repo.get_instance("i1")
+        instance_repo.save_instance_profile(InstanceProfile(instance_id="i1", release="Zurich"))
+        inst = instance_repo.get_instance("i1")
         assert inst is not None
-        engine = DemoPipelineEngine(bundles_dir=bundles_dir, repo=repo)
+        engine = DemoPipelineEngine(bundles_dir=bundles_dir, conn=conn)
         summary = await engine.run_full_pipeline(
             bundle_id, inst, fake_mode=True, record_video=False
         )
@@ -83,14 +85,15 @@ async def test_run_full_pipeline_deploy_failure_reports_failed(tmp_path: Path, m
 @pytest.mark.asyncio
 async def test_run_full_pipeline_property_failure_reports_failed(tmp_path: Path):
     bundles_dir, bundle_id = _setup(tmp_path)
-    with db_session(tmp_path / "t.db") as repo:
-        repo.add_instance(
+    with db_session(tmp_path / "t.db") as conn:
+        instance_repo = InstanceRepository(conn)
+        instance_repo.add_instance(
             InstanceCreate(id="i1", name="I1", url="https://a.service-now.com", is_default=True)
         )
-        repo.save_instance_profile(InstanceProfile(instance_id="i1", release="Zurich"))
-        inst = repo.get_instance("i1")
+        instance_repo.save_instance_profile(InstanceProfile(instance_id="i1", release="Zurich"))
+        inst = instance_repo.get_instance("i1")
         assert inst is not None
-        engine = DemoPipelineEngine(bundles_dir=bundles_dir, repo=repo)
+        engine = DemoPipelineEngine(bundles_dir=bundles_dir, conn=conn)
         engine.prop_engine = _FailingPropEngine()
         summary = await engine.run_full_pipeline(
             bundle_id, inst, fake_mode=True, record_video=False
@@ -107,11 +110,11 @@ async def test_deploy_and_seed_without_sdk_project_on_fake_instance_simulates_de
     bundles_dir, bundle_id = _setup(tmp_path)
     (bundles_dir / bundle_id / "package.json").unlink()
     monkeypatch.setattr(pipeline_mod, "NowSdkRunner", _FailingRunner)
-    with db_session(tmp_path / "t.db") as repo:
-        inst = repo.add_instance(
+    with db_session(tmp_path / "t.db") as conn:
+        inst = InstanceRepository(conn).add_instance(
             InstanceCreate(id="i1", name="I1", url="https://a.service-now.com", is_default=True)
         )
-        engine = DemoPipelineEngine(bundles_dir=bundles_dir, repo=repo)
+        engine = DemoPipelineEngine(bundles_dir=bundles_dir, conn=conn)
         seed, note, renames = await engine.deploy_and_seed(bundle_id, inst, fake_mode=True)
         assert seed.status == "completed"
         assert "simulated" in note

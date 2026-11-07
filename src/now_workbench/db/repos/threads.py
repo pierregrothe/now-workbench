@@ -1,7 +1,6 @@
-"""Thread and chat message repository mixin."""
+"""Thread and chat message repository."""
 
 import json
-import sqlite3
 import uuid
 from datetime import UTC, datetime
 from typing import Any
@@ -13,12 +12,11 @@ from now_workbench.db.models import (
     ChatThreadRecord,
     ChatThreadUpdate,
 )
+from now_workbench.db.repos.base import Repository
 
 
-class ThreadRepositoryMixin:
-    """Mixin providing conversational thread and message persistence."""
-
-    conn: sqlite3.Connection
+class ThreadRepository(Repository):
+    """Repository for conversational thread and message persistence."""
 
     def list_threads(self, include_archived: bool = True) -> list[ChatThreadRecord]:
         """Return the owner's conversational threads, most recently updated first."""

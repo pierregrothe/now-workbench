@@ -1,15 +1,13 @@
-"""Template repository mixin."""
+"""Template repository."""
 
 import json
-import sqlite3
 
 from now_workbench.db.models import TemplateRecord
+from now_workbench.db.repos.base import Repository
 
 
-class TemplateRepositoryMixin:
-    """Mixin providing customization template persistence."""
-
-    conn: sqlite3.Connection
+class TemplateRepository(Repository):
+    """Repository for customization template persistence."""
 
     def list_templates(self) -> list[TemplateRecord]:
         """Return all available customization templates."""

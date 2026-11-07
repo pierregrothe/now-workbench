@@ -19,6 +19,8 @@ from now_workbench.chat.files import LimitReachedError, check_can_ask, detect_me
 from now_workbench.chat.models import ConversationLimits
 from now_workbench.config.settings import settings
 from now_workbench.db import ChatThreadRecord, db_session
+from now_workbench.db.repos.chat import ChatRepository
+from now_workbench.db.repos.threads import ThreadRepository
 
 PDF = b"%PDF-1.4\n1 0 obj\n<<>>\nendobj\n%%EOF\n"
 PNG = base64.b64decode(
@@ -202,8 +204,8 @@ def test_check_can_ask_token_budget_and_age_limits() -> None:
 
 def _use_budget(thread: str, tokens: int = 60_000) -> None:
     """Mark a conversation as having used ``tokens`` with Claude."""
-    with db_session() as repo:
-        repo.add_thread_tokens(thread, tokens)
+    with db_session() as conn:
+        ThreadRepository(conn).add_thread_tokens(thread, tokens)
 
 
 def test_delete_thread_removes_attachment_files(client: TestClient) -> None:
@@ -214,8 +216,8 @@ def test_delete_thread_removes_attachment_files(client: TestClient) -> None:
     assert path.exists()
     client.delete(f"/api/threads/{thread}")
     assert not path.exists()
-    with db_session() as repo:
-        assert repo.get_attachment(att["id"]) is None
+    with db_session() as conn:
+        assert ChatRepository(conn).get_attachment(att["id"]) is None
 
 
 def test_post_thread_message_slow_reply_keeps_the_connection_alive(

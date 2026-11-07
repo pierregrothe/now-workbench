@@ -168,10 +168,10 @@ def test_effective_user_revokes_when_rights_are_removed(client: TestClient) -> N
         f"/api/groups/{group}/members/{BEN}", json={"role": "member"}, headers=as_user(ADMIN)
     )
     assert client.get("/api/profile", headers=as_user(BEN)).json()["email"] == BEN
-    with db_session() as repo:
+    with db_session() as conn:
         actions = [
             r["action"]
-            for r in repo.conn.execute(
+            for r in conn.execute(
                 "SELECT action FROM impersonation_log WHERE real_email = ? ORDER BY id;", (BEN,)
             )
         ]

@@ -10,13 +10,15 @@ from fastapi.testclient import TestClient
 from now_workbench.api import demos
 from now_workbench.api.app import create_app
 from now_workbench.db.models import SeedOperationRecord, SeedRecordItem
+from now_workbench.db.repos.instances import InstanceRepository
+from now_workbench.db.repos.seeds import SeedRepository
 from now_workbench.db.session import db_session
 
 
 class _FakeSeedEngine:
     """In-memory SeedEngine stand-in whose rollback reports one failed delete."""
 
-    def __init__(self, repository: object, fake_mode: bool = False) -> None:
+    def __init__(self, conn: object, fake_mode: bool = False) -> None:
         self.errors = ["Could not delete incident/abc"]
 
     async def rollback(self, operation_id: str) -> tuple[int, list[str]]:
@@ -24,10 +26,10 @@ class _FakeSeedEngine:
 
 
 def _record_completed_op() -> None:
-    with db_session() as repo:
-        inst = repo.get_default_instance()
+    with db_session() as conn:
+        inst = InstanceRepository(conn).get_default_instance()
         assert inst is not None
-        repo.record_seed_operation(
+        SeedRepository(conn).record_seed_operation(
             SeedOperationRecord(
                 id="op-reset-fail",
                 bundle_id="sample-ai-assistant",

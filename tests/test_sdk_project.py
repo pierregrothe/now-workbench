@@ -14,6 +14,7 @@ import pytest
 from now_workbench.bundles import pipeline as pipeline_mod
 from now_workbench.bundles.pipeline import DemoPipelineEngine, PipelineStepError
 from now_workbench.db import InstanceCreate, db_session
+from now_workbench.db.repos.instances import InstanceRepository
 from now_workbench.properties.engine import PropertyEngine
 from now_workbench.sdk.project import (
     SdkProject,
@@ -164,11 +165,11 @@ async def test_deploy_and_seed_generates_app_and_seeds_into_its_tables(
     monkeypatch.setattr(PropertyEngine, "read_live_values", vendor)
     monkeypatch.setattr(pipeline_mod, "prepare_project", fake_prepare)
     monkeypatch.setattr(pipeline_mod, "NowSdkRunner", _OkRunner)
-    with db_session(tmp_path / "t.db") as repo:
-        inst = repo.add_instance(
+    with db_session(tmp_path / "t.db") as conn:
+        inst = InstanceRepository(conn).add_instance(
             InstanceCreate(id="i1", name="Real", url="https://real.service-now.com", password="p")
         )
-        engine = DemoPipelineEngine(bundles_dir=bundles, repo=repo)
+        engine = DemoPipelineEngine(bundles_dir=bundles, conn=conn)
 
         async def fake_post(self: object, client: object, i: object, table: str, f: object) -> str:
             posted.append(table)
@@ -194,11 +195,11 @@ async def test_deploy_and_seed_without_vendor_prefix_stops_with_reason(
         return {names[0]: None}
 
     monkeypatch.setattr(PropertyEngine, "read_live_values", no_vendor)
-    with db_session(tmp_path / "t.db") as repo:
-        inst = repo.add_instance(
+    with db_session(tmp_path / "t.db") as conn:
+        inst = InstanceRepository(conn).add_instance(
             InstanceCreate(id="i1", name="Real", url="https://real.service-now.com", password="p")
         )
-        engine = DemoPipelineEngine(bundles_dir=bundles, repo=repo)
+        engine = DemoPipelineEngine(bundles_dir=bundles, conn=conn)
         with pytest.raises(PipelineStepError, match="vendor prefix"):
             await engine.deploy_and_seed("hr-onboarding-ai", inst)
 
@@ -218,11 +219,11 @@ async def test_deploy_and_seed_build_failure_stops_with_reason(
 
     monkeypatch.setattr(PropertyEngine, "read_live_values", vendor)
     monkeypatch.setattr(pipeline_mod, "prepare_project", broken)
-    with db_session(tmp_path / "t.db") as repo:
-        inst = repo.add_instance(
+    with db_session(tmp_path / "t.db") as conn:
+        inst = InstanceRepository(conn).add_instance(
             InstanceCreate(id="i1", name="Real", url="https://real.service-now.com", password="p")
         )
-        engine = DemoPipelineEngine(bundles_dir=bundles, repo=repo)
+        engine = DemoPipelineEngine(bundles_dir=bundles, conn=conn)
         with pytest.raises(PipelineStepError, match="bad column"):
             await engine.deploy_and_seed("hr-onboarding-ai", inst)
 
@@ -232,11 +233,11 @@ async def test_deploy_and_seed_without_fluent_sources_skips_deploy(tmp_path: Pat
     bundles = tmp_path / "bundles"
     shutil.copytree(REPO / "bundles" / "hr-onboarding-ai", bundles / "b")
     shutil.rmtree(bundles / "b" / "fluent")
-    with db_session(tmp_path / "t.db") as repo:
-        inst = repo.add_instance(
+    with db_session(tmp_path / "t.db") as conn:
+        inst = InstanceRepository(conn).add_instance(
             InstanceCreate(id="i1", name="Fake", url="fake://f.service-now.com", password="p")
         )
-        engine = DemoPipelineEngine(bundles_dir=bundles, repo=repo)
+        engine = DemoPipelineEngine(bundles_dir=bundles, conn=conn)
         _seed, note, renames = await engine.deploy_and_seed("b", inst, fake_mode=True)
     assert note.startswith("Deploy skipped") and renames == {}
 
@@ -245,11 +246,11 @@ async def test_test_demo_script_checks_renamed_tables(tmp_path: Path) -> None:
     """Runbook stages aimed at a renamed table are checked against the new name."""
     bundles = tmp_path / "bundles"
     shutil.copytree(REPO / "bundles" / "hr-onboarding-ai", bundles / "hr-onboarding-ai")
-    with db_session(tmp_path / "t.db") as repo:
-        inst = repo.add_instance(
+    with db_session(tmp_path / "t.db") as conn:
+        inst = InstanceRepository(conn).add_instance(
             InstanceCreate(id="i1", name="Fake", url="fake://f.service-now.com", password="p")
         )
-        engine = DemoPipelineEngine(bundles_dir=bundles, repo=repo)
+        engine = DemoPipelineEngine(bundles_dir=bundles, conn=conn)
         res = await engine.test_demo_script(
             "hr-onboarding-ai",
             inst,

@@ -12,6 +12,7 @@ from now_workbench.db.models import (
     InstanceRecord,
     InstanceUpdate,
 )
+from now_workbench.db.repos.instances import InstanceRepository
 from now_workbench.db.session import db_session
 
 
@@ -51,8 +52,9 @@ def list_instances_cmd(
     ),
 ) -> None:
     """List all registered ServiceNow instances and authentication status."""
-    with db_session() as repo:
-        instances = repo.list_instances()
+    with db_session() as conn:
+        instance_repo = InstanceRepository(conn)
+        instances = instance_repo.list_instances()
 
         if not instances:
             console.print("[yellow]No instances registered yet.[/yellow]")
@@ -70,8 +72,8 @@ def list_instances_cmd(
 
         for inst in instances:
             if check:
-                check_and_record_instance(repo, inst)
-                refreshed = repo.get_instance(inst.id)
+                check_and_record_instance(conn, inst)
+                refreshed = instance_repo.get_instance(inst.id)
                 if refreshed:
                     inst = refreshed
 
@@ -106,8 +108,9 @@ def add_instance_cmd(
     default: bool = typer.Option(False, "--default", "-d", help="Set as active default"),
 ) -> None:
     """Register a new ServiceNow instance (release and platform facts are detected)."""
-    with db_session() as repo:
-        rec = repo.add_instance(
+    with db_session() as conn:
+        instance_repo = InstanceRepository(conn)
+        rec = instance_repo.add_instance(
             InstanceCreate(
                 id=instance_id,
                 name=name,
@@ -119,8 +122,8 @@ def add_instance_cmd(
                 is_default=default,
             )
         )
-        status, msg, _ = check_and_record_instance(repo, rec)
-        detected = repo.get_instance(rec.id) or rec
+        status, msg, _ = check_and_record_instance(conn, rec)
+        detected = instance_repo.get_instance(rec.id) or rec
     console.print(
         f"[green][OK][/green] Registered [bold]{rec.name}[/bold] (ID: [cyan]{rec.id}[/cyan])"
     )
@@ -134,12 +137,13 @@ def activate_instance_cmd(
     instance_id: str = typer.Argument(..., help="Instance ID to mark as active default"),
 ) -> None:
     """Set an instance as the active default for tasks and customizations."""
-    with db_session() as repo:
-        inst = repo.get_instance(instance_id)
+    with db_session() as conn:
+        instance_repo = InstanceRepository(conn)
+        inst = instance_repo.get_instance(instance_id)
         if not inst:
             console.print(f"[red]Instance '{instance_id}' not found in registry.[/red]")
             raise typer.Exit(code=1)
-        repo.set_default_instance(instance_id)
+        instance_repo.set_default_instance(instance_id)
     console.print(
         f"[green][OK][/green] Instance [bold]{inst.name}[/bold] ({inst.url}) is now ACTIVE."
     )
@@ -151,8 +155,8 @@ def rename_instance_cmd(
     new_name: str = typer.Argument(..., help="New display name for the instance"),
 ) -> None:
     """Rename a registered ServiceNow instance."""
-    with db_session() as repo:
-        rec = repo.update_instance(instance_id, InstanceUpdate(name=new_name))
+    with db_session() as conn:
+        rec = InstanceRepository(conn).update_instance(instance_id, InstanceUpdate(name=new_name))
         if not rec:
             console.print(f"[red]Instance '{instance_id}' not found in registry.[/red]")
             raise typer.Exit(code=1)
@@ -164,8 +168,8 @@ def delete_instance_cmd(
     instance_id: str = typer.Argument(..., help="Instance ID or name to delete"),
 ) -> None:
     """Delete a ServiceNow instance from the registry."""
-    with db_session() as repo:
-        ok = repo.delete_instance(instance_id)
+    with db_session() as conn:
+        ok = InstanceRepository(conn).delete_instance(instance_id)
         if not ok:
             console.print(f"[red]Instance '{instance_id}' not found in registry.[/red]")
             raise typer.Exit(code=1)
@@ -179,16 +183,17 @@ def test_instance_cmd(
     ),
 ) -> None:
     """Test connection and authentication to one or all registered instances."""
-    with db_session() as repo:
+    with db_session() as conn:
+        instance_repo = InstanceRepository(conn)
         targets: list[InstanceRecord] = []
         if instance_id:
-            target = repo.get_instance(instance_id)
+            target = instance_repo.get_instance(instance_id)
             if not target:
                 console.print(f"[red]Instance '{instance_id}' not found in registry.[/red]")
                 raise typer.Exit(code=1)
             targets.append(target)
         else:
-            targets = repo.list_instances()
+            targets = instance_repo.list_instances()
 
         if not targets:
             console.print("[red]No instance found to test. Register an instance first.[/red]")
@@ -196,7 +201,7 @@ def test_instance_cmd(
 
         console.print("[bold cyan]Testing ServiceNow Instance Authentication...[/bold cyan]\n")
         for inst in targets:
-            status, msg, code = check_and_record_instance(repo, inst)
+            status, msg, code = check_and_record_instance(conn, inst)
             if status == "authenticated":
                 console.print(
                     f"  [green][OK][/green] [bold]{inst.name}[/bold] ({inst.url}): "

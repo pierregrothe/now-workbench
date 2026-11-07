@@ -12,6 +12,8 @@ from now_workbench.ai.tools.base import (
 )
 from now_workbench.config.settings import settings
 from now_workbench.db.models import WorkbenchPreferencesUpdate
+from now_workbench.db.repos.instances import InstanceRepository
+from now_workbench.db.repos.preferences import PreferencesRepository
 from now_workbench.sdk.runner import NowSdkRunner
 
 _SECRET_FIELDS = {"anthropic_api_key"}
@@ -34,7 +36,7 @@ def _setting_properties() -> dict[str, Any]:
 
 
 def _show_settings(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
-    prefs = ctx.repo.get_workbench_preferences().model_dump()
+    prefs = PreferencesRepository(ctx.conn).get_workbench_preferences().model_dump()
     prefs.pop("anthropic_api_key_masked", None)
     rows = [[k, v] for k, v in prefs.items() if k != "updated_at"]
     tile = table_tile("tile-settings", "Workbench settings", ["Setting", "Value"], rows)
@@ -49,7 +51,9 @@ def _update_settings(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
     changes = {k: v for k, v in args.items() if k in _setting_properties() and v is not None}
     if not changes:
         return ToolResult(summary="No valid settings were provided.", ok=False)
-    ctx.repo.update_workbench_preferences(WorkbenchPreferencesUpdate(**changes))
+    PreferencesRepository(ctx.conn).update_workbench_preferences(
+        WorkbenchPreferencesUpdate(**changes)
+    )
     rows = [[k, v] for k, v in changes.items()]
     return ToolResult(
         summary="Updated settings: " + ", ".join(f"{k}={v}" for k, v in changes.items()) + ".",
@@ -63,7 +67,7 @@ def _plan_reset_settings(ctx: ToolContext, args: dict[str, Any]) -> str:
 
 
 def _reset_settings(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
-    ctx.repo.reset_workbench_preferences()
+    PreferencesRepository(ctx.conn).reset_workbench_preferences()
     return ToolResult(
         summary="Workbench settings were reset to factory defaults.",
         tiles=[text_tile("tile-settings-reset", "Settings reset", "Factory defaults restored.")],
@@ -75,9 +79,14 @@ def _doctor(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
         now_sdk_bin=settings.now_sdk_bin, node_bin=settings.node_bin
     ).probe_environment()
     rows: list[list[Any]] = [[k, v] for k, v in env.items()]
-    rows.append(["instances", len(ctx.repo.list_instances())])
+    rows.append(["instances", len(InstanceRepository(ctx.conn).list_instances())])
     rows.append(
-        ["otto_api_key", "configured" if ctx.repo.get_decrypted_anthropic_api_key() else "missing"]
+        [
+            "otto_api_key",
+            "configured"
+            if PreferencesRepository(ctx.conn).get_decrypted_anthropic_api_key()
+            else "missing",
+        ]
     )
     return ToolResult(
         summary="Diagnostics complete.",

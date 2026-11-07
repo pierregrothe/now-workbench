@@ -12,6 +12,7 @@ from now_workbench.ai.tools.base import ToolContext
 from now_workbench.bundles.pipeline import DemoPipelineEngine
 from now_workbench.cli import app
 from now_workbench.db import InstanceCreate, InstanceProfile, db_session
+from now_workbench.db.repos.instances import InstanceRepository
 from now_workbench.synthesizer.engine import UseCaseSynthesizer
 from now_workbench.synthesizer.models import UseCaseSynthesisRequest
 
@@ -38,8 +39,9 @@ def test_evaluate_and_install_modules(tmp_path: Path, synthesized_demo):
     bundles_dir, bundle_id = synthesized_demo
     db_file = tmp_path / "test.db"
 
-    with db_session(db_file) as repo:
-        inst = repo.add_instance(
+    with db_session(db_file) as conn:
+        instance_repo = InstanceRepository(conn)
+        inst = instance_repo.add_instance(
             InstanceCreate(
                 id="inst-test-01",
                 name="Test Dev Instance",
@@ -48,11 +50,13 @@ def test_evaluate_and_install_modules(tmp_path: Path, synthesized_demo):
             )
         )
         # The release is detected at connection (ADR-014); simulate a detected profile.
-        repo.save_instance_profile(InstanceProfile(instance_id="inst-test-01", release="Zurich"))
-        inst = repo.get_instance("inst-test-01")
+        instance_repo.save_instance_profile(
+            InstanceProfile(instance_id="inst-test-01", release="Zurich")
+        )
+        inst = instance_repo.get_instance("inst-test-01")
         assert inst is not None
 
-        engine = DemoPipelineEngine(bundles_dir=bundles_dir, repo=repo)
+        engine = DemoPipelineEngine(bundles_dir=bundles_dir, conn=conn)
 
         # 1. Initial evaluation should detect missing required plugins
         eval_before = engine.evaluate_bundle(bundle_id, inst, fake_mode=True)
@@ -81,8 +85,9 @@ async def test_full_demo_pipeline_with_video_proof(tmp_path: Path, synthesized_d
     bundles_dir, bundle_id = synthesized_demo
     db_file = tmp_path / "test.db"
 
-    with db_session(db_file) as repo:
-        inst = repo.add_instance(
+    with db_session(db_file) as conn:
+        instance_repo = InstanceRepository(conn)
+        inst = instance_repo.add_instance(
             InstanceCreate(
                 id="inst-zurich-poc",
                 name="Zurich Healthcare POC",
@@ -91,11 +96,13 @@ async def test_full_demo_pipeline_with_video_proof(tmp_path: Path, synthesized_d
             )
         )
         # The release is detected at connection (ADR-014); simulate a detected profile.
-        repo.save_instance_profile(InstanceProfile(instance_id="inst-zurich-poc", release="Zurich"))
-        inst = repo.get_instance("inst-zurich-poc")
+        instance_repo.save_instance_profile(
+            InstanceProfile(instance_id="inst-zurich-poc", release="Zurich")
+        )
+        inst = instance_repo.get_instance("inst-zurich-poc")
         assert inst is not None
 
-        engine = DemoPipelineEngine(bundles_dir=bundles_dir, repo=repo)
+        engine = DemoPipelineEngine(bundles_dir=bundles_dir, conn=conn)
         summary = await engine.run_full_pipeline(
             bundle_id=bundle_id,
             instance=inst,
@@ -133,8 +140,9 @@ def test_agent_tools_pipeline_parity(tmp_path: Path, synthesized_demo, monkeypat
 
     monkeypatch.setattr(Settings, "get_bundles_dir", lambda self: bundles_dir)
 
-    with db_session(db_file) as repo:
-        repo.add_instance(
+    with db_session(db_file) as conn:
+        instance_repo = InstanceRepository(conn)
+        instance_repo.add_instance(
             InstanceCreate(
                 id="inst-agent-target",
                 name="Agent Primary Target",
@@ -143,10 +151,10 @@ def test_agent_tools_pipeline_parity(tmp_path: Path, synthesized_demo, monkeypat
             )
         )
         # The release is detected at connection (ADR-014); simulate a detected profile.
-        repo.save_instance_profile(
+        instance_repo.save_instance_profile(
             InstanceProfile(instance_id="inst-agent-target", release="Zurich")
         )
-        ctx = ToolContext(repo=repo, fake_mode=True)
+        ctx = ToolContext(conn=conn, fake_mode=True)
 
         # 1. evaluate_demo tool
         res_eval = execute_tool(ctx, "evaluate_demo", {"bundle_id": bundle_id})
@@ -186,8 +194,9 @@ def test_cli_pipeline_commands(tmp_path: Path, synthesized_demo, monkeypatch):
     monkeypatch.setattr(Settings, "get_bundles_dir", lambda self: bundles_dir)
     monkeypatch.setattr(db_session_module, "get_db_path", lambda: db_file)
 
-    with db_session(db_file) as repo:
-        repo.add_instance(
+    with db_session(db_file) as conn:
+        instance_repo = InstanceRepository(conn)
+        instance_repo.add_instance(
             InstanceCreate(
                 id="inst-cli-test",
                 name="CLI Test Instance",
@@ -196,7 +205,9 @@ def test_cli_pipeline_commands(tmp_path: Path, synthesized_demo, monkeypatch):
             )
         )
         # The release is detected at connection (ADR-014); simulate a detected profile.
-        repo.save_instance_profile(InstanceProfile(instance_id="inst-cli-test", release="Zurich"))
+        instance_repo.save_instance_profile(
+            InstanceProfile(instance_id="inst-cli-test", release="Zurich")
+        )
 
     runner = CliRunner(env={"COLUMNS": "250"})
 

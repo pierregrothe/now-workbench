@@ -1,7 +1,6 @@
 """Preferences and sealed-secret repository mixin (ADR-012)."""
 
 import json
-import sqlite3
 from datetime import UTC, datetime
 from typing import Any
 
@@ -11,8 +10,9 @@ from now_workbench.db.models import (
     WorkbenchPreferences,
     WorkbenchPreferencesUpdate,
 )
+from now_workbench.db.repos.base import Repository
 
-__all__ = ["PreferencesRepositoryMixin"]
+__all__ = ["PreferencesRepository"]
 
 ANTHROPIC_KEY_SECRET = "anthropic_api_key"
 _DERIVED_FIELDS = (
@@ -34,10 +34,8 @@ def _secret_context(name: str) -> str:
     return f"secret:{name}"
 
 
-class PreferencesRepositoryMixin:
-    """Mixin providing per-user preferences and shared named sealed secrets."""
-
-    conn: sqlite3.Connection
+class PreferencesRepository(Repository):
+    """Repository for per-user preferences and shared named sealed secrets."""
 
     def get_secret(self, name: str) -> str:
         """Return a decrypted named secret, or an empty string when unset."""

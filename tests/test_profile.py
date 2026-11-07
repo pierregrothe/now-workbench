@@ -18,6 +18,7 @@ from now_workbench.api.app import create_app
 from now_workbench.auth.access import ACCESS_HEADER, AccessValidator
 from now_workbench.auth.models import Role
 from now_workbench.db import db_session
+from now_workbench.db.repos.users import UserRepository
 from now_workbench.db.schema import MIGRATIONS, SCHEMA_VERSION, apply_migrations
 from now_workbench.profile.avatars import MAX_AVATAR_BYTES, PRESET_AVATARS, sniff_image
 
@@ -44,9 +45,11 @@ def _as(email: str) -> dict[str, str]:
 @pytest.fixture
 def client() -> TestClient:
     """App with Access configured and two consultants."""
-    with db_session() as repo:
+    with db_session() as conn:
         for email in ("a@example.com", "b@example.com"):
-            repo.put_user(email, frozenset({Role.SOLUTION_CONSULTANT}), added_by="test")
+            UserRepository(conn).put_user(
+                email, frozenset({Role.SOLUTION_CONSULTANT}), added_by="test"
+            )
     validator = AccessValidator(
         "t.cloudflareaccess.com", "a", key_resolver=lambda _t: _KEY.public_key()
     )

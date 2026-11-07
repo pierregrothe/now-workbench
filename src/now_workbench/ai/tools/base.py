@@ -4,6 +4,7 @@ import asyncio
 import concurrent.futures
 import contextvars
 import json
+import sqlite3
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import Any
@@ -11,7 +12,8 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field
 
 from now_workbench.ai.tiles import TileLayout, UITileSpec
-from now_workbench.db import DatabaseRepository, InstanceRecord
+from now_workbench.db import InstanceRecord
+from now_workbench.db.repos.instances import InstanceRepository
 
 
 class ToolResult(BaseModel):
@@ -34,7 +36,7 @@ class ToolResult(BaseModel):
 class ToolContext:
     """Execution context shared by all tools in one agent turn."""
 
-    repo: DatabaseRepository
+    conn: sqlite3.Connection
     fake_mode: bool = False
 
 
@@ -93,15 +95,16 @@ def run_async[T](coro: Awaitable[T]) -> T:
         return pool.submit(contextvars.copy_context().run, asyncio.run, _wrap()).result()
 
 
-def resolve_instance(repo: DatabaseRepository, ref: str | None) -> InstanceRecord:
+def resolve_instance(conn: sqlite3.Connection, ref: str | None) -> InstanceRecord:
     """Resolve an instance by id, name, or URL fragment (default instance if blank)."""
+    instance_repo = InstanceRepository(conn)
     if not ref:
-        inst = repo.get_default_instance()
+        inst = instance_repo.get_default_instance()
         if not inst:
             raise ValueError("No default instance is configured.")
         return inst
     needle = ref.strip().lower()
-    instances = repo.list_instances()
+    instances = instance_repo.list_instances()
     for inst in instances:
         if inst.id.lower() == needle or inst.name.lower() == needle:
             return inst

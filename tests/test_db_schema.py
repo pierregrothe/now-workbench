@@ -12,19 +12,22 @@ import pytest
 from now_workbench.db import (
     ChatMessageRecord,
     ChatThreadCreate,
-    DatabaseRepository,
     InstanceCreate,
     InstanceUpdate,
     db_session,
     init_db,
 )
 from now_workbench.db.models import WorkbenchPreferencesUpdate
+from now_workbench.db.repos.instances import InstanceRepository
+from now_workbench.db.repos.preferences import PreferencesRepository
+from now_workbench.db.repos.threads import ThreadRepository
 from now_workbench.db.schema import SCHEMA_VERSION, apply_migrations
+from now_workbench.plugins.repository import PluginRepository
 
 
-def _memory_repo() -> DatabaseRepository:
-    """Return a repository over a fresh, fully migrated in-memory database."""
-    return DatabaseRepository(init_db(":memory:"))
+def _memory_repo() -> sqlite3.Connection:
+    """Return a connection to a fresh, fully migrated in-memory database."""
+    return init_db(":memory:")
 
 
 def test_init_db_file_sets_version_and_pragmas(tmp_path: Path) -> None:
@@ -87,126 +90,139 @@ def test_init_db_retires_unversioned_prototype(tmp_path: Path) -> None:
 def test_init_db_existing_current_database_reuses_schema(tmp_path: Path) -> None:
     """Opening an up-to-date file again keeps its data (no re-migration)."""
     target = tmp_path / "keep.db"
-    with db_session(target) as repo:
-        repo.add_instance(InstanceCreate(name="Keep", url="https://keep.service-now.com"))
-    with db_session(target) as repo:
-        assert [i.name for i in repo.list_instances()] == ["Keep"]
+    with db_session(target) as conn:
+        InstanceRepository(conn).add_instance(
+            InstanceCreate(name="Keep", url="https://keep.service-now.com")
+        )
+    with db_session(target) as conn:
+        assert [i.name for i in InstanceRepository(conn).list_instances()] == ["Keep"]
 
 
 def test_add_instance_seals_credentials_at_rest() -> None:
     """Username and password are stored only inside the sealed credentials blob."""
-    repo = _memory_repo()
-    inst = repo.add_instance(
+    conn = _memory_repo()
+    inst = InstanceRepository(conn).add_instance(
         InstanceCreate(
             name="Sealed", url="https://s.service-now.com", username="svc", password="P@ss"
         )
     )
-    blob = repo.conn.execute("SELECT credentials_sealed FROM instances;").fetchone()[0]
+    blob = conn.execute("SELECT credentials_sealed FROM instances;").fetchone()[0]
     assert b"P@ss" not in blob and b"svc" not in blob
     assert (inst.username, inst.password) == ("svc", "P@ss")
-    repo.close()
+    conn.close()
 
 
 def test_add_instance_duplicate_name_raises() -> None:
     """Instance names are unique case-insensitively."""
-    repo = _memory_repo()
-    repo.add_instance(InstanceCreate(name="Dev", url="https://a.service-now.com"))
+    conn = _memory_repo()
+    instance_repo = InstanceRepository(conn)
+    instance_repo.add_instance(InstanceCreate(name="Dev", url="https://a.service-now.com"))
     with pytest.raises(ValueError, match="already exists"):
-        repo.add_instance(InstanceCreate(name="dev", url="https://b.service-now.com"))
-    repo.close()
+        instance_repo.add_instance(InstanceCreate(name="dev", url="https://b.service-now.com"))
+    conn.close()
 
 
 def test_update_instance_rename_collision_raises() -> None:
     """Renaming onto an existing name is refused."""
-    repo = _memory_repo()
-    repo.add_instance(InstanceCreate(name="One", url="https://1.service-now.com"))
-    two = repo.add_instance(InstanceCreate(name="Two", url="https://2.service-now.com"))
+    conn = _memory_repo()
+    instance_repo = InstanceRepository(conn)
+    instance_repo.add_instance(InstanceCreate(name="One", url="https://1.service-now.com"))
+    two = instance_repo.add_instance(InstanceCreate(name="Two", url="https://2.service-now.com"))
     with pytest.raises(ValueError, match="already exists"):
-        repo.update_instance(two.id, InstanceUpdate(name="ONE"))
-    repo.close()
+        instance_repo.update_instance(two.id, InstanceUpdate(name="ONE"))
+    conn.close()
 
 
 def test_single_default_index_rejects_second_default() -> None:
     """The partial unique index guarantees at most one default instance."""
-    repo = _memory_repo()
-    repo.add_instance(InstanceCreate(name="A", url="https://a.service-now.com", is_default=True))
-    repo.add_instance(InstanceCreate(name="B", url="https://b.service-now.com"))
+    conn = _memory_repo()
+    instance_repo = InstanceRepository(conn)
+    instance_repo.add_instance(
+        InstanceCreate(name="A", url="https://a.service-now.com", is_default=True)
+    )
+    instance_repo.add_instance(InstanceCreate(name="B", url="https://b.service-now.com"))
     with pytest.raises(sqlite3.IntegrityError):
-        with repo.conn:
-            repo.conn.execute("UPDATE instances SET is_default = 1 WHERE name = 'B';")
-    repo.close()
+        with conn:
+            conn.execute("UPDATE instances SET is_default = 1 WHERE name = 'B';")
+    conn.close()
 
 
 def test_update_instance_set_default_moves_flag() -> None:
     """Promoting another instance to default demotes the previous one."""
-    repo = _memory_repo()
-    a = repo.add_instance(
+    conn = _memory_repo()
+    instance_repo = InstanceRepository(conn)
+    a = instance_repo.add_instance(
         InstanceCreate(name="A", url="https://a.service-now.com", is_default=True)
     )
-    b = repo.add_instance(InstanceCreate(name="B", url="https://b.service-now.com"))
-    repo.update_instance(b.id, InstanceUpdate(is_default=True))
-    default, old = repo.get_default_instance(), repo.get_instance(a.id)
+    b = instance_repo.add_instance(InstanceCreate(name="B", url="https://b.service-now.com"))
+    instance_repo.update_instance(b.id, InstanceUpdate(is_default=True))
+    default, old = instance_repo.get_default_instance(), instance_repo.get_instance(a.id)
     assert default is not None and default.id == b.id
     assert old is not None and old.is_default is False
-    repo.close()
+    conn.close()
 
 
 def test_delete_instance_cascades_plugins_and_reelects_default() -> None:
     """Deleting the default instance removes its plugins and promotes the next by name."""
-    repo = _memory_repo()
-    a = repo.add_instance(
+    conn = _memory_repo()
+    instance_repo = InstanceRepository(conn)
+    a = instance_repo.add_instance(
         InstanceCreate(name="A", url="https://a.service-now.com", is_default=True)
     )
-    b = repo.add_instance(InstanceCreate(name="B", url="https://b.service-now.com"))
-    repo.add_instance_plugin(a.id, "com.glide.x", "X")
-    assert repo.delete_instance(a.id) is True
-    assert repo.conn.execute("SELECT COUNT(*) FROM instance_plugins;").fetchone()[0] == 0
-    default = repo.get_default_instance()
+    b = instance_repo.add_instance(InstanceCreate(name="B", url="https://b.service-now.com"))
+    PluginRepository(conn).add_instance_plugin(a.id, "com.glide.x", "X")
+    assert instance_repo.delete_instance(a.id) is True
+    assert conn.execute("SELECT COUNT(*) FROM instance_plugins;").fetchone()[0] == 0
+    default = instance_repo.get_default_instance()
     assert default is not None and default.id == b.id
-    repo.close()
+    conn.close()
 
 
 def test_to_public_withholds_password() -> None:
     """The API view exposes has_password and never the password itself."""
-    repo = _memory_repo()
-    inst = repo.add_instance(
+    conn = _memory_repo()
+    inst = InstanceRepository(conn).add_instance(
         InstanceCreate(name="P", url="https://p.service-now.com", password="x")
     )
     public = inst.to_public().model_dump()
     assert "password" not in public
     assert public["has_password"] is True
-    repo.close()
+    conn.close()
 
 
 def test_delete_thread_cascades_messages() -> None:
     """Messages are removed by the foreign-key cascade, not application code."""
-    repo = _memory_repo()
-    repo.create_thread(ChatThreadCreate(id="t-1", title="T"))
-    repo.add_message(ChatMessageRecord(id="m-1", thread_id="t-1", role="user", content="hi"))
-    assert repo.delete_thread("t-1") is True
-    assert repo.conn.execute("SELECT COUNT(*) FROM chat_messages;").fetchone()[0] == 0
-    assert repo.delete_thread("t-1") is False
-    repo.close()
+    conn = _memory_repo()
+    thread_repo = ThreadRepository(conn)
+    thread_repo.create_thread(ChatThreadCreate(id="t-1", title="T"))
+    thread_repo.add_message(ChatMessageRecord(id="m-1", thread_id="t-1", role="user", content="hi"))
+    assert thread_repo.delete_thread("t-1") is True
+    assert conn.execute("SELECT COUNT(*) FROM chat_messages;").fetchone()[0] == 0
+    assert thread_repo.delete_thread("t-1") is False
+    conn.close()
 
 
 def test_add_message_unknown_thread_rejected() -> None:
     """A message cannot reference a missing (or someone else's) thread."""
-    repo = _memory_repo()
+    conn = _memory_repo()
     with pytest.raises(LookupError):
-        repo.add_message(ChatMessageRecord(id="m-x", thread_id="nope", role="user", content="x"))
-    repo.close()
+        ThreadRepository(conn).add_message(
+            ChatMessageRecord(id="m-x", thread_id="nope", role="user", content="x")
+        )
+    conn.close()
 
 
 def test_set_secret_empty_value_deletes() -> None:
     """Named secrets are sealed at rest and an empty value removes them."""
-    repo = _memory_repo()
-    repo.set_secret("svc_token", "tok-123")
-    sealed = repo.conn.execute("SELECT sealed FROM secrets WHERE name = 'svc_token';").fetchone()[0]
+    conn = _memory_repo()
+    pref_repo = PreferencesRepository(conn)
+    pref_repo.set_secret("svc_token", "tok-123")
+    sealed = conn.execute("SELECT sealed FROM secrets WHERE name = 'svc_token';").fetchone()[0]
     assert b"tok-123" not in sealed
-    assert repo.get_secret("svc_token") == "tok-123"
-    repo.set_secret("svc_token", "")
-    assert repo.get_secret("svc_token") == ""
-    repo.close()
+    assert pref_repo.get_secret("svc_token") == "tok-123"
+    pref_repo.set_secret("svc_token", "")
+    assert pref_repo.get_secret("svc_token") == ""
+    conn.close()
 
 
 def test_prepare_file_db_current_database_returns_early(tmp_path: Path) -> None:
@@ -223,12 +239,15 @@ def test_prepare_file_db_current_database_returns_early(tmp_path: Path) -> None:
 
 def test_has_instance_plugin_reports_presence() -> None:
     """Plugin lookups distinguish installed from missing plugins."""
-    repo = _memory_repo()
-    inst = repo.add_instance(InstanceCreate(name="Plug", url="https://p.service-now.com"))
-    repo.add_instance_plugin(inst.id, "com.glide.x", "X")
-    assert repo.has_instance_plugin(inst.id, "com.glide.x") is True
-    assert repo.has_instance_plugin(inst.id, "com.glide.y") is False
-    repo.close()
+    conn = _memory_repo()
+    plugin_repo = PluginRepository(conn)
+    inst = InstanceRepository(conn).add_instance(
+        InstanceCreate(name="Plug", url="https://p.service-now.com")
+    )
+    plugin_repo.add_instance_plugin(inst.id, "com.glide.x", "X")
+    assert plugin_repo.has_instance_plugin(inst.id, "com.glide.x") is True
+    assert plugin_repo.has_instance_plugin(inst.id, "com.glide.y") is False
+    conn.close()
 
 
 def test_get_workbench_preferences_uses_key_from_environment(
@@ -238,18 +257,19 @@ def test_get_workbench_preferences_uses_key_from_environment(
     from now_workbench.config.settings import settings
 
     monkeypatch.setattr(settings, "anthropic_api_key", "sk-ant-test-env1234")
-    repo = _memory_repo()
-    prefs = repo.get_workbench_preferences()
+    conn = _memory_repo()
+    pref_repo = PreferencesRepository(conn)
+    prefs = pref_repo.get_workbench_preferences()
     assert prefs.has_anthropic_api_key is True
     assert prefs.anthropic_api_key_from_env is True
     assert prefs.anthropic_api_key_masked == "sk-ant-...1234"
-    assert repo.get_decrypted_anthropic_api_key() == "sk-ant-test-env1234"
-    assert repo.get_secret("anthropic_api_key") == ""
+    assert pref_repo.get_decrypted_anthropic_api_key() == "sk-ant-test-env1234"
+    assert pref_repo.get_secret("anthropic_api_key") == ""
     with pytest.raises(ValueError, match=".env"):
-        repo.update_workbench_preferences(
+        pref_repo.update_workbench_preferences(
             WorkbenchPreferencesUpdate(anthropic_api_key="sk-ant-other")
         )
-    repo.close()
+    conn.close()
 
 
 def test_instances_api_duplicate_name_returns_conflict() -> None:

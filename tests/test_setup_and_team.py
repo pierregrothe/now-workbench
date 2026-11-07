@@ -22,6 +22,7 @@ from now_workbench.auth.models import Role
 from now_workbench.auth.setup import MAX_ATTEMPTS, SetupCodes, TooManyAttemptsError, WrongCodeError
 from now_workbench.cli import app as cli_app
 from now_workbench.db import db_session
+from now_workbench.db.repos.users import UserRepository
 
 _KEY = rsa.generate_private_key(public_exponent=65537, key_size=2048)
 TEAM, AUD = "t.cloudflareaccess.com", "aud"
@@ -112,8 +113,8 @@ def test_entering_the_code_makes_the_first_admin(client: TestClient, codes: list
     assert wrong.status_code == 400
     done = client.post("/api/setup", json={"code": codes[0]}, headers=_as(OWNER))
     assert done.status_code == 200
-    with db_session() as repo:
-        assert repo.get_user_roles(OWNER) == frozenset(Role)
+    with db_session() as conn:
+        assert UserRepository(conn).get_user_roles(OWNER) == frozenset(Role)
     again = client.post("/api/setup", json={"code": codes[0]}, headers=_as(OTHER))
     assert again.status_code == 409
     other = client.get("/api/instances", headers=_as(OTHER))
@@ -130,8 +131,8 @@ def test_setup_needs_a_cloudflare_identity(client: TestClient) -> None:
 
 
 def _owner_admin() -> None:
-    with db_session() as repo:
-        repo.put_user(OWNER, frozenset(Role), added_by="test")
+    with db_session() as conn:
+        UserRepository(conn).put_user(OWNER, frozenset(Role), added_by="test")
 
 
 def test_admin_adds_changes_and_removes_members(client: TestClient) -> None:
@@ -172,8 +173,8 @@ def test_healthz_answers_without_sign_in_and_reveals_nothing(client: TestClient)
 
 def test_backup_writes_a_consistent_database_copy(tmp_path: Path) -> None:
     """`workbench backup -o file` produces a readable SQLite copy."""
-    with db_session() as repo:
-        repo.put_user(OWNER, frozenset(Role), added_by="test")
+    with db_session() as db:
+        UserRepository(db).put_user(OWNER, frozenset(Role), added_by="test")
     out = tmp_path / "backup.db"
     result = CliRunner().invoke(cli_app, ["backup", "--out", str(out)])
     assert result.exit_code == 0, result.stdout
