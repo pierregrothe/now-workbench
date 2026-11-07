@@ -29,7 +29,7 @@ All gates run **locally** at specific development milestones. No external GitHub
    - `ruff`: Fast Python linting (0 violations).
    - `ruff-format`: Formatting check across all Python files.
    - `mypy`: Strict static type checking on `src/`.
-   - `file-size`: File size caps (src <= 500 lines, `_internal` 800, models/config 1000; tests <= 1000; web <= 500 with a shrink-only baseline; ADR-015).
+   - `file-size`: File size caps (src <= 500 lines, `_internal` 800, models/config 1000; tests <= 1000; web <= 500; ADR-015, ADR-024).
    - `import-contracts`: Layer, acyclic-domain and public-root contracts (`lint-imports`, ADR-015).
    - `ratchet-all`: Evaluates metric ratchets in `.ratchet/` (violations can only decrease, never increase).
    - `primer-reconcile`: Validates `.primer/policies/registry.yaml` against live hooks and ADR files.
@@ -80,6 +80,7 @@ cd web && npm run test:e2e
 5. **Subprocess Streaming**: Never use blocking `subprocess.run` in async code; stream lines via `asyncio.create_subprocess_exec`.
 6. **Absolute Imports**: Always import from `now_workbench.<module>` (no relative `..` imports).
 7. **UI Consistency**: Keep Lit Web Components aligned with ServiceNow Lux tokens in `web/src/styles/lux-theme.css`.
+   Component CSS lives in a sibling `*-styles.ts`; read the store through `StoreController` (ADR-024).
 8. **Layers (ADR-015)**: `interfaces -> domains -> platform`, never upward. Another package imports a
    domain only through `now_workbench.domains.<name>` (its `__init__`); add a name there to share it.
    Each domain owns its `<Name>Repository(conn)`; `db_session()` yields the connection. Checked by

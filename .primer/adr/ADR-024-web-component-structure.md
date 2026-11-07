@@ -36,6 +36,19 @@
    `.file-size-baseline.json` as each file comes under the limit; the baseline ends empty.
 6. **Dead components are deleted**, not kept for reference.
 
+## Migration status (2026-11-07)
+
+Done: `StoreController` replaces the five hand-written subscriptions; `<now-workspace-bar>`
+replaces three copied top bars; every large component's CSS moved to `*-styles.ts`; the
+admin panel, settings, demo catalog and shell were split (hero, add form, diagnostics,
+preference sections on a `PrefsSection` base, clone and deploy dialogs,
+`ThreadListController`, a pure `detectIntent`); one `InstanceData` type in
+`context/instance-model.ts`; `now-otto-drawer` deleted. `.file-size-baseline.json` is gone:
+every web file is under 500 lines. Fixed on the way (ADR-013): diagnostics no longer
+invent values, and failed settings, bundle and conversation loads are reported instead of
+showing defaults or empty lists. Left as is: the capture-studio and synthesizer form CSS
+look alike but differ in spacing, so merging them would change the screens.
+
 ## Consequences
 
 - Components shrink to behaviour and markup; CSS changes stay in one file per component.

@@ -34,7 +34,11 @@ now-workbench/
 +-- web/                       # Lit Web Components frontend (Lux + Otto)
 |   +-- src/
 |   |   +-- styles/lux-theme.css # ServiceNow Lux design tokens & variables
-|   |   +-- components/        # <now-workbench-shell>, <now-fluent-explorer>, etc.
+|   |   +-- components/        # Elements; CSS in sibling *-styles.ts, sections as child elements (ADR-024)
+|   |   +-- controllers/       # Lit ReactiveControllers (StoreController, ThreadListController, ...)
+|   |   +-- context/           # workbenchStore and the shared instance model
+|   |   +-- views/             # Workspace views, settings sections, <now-workspace-bar>
+|   |   +-- utils/             # Pure helpers (intent router, tooltip)
 |   |   +-- main.ts
 |   +-- package.json
 |   +-- tsconfig.json

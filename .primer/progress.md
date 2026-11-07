@@ -63,7 +63,7 @@ EPIC-001 to EPIC-016 are done; their story list is in `archive/progress-history.
   list).
 - Otto's follow-up replies can misreport their own tool use (history carries text only).
 - Chat feedback (thumbs, Get Help) is not built: it needs backend storage first.
-- `now-otto-drawer` is unmounted dead code; CLI bundle-id arguments are not path-guarded.
+- CLI bundle-id arguments are not path-guarded.
 - Testers share the owner's Claude key; there is no per-user usage cap yet.
 - Removing a deployed demo app from an instance is manual (System Applications).
 - Capture scripts launch Chromium with `--ignore-certificate-errors`.
