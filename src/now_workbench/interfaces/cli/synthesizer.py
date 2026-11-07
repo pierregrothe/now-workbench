@@ -18,6 +18,7 @@ from now_workbench.domains.synthesizer import (
     UseCaseSynthesizer,
     resolve_synthesis_release,
 )
+from now_workbench.interfaces.cli.ids import safe_id
 from now_workbench.platform.config.settings import settings
 from now_workbench.platform.db.session import db_session
 
@@ -63,7 +64,9 @@ def synthesize_demo_cmd(
 
 
 def capture_demo_cmd(
-    bundle_id: str = typer.Argument("sample-ai-assistant", help="Demo bundle identifier"),
+    bundle_id: str = typer.Argument(
+        "sample-ai-assistant", callback=safe_id, help="Demo bundle identifier"
+    ),
     target_path: str = typer.Option(
         "/now/nav/ui/classic/params/target/incident_list.do",
         "--path",

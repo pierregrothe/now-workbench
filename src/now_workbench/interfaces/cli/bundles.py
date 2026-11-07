@@ -28,6 +28,7 @@ from now_workbench.interfaces.cli.demos import (
     update_demo_cmd,
 )
 from now_workbench.interfaces.cli.fluent import fluent_app
+from now_workbench.interfaces.cli.ids import safe_id
 from now_workbench.interfaces.cli.properties import properties_app, reset_demo_cmd
 from now_workbench.interfaces.cli.synthesizer import capture_demo_cmd, synthesize_demo_cmd
 from now_workbench.platform.config.settings import settings
@@ -127,7 +128,7 @@ def list_demos() -> None:
 
 
 @demo_app.command("inspect")
-def inspect_demo(bundle_id: str) -> None:
+def inspect_demo(bundle_id: str = typer.Argument(..., callback=safe_id)) -> None:
     """Inspect detailed metadata for a demonstration package."""
     bundles_dir = settings.get_bundles_dir()
     mgr = BundleManager(storage_dir=bundles_dir)
@@ -155,7 +156,9 @@ def inspect_demo(bundle_id: str) -> None:
 
 
 @demo_app.command("export")
-def export_demo(bundle_id: str, output: Path = Path("demo.sn-demo.zip")) -> None:
+def export_demo(
+    bundle_id: str = typer.Argument(..., callback=safe_id), output: Path = Path("demo.sn-demo.zip")
+) -> None:
     """Export a demonstration package as a portable .sn-demo.zip archive."""
     bundles_dir = settings.get_bundles_dir()
     mgr = BundleManager(storage_dir=bundles_dir)
@@ -169,8 +172,10 @@ def export_demo(bundle_id: str, output: Path = Path("demo.sn-demo.zip")) -> None
 
 @demo_app.command("clone")
 def clone_demo(
-    source_id: str = typer.Argument(..., help="Source demo bundle ID to clone from"),
-    target_id: str = typer.Argument(..., help="New target bundle ID/slug"),
+    source_id: str = typer.Argument(
+        ..., callback=safe_id, help="Source demo bundle ID to clone from"
+    ),
+    target_id: str = typer.Argument(..., callback=safe_id, help="New target bundle ID/slug"),
     name: str = typer.Option(None, "--name", "-n", help="Optional display name for cloned demo"),
 ) -> None:
     """Clone an existing demo bundle to customize for a customer without modifying baseline."""
@@ -189,7 +194,9 @@ def clone_demo(
 
 @demo_app.command("runbook")
 def runbook_demo(
-    bundle_id: str = typer.Argument(..., help="Demo bundle ID to inspect runbook for"),
+    bundle_id: str = typer.Argument(
+        ..., callback=safe_id, help="Demo bundle ID to inspect runbook for"
+    ),
 ) -> None:
     """Display demonstration stages, personas, and talking points from guide.md."""
     bundles_dir = settings.get_bundles_dir()
@@ -234,7 +241,7 @@ def runbook_demo(
 
 @demo_app.command("verify-stage")
 def verify_stage_demo(
-    bundle_id: str = typer.Argument(..., help="Demo bundle ID"),
+    bundle_id: str = typer.Argument(..., callback=safe_id, help="Demo bundle ID"),
     step_number: int = typer.Argument(..., help="Stage number to verify"),
     instance_id: str = typer.Option(None, "--instance", "-i", help="Target instance ID"),
     fake: bool = typer.Option(False, "--fake", help="Simulate Table API verification"),
@@ -273,7 +280,9 @@ def verify_stage_demo(
 
 @demo_app.command("seed")
 def seed_demo(
-    bundle_id: str = typer.Argument(..., help="Demo bundle ID to seed records from"),
+    bundle_id: str = typer.Argument(
+        ..., callback=safe_id, help="Demo bundle ID to seed records from"
+    ),
     instance_id: str = typer.Option(None, "--instance", "-i", help="Target instance ID"),
     fake: bool = typer.Option(False, "--fake", help="Run with in-memory simulated Table API"),
 ) -> None:

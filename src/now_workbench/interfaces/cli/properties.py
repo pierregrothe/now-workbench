@@ -10,6 +10,7 @@ from rich.table import Table
 from now_workbench.domains.instances import InstanceRepository
 from now_workbench.domains.properties import PropertyEngine
 from now_workbench.domains.seed import SeedEngine, SeedRepository
+from now_workbench.interfaces.cli.ids import safe_id
 from now_workbench.platform.config.settings import settings
 from now_workbench.platform.db.session import db_session
 
@@ -22,7 +23,7 @@ console = Console()
 
 @properties_app.command("inspect")
 def inspect_properties(
-    bundle_id: str = typer.Argument(..., help="Demo bundle identifier"),
+    bundle_id: str = typer.Argument(..., callback=safe_id, help="Demo bundle identifier"),
 ) -> None:
     """Inspect system properties configured in a demo bundle."""
     bundle_path = settings.get_bundles_dir() / bundle_id
@@ -48,7 +49,7 @@ def inspect_properties(
 
 @properties_app.command("apply")
 def apply_properties(
-    bundle_id: str = typer.Argument(..., help="Demo bundle identifier"),
+    bundle_id: str = typer.Argument(..., callback=safe_id, help="Demo bundle identifier"),
     instance: str | None = typer.Option(
         None, "--instance", "-i", help="Target instance profile ID"
     ),
@@ -91,7 +92,7 @@ def apply_properties(
 
 @properties_app.command("restore")
 def restore_properties(
-    bundle_id: str = typer.Argument(..., help="Demo bundle identifier"),
+    bundle_id: str = typer.Argument(..., callback=safe_id, help="Demo bundle identifier"),
     instance: str | None = typer.Option(
         None, "--instance", "-i", help="Target instance profile ID"
     ),
@@ -127,7 +128,7 @@ def restore_properties(
 
 
 def reset_demo_cmd(
-    bundle_id: str = typer.Argument(..., help="Demo bundle identifier"),
+    bundle_id: str = typer.Argument(..., callback=safe_id, help="Demo bundle identifier"),
     instance: str | None = typer.Option(
         None, "--instance", "-i", help="Target instance profile ID"
     ),

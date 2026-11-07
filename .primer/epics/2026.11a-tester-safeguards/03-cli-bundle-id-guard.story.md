@@ -1,6 +1,8 @@
 # Story 2026.11a.03: CLI rejects bundle IDs that escape the bundles folder
 
-Status: backlog
+Status: done
+Done: 2026-11-07
+Started: 2026-11-07
 Spec-Clarity: high
 Depends-On: none
 Board: STORY-056
@@ -30,17 +32,17 @@ AC2:
 
 ## Tasks / Subtasks
 
-- [ ] Find the API's bundle-id validator and expose it from the bundles domain root (AC: 1)
-- [ ] Typer callback applying it to every bundle-ID argument (AC: 1,2)
-- [ ] Parametrised CLI tests per command and per bad ID (AC: 1,2)
+- [x] Find the API's bundle-id validator (`safe_child` in platform/config/paths.py) and expose its rule as `check_name` (AC: 1)
+- [x] Typer callback applying it to every bundle-ID argument (AC: 1,2)
+- [x] Parametrised CLI tests per command and per bad ID (AC: 1,2)
 
 ## Definition of Done
 
-- [ ] All acceptance criteria verified
-- [ ] Tests added or updated and passing (pytest 100% coverage; Playwright where UI changes)
-- [ ] Ruff clean (zero violations), mypy strict, tsc clean
-- [ ] No changes outside the story's stated scope
-- [ ] References section links verified
+- [x] All acceptance criteria verified
+- [x] Tests added or updated and passing (pytest 100% coverage; Playwright where UI changes)
+- [x] Ruff clean (zero violations), mypy strict, tsc clean
+- [x] No changes outside the story's stated scope
+- [x] References section links verified
 
 ## Existing Code
 

@@ -14,7 +14,7 @@ root directory.
 import re
 from pathlib import Path
 
-__all__ = ["UnsafePathError", "dev_script", "safe_child"]
+__all__ = ["UnsafePathError", "check_name", "dev_script", "safe_child"]
 
 # src/now_workbench/platform/config/paths.py -> the repository (or /app in the image).
 _REPO_ROOT = Path(__file__).resolve().parents[4]
@@ -25,6 +25,19 @@ _NAME_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}")
 
 class UnsafePathError(ValueError):
     """Raised when a name cannot be used as a direct child of a root directory."""
+
+
+def check_name(name: str) -> str:
+    """Return ``name`` if it may be a direct child of a directory (the rule of ``safe_child``).
+
+    Raises:
+        UnsafePathError: The name is empty, too long, or contains a separator or ``..``.
+    """
+    if not isinstance(name, str) or not _NAME_PATTERN.fullmatch(name) or ".." in name:
+        raise UnsafePathError(
+            f"Invalid name {name!r}: use letters, digits, '.', '_' or '-' (max 128 characters)."
+        )
+    return name
 
 
 def safe_child(root: Path, name: str) -> Path:
@@ -41,10 +54,7 @@ def safe_child(root: Path, name: str) -> Path:
         UnsafePathError: The name is empty, too long, contains a path separator or
             ``..``, or resolves (e.g. through a symlink) outside ``root``.
     """
-    if not isinstance(name, str) or not _NAME_PATTERN.fullmatch(name) or ".." in name:
-        raise UnsafePathError(
-            f"Invalid name {name!r}: use letters, digits, '.', '_' or '-' (max 128 characters)."
-        )
+    check_name(name)
     base = root.resolve()
     candidate = (base / name).resolve()
     if candidate.parent != base:

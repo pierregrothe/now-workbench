@@ -10,6 +10,7 @@ from now_workbench.domains.templates import (
     TemplateInstantiationRequest,
     TemplateRepository,
 )
+from now_workbench.interfaces.cli.ids import safe_id
 from now_workbench.platform.config.settings import settings
 from now_workbench.platform.db.session import db_session
 
@@ -47,8 +48,10 @@ def list_templates_cmd() -> None:
 
 @template_app.command("generate")
 def generate_template_cmd(
-    template_id: str = typer.Argument(..., help="Template ID to instantiate"),
-    target_bundle_id: str = typer.Argument(..., help="New target bundle directory name"),
+    template_id: str = typer.Argument(..., callback=safe_id, help="Template ID to instantiate"),
+    target_bundle_id: str = typer.Argument(
+        ..., callback=safe_id, help="New target bundle directory name"
+    ),
     customer_name: str = typer.Argument(..., help="Customer organization name"),
     primary_color: str = typer.Option(
         "#23a17e", "--primary-color", "-c", help="Brand primary color"
@@ -96,7 +99,7 @@ def generate_template_cmd(
 
 @template_app.command("inspect")
 def inspect_template_cmd(
-    template_id: str = typer.Argument(..., help="Template ID to inspect"),
+    template_id: str = typer.Argument(..., callback=safe_id, help="Template ID to inspect"),
 ) -> None:
     """Inspect parameters schema and details for a customization template."""
     with db_session() as conn:

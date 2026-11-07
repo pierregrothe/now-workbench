@@ -6,6 +6,7 @@ from rich.panel import Panel
 from rich.table import Table
 
 from now_workbench.domains.fluent import FluentEngine
+from now_workbench.interfaces.cli.ids import safe_id
 from now_workbench.platform.config.settings import settings
 
 fluent_app = typer.Typer(
@@ -17,7 +18,7 @@ console = Console()
 
 @fluent_app.command("inspect")
 def inspect_fluent(
-    bundle_id: str = typer.Argument(..., help="Demo bundle identifier"),
+    bundle_id: str = typer.Argument(..., callback=safe_id, help="Demo bundle identifier"),
 ) -> None:
     """Inspect Fluent SDK tables and columns defined in a demo bundle."""
     bundle_path = settings.get_bundles_dir() / bundle_id
@@ -54,8 +55,10 @@ def inspect_fluent(
 
 @fluent_app.command("diff")
 def diff_fluent(
-    bundle_a: str = typer.Argument(..., help="Base demo bundle identifier"),
-    bundle_b: str = typer.Argument(..., help="Target demo bundle to compare against"),
+    bundle_a: str = typer.Argument(..., callback=safe_id, help="Base demo bundle identifier"),
+    bundle_b: str = typer.Argument(
+        ..., callback=safe_id, help="Target demo bundle to compare against"
+    ),
 ) -> None:
     """Compare Fluent SDK schemas between two demo bundles."""
     bundles_dir = settings.get_bundles_dir()

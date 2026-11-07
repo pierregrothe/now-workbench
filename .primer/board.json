@@ -412,7 +412,7 @@
         {
           "id": "STORY-056",
           "title": "CLI rejects bundle IDs that escape the bundles folder",
-          "status": "backlog"
+          "status": "done"
         },
         {
           "id": "STORY-057",

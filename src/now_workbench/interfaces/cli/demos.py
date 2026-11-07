@@ -12,6 +12,7 @@ from now_workbench.domains.bundles import BundleManager
 from now_workbench.domains.capture import PlaywrightCaptureEngine
 from now_workbench.domains.demos import DemoPipelineEngine
 from now_workbench.domains.instances import InstanceRecord, InstanceRepository
+from now_workbench.interfaces.cli.ids import safe_id
 from now_workbench.platform.config.settings import settings
 from now_workbench.platform.db.session import db_session
 
@@ -27,7 +28,7 @@ def _resolve_instance(conn: sqlite3.Connection, instance_id: str | None) -> Inst
 
 
 def evaluate_demo_cmd(
-    bundle_id: str = typer.Argument(..., help="Demo bundle ID to evaluate"),
+    bundle_id: str = typer.Argument(..., callback=safe_id, help="Demo bundle ID to evaluate"),
     instance_id: str = typer.Option(None, "--instance", "-i", help="Target instance ID"),
     fake: bool = typer.Option(False, "--fake", help="Offline simulation mode"),
 ) -> None:
@@ -89,7 +90,7 @@ def evaluate_demo_cmd(
 
 
 def install_modules_cmd(
-    bundle_id: str = typer.Argument(..., help="Demo bundle ID"),
+    bundle_id: str = typer.Argument(..., callback=safe_id, help="Demo bundle ID"),
     instance_id: str = typer.Option(None, "--instance", "-i", help="Target instance ID"),
     fake: bool = typer.Option(False, "--fake", help="Offline simulation mode"),
 ) -> None:
@@ -122,7 +123,7 @@ def install_modules_cmd(
 
 
 def test_demo_cmd(
-    bundle_id: str = typer.Argument(..., help="Demo bundle ID to test"),
+    bundle_id: str = typer.Argument(..., callback=safe_id, help="Demo bundle ID to test"),
     instance_id: str = typer.Option(None, "--instance", "-i", help="Target instance ID"),
     fake: bool = typer.Option(False, "--fake", help="Offline simulation mode"),
 ) -> None:
@@ -158,7 +159,9 @@ def test_demo_cmd(
 
 
 def pipeline_demo_cmd(
-    bundle_id: str = typer.Argument(..., help="Demo bundle ID to run full pipeline for"),
+    bundle_id: str = typer.Argument(
+        ..., callback=safe_id, help="Demo bundle ID to run full pipeline for"
+    ),
     instance_id: str = typer.Option(None, "--instance", "-i", help="Target instance ID"),
     no_video: bool = typer.Option(False, "--no-video", help="Skip video proof recording"),
     fake: bool = typer.Option(False, "--fake", help="Offline simulation mode"),
@@ -208,7 +211,7 @@ def pipeline_demo_cmd(
 
 
 def delete_demo_cmd(
-    bundle_id: str = typer.Argument(..., help="Demo bundle ID to delete"),
+    bundle_id: str = typer.Argument(..., callback=safe_id, help="Demo bundle ID to delete"),
     force: bool = typer.Option(False, "--force", "-f", help="Bypass confirmation prompt"),
 ) -> None:
     """Delete a demonstration bundle package."""
@@ -227,7 +230,7 @@ def delete_demo_cmd(
 
 
 def update_demo_cmd(
-    bundle_id: str = typer.Argument(..., help="Demo bundle ID to update"),
+    bundle_id: str = typer.Argument(..., callback=safe_id, help="Demo bundle ID to update"),
     name: str | None = typer.Option(None, "--name", help="New title for the demo bundle"),
     description: str | None = typer.Option(None, "--description", "--desc", help="New description"),
     tags: str | None = typer.Option(None, "--tags", help="Comma-separated tags"),
@@ -252,7 +255,9 @@ def update_demo_cmd(
 
 
 def list_captures_cmd(
-    bundle_id: str = typer.Argument(..., help="Demo bundle ID to list captures for"),
+    bundle_id: str = typer.Argument(
+        ..., callback=safe_id, help="Demo bundle ID to list captures for"
+    ),
 ) -> None:
     """List all screenshots and videos recorded for a demo bundle."""
     engine = PlaywrightCaptureEngine(bundles_dir=settings.get_bundles_dir())
@@ -275,8 +280,8 @@ def list_captures_cmd(
 
 
 def update_capture_cmd(
-    bundle_id: str = typer.Argument(..., help="Demo bundle ID"),
-    filename: str = typer.Argument(..., help="Capture filename (.png or .webm)"),
+    bundle_id: str = typer.Argument(..., callback=safe_id, help="Demo bundle ID"),
+    filename: str = typer.Argument(..., callback=safe_id, help="Capture filename (.png or .webm)"),
     label: str = typer.Option(..., "--label", "-l", help="New caption or label"),
 ) -> None:
     """Update label or caption of a screenshot or video artifact."""
@@ -293,9 +298,11 @@ def update_capture_cmd(
 
 
 def delete_capture_cmd(
-    bundle_id: str = typer.Argument(..., help="Demo bundle ID"),
+    bundle_id: str = typer.Argument(..., callback=safe_id, help="Demo bundle ID"),
     filename: str | None = typer.Argument(
-        None, help="Capture filename (.png or .webm) to delete, or omit with --all"
+        None,
+        callback=safe_id,
+        help="Capture filename (.png or .webm) to delete, or omit with --all",
     ),
     all_captures: bool = typer.Option(
         False, "--all", "-a", help="Delete all captures for this bundle"
