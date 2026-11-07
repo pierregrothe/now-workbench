@@ -7,6 +7,8 @@ internal chores, docs, tests and CI are omitted, and the long-form entries are i
 
 ## [Unreleased]
 
+## [2026.11.0] - 2026-11-07
+
 ### Added
 - governance: work lands through a stamped, reviewed PR; a release is cut when a merge closes an epic (ADR-032)
 
