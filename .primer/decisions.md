@@ -389,3 +389,11 @@ and `interfaces/` (api, cli, ai), enforced by import-linter. Each domain owns it
 over a shared connection; the `DatabaseRepository` facade goes. The pipeline becomes
 `domains/demos`; `ai/actions.py` is deleted; web components wait for their own ADR.
 Details: `.primer/adr/ADR-015-domain-oriented-package-architecture.md`.
+
+### 2026-11-07 -- ADR-024: Web component structure
+
+Component CSS moves to sibling `*-styles.ts` files with shared partials; store access goes
+through one `StoreController`; the views' copied top bar becomes `<now-workspace-bar>`;
+components still over 500 lines split into one child element per section. The web size
+baseline must end empty. The unmounted `now-otto-drawer` is deleted.
+Details: `.primer/adr/ADR-024-web-component-structure.md`.

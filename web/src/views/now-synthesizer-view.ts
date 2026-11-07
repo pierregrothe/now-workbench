@@ -7,15 +7,15 @@ import { LitElement, html, css } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { DemoPipelineController } from '../controllers/demo-pipeline-controller.js';
 import { workbenchStore } from '../context/workbench-context.js';
-import type { WorkbenchState } from '../context/workbench-context.js';
 import { workspaceStyles } from '../styles/workspace-styles.js';
+import { StoreController } from '../controllers/store-controller.js';
+import './now-workspace-bar.js';
 
 @customElement('now-synthesizer-view')
 export class NowSynthesizerView extends LitElement {
   private pipeline = new DemoPipelineController(this);
-  private unsubscribeStore?: () => void;
 
-  @state() private currentStoreState: WorkbenchState = workbenchStore.state;
+  private readonly store = new StoreController(this);
   @state() private useCasePrompt =
     'Build an Enterprise Clinical Trial Patient Adverse Event Tracking application with strict HIPAA auditing, safety review workflows, and automatic FDA medwatch escalation.';
   @state() private customerName = 'Novartis BioHealth';
@@ -143,66 +143,30 @@ export class NowSynthesizerView extends LitElement {
 
   connectedCallback(): void {
     super.connectedCallback();
-    this.unsubscribeStore = workbenchStore.subscribe((state) => {
-      this.currentStoreState = state;
-    });
     workbenchStore.loadInstances();
   }
 
-  disconnectedCallback(): void {
-    super.disconnectedCallback();
-    this.unsubscribeStore?.();
-  }
 
   private async handleSynthesize(): Promise<void> {
     await this.pipeline.synthesize({
       prompt: this.useCasePrompt,
       customerName: this.customerName,
       industry: this.industry,
-      instanceId: this.currentStoreState.selectedInstanceId,
+      instanceId: this.store.state.selectedInstanceId,
       personas: [this.personaPrimary, this.personaSecondary],
     });
   }
 
   private async handleSeed(): Promise<void> {
-    await this.pipeline.seedDemo(undefined, this.currentStoreState.selectedInstanceId);
+    await this.pipeline.seedDemo(undefined, this.store.state.selectedInstanceId);
   }
 
-  private handleInstanceChange(e: Event): void {
-    const val = (e.target as HTMLSelectElement).value;
-    workbenchStore.setState({ selectedInstanceId: val });
-  }
 
   render() {
     const res = this.pipeline.synthesizedResult;
 
     return html`
-      <div class="top-utility-bar">
-        <div class="workspace-breadcrumb">
-          <span class="status-dot"></span>
-          <span>Now Workbench</span>
-          <span style="color: #9ca3af;">/</span>
-          <span>Use-Case Synthesizer</span>
-        </div>
-        <div class="utility-actions">
-          <div class="instance-picker-pill">
-            <span class="instance-picker-label">Target:</span>
-            <select
-              class="instance-picker-select"
-              .value=${this.currentStoreState.selectedInstanceId}
-              @change=${this.handleInstanceChange}
-            >
-              ${this.currentStoreState.instances.map(
-                (inst) => html`<option value=${inst.id}>${inst.name} (${inst.release})</option>`
-              )}
-            </select>
-          </div>
-        </div>
-      </div>
-
-      ${this.currentStoreState.loadError
-        ? html`<div class="badge error" role="alert" style="margin:12px 24px; display:block;">${this.currentStoreState.loadError}</div>`
-        : ''}
+      <now-workspace-bar crumb="Use-Case Synthesizer" show-load-error></now-workspace-bar>
 
       <div class="scroll-canvas">
         <div class="canvas-container">

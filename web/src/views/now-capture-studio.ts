@@ -8,16 +8,16 @@ import { customElement, property, state } from 'lit/decorators.js';
 import { CaptureGalleryController } from '../controllers/capture-gallery-controller.js';
 import type { CaptureArtifact } from '../controllers/capture-gallery-controller.js';
 import { workbenchStore } from '../context/workbench-context.js';
-import type { WorkbenchState } from '../context/workbench-context.js';
 import { workspaceStyles } from '../styles/workspace-styles.js';
 import '../modals/now-media-lightbox.js';
+import { StoreController } from '../controllers/store-controller.js';
+import './now-workspace-bar.js';
 
 @customElement('now-capture-studio')
 export class NowCaptureStudio extends LitElement {
   private gallery = new CaptureGalleryController(this);
-  private unsubscribeStore?: () => void;
 
-  @state() private currentStoreState: WorkbenchState = workbenchStore.state;
+  private readonly store = new StoreController(this);
   @state() private uriPath = '/now/nav/ui/classic/params/target/incident_list.do';
   @state() private captureMode: 'screenshot' | 'video' = 'screenshot';
   @state() private captureCaption = 'Live ServiceNow Workspace View';
@@ -195,18 +195,11 @@ export class NowCaptureStudio extends LitElement {
 
   connectedCallback(): void {
     super.connectedCallback();
-    this.unsubscribeStore = workbenchStore.subscribe((state) => {
-      this.currentStoreState = state;
-    });
     workbenchStore.loadInstances();
     workbenchStore.loadBundles();
     this.gallery.loadCaptures(this.selectedBundleId);
   }
 
-  disconnectedCallback(): void {
-    super.disconnectedCallback();
-    this.unsubscribeStore?.();
-  }
 
   private async handleTriggerCapture(): Promise<void> {
     await this.gallery.triggerCapture({
@@ -214,7 +207,7 @@ export class NowCaptureStudio extends LitElement {
       uriPath: this.uriPath,
       mode: this.captureMode,
       caption: this.captureCaption,
-      instanceId: this.currentStoreState.selectedInstanceId,
+      instanceId: this.store.state.selectedInstanceId,
     });
   }
 
@@ -223,10 +216,6 @@ export class NowCaptureStudio extends LitElement {
     await this.gallery.loadCaptures(this.selectedBundleId);
   }
 
-  private handleInstanceChange(e: Event): void {
-    const val = (e.target as HTMLSelectElement).value;
-    workbenchStore.setState({ selectedInstanceId: val });
-  }
 
   private async handleRename(filename: string, currentLabel?: string): Promise<void> {
     const newLabel = window.prompt('Enter new caption/label for capture:', currentLabel || '');
@@ -255,32 +244,7 @@ export class NowCaptureStudio extends LitElement {
 
   render() {
     return html`
-      <div class="top-utility-bar">
-        <div class="workspace-breadcrumb">
-          <span class="status-dot"></span>
-          <span>Now Workbench</span>
-          <span style="color: #9ca3af;">/</span>
-          <span>Media Capture Studio</span>
-        </div>
-        <div class="utility-actions">
-          <div class="instance-picker-pill">
-            <span class="instance-picker-label">Target:</span>
-            <select
-              class="instance-picker-select"
-              .value=${this.currentStoreState.selectedInstanceId}
-              @change=${this.handleInstanceChange}
-            >
-              ${this.currentStoreState.instances.map(
-                (inst) => html`<option value=${inst.id}>${inst.name} (${inst.release})</option>`
-              )}
-            </select>
-          </div>
-        </div>
-      </div>
-
-      ${this.currentStoreState.loadError
-        ? html`<div class="badge error" role="alert" style="margin:12px 24px; display:block;">${this.currentStoreState.loadError}</div>`
-        : ''}
+      <now-workspace-bar crumb="Media Capture Studio" show-load-error></now-workspace-bar>
 
       <div class="scroll-canvas">
         <div class="canvas-container">
@@ -312,8 +276,8 @@ export class NowCaptureStudio extends LitElement {
               <div class="form-group">
                 <label class="form-label">Target Demo Bundle</label>
                 <select class="select-input" .value=${this.selectedBundleId} @change=${this.handleBundleChange}>
-                  ${this.currentStoreState.bundles.length
-                    ? this.currentStoreState.bundles.map(
+                  ${this.store.state.bundles.length
+                    ? this.store.state.bundles.map(
                         (b) => html`<option value=${b.id}>${b.name} (${b.release})</option>`
                       )
                     : html`<option value="sample-ai-assistant">sample-ai-assistant (Zurich)</option>`}

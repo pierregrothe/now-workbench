@@ -3,7 +3,7 @@ import { customElement, property, state } from 'lit/decorators.js';
 import { workbenchStore } from '../context/workbench-context.js';
 import { libraryIcon, menuToggleIcon } from '../icons.js';
 import { renderAvatar, roleSummary } from '../profile/avatars.js';
-import type { ProfileData } from '../profile/avatars.js';
+import { StoreController } from '../controllers/store-controller.js';
 
 export interface NavThreadItem {
   id: string;
@@ -493,21 +493,13 @@ export class NowNavRail extends LitElement {
   @state() private resizing = false;
 
   @state() private showArchived = false;
-  @state() private profile: ProfileData | null = workbenchStore.state.profile;
-  private unsubscribeProfile?: () => void;
+  private readonly store = new StoreController(this);
 
   connectedCallback(): void {
     super.connectedCallback();
-    this.unsubscribeProfile = workbenchStore.subscribe((state) => {
-      this.profile = state.profile;
-    });
     void workbenchStore.loadProfile();
   }
 
-  disconnectedCallback(): void {
-    super.disconnectedCallback();
-    this.unsubscribeProfile?.();
-  }
 
   private selectTab(tab: string): void {
     this.dispatchEvent(
@@ -842,12 +834,12 @@ export class NowNavRail extends LitElement {
           </button>
 
           <div class="user-profile-row ${this.collapsed ? 'collapsed' : ''}">
-            <div class="user-avatar-pill" style="background:none;">${renderAvatar(this.profile, 28)}</div>
+            <div class="user-avatar-pill" style="background:none;">${renderAvatar(this.store.state.profile, 28)}</div>
             ${!this.collapsed
               ? html`
                   <div class="user-info-text">
-                    <span class="user-name">${this.profile?.display_name || this.profile?.email || 'Signing in...'}</span>
-                    <span class="user-role">${roleSummary(this.profile)}</span>
+                    <span class="user-name">${this.store.state.profile?.display_name || this.store.state.profile?.email || 'Signing in...'}</span>
+                    <span class="user-role">${roleSummary(this.store.state.profile)}</span>
                   </div>
                   <button class="user-more-btn" title="Account profile" aria-label="Account profile" @click=${() => this.dispatchEvent(new CustomEvent('nav-change', { detail: { tab: 'admin' }, bubbles: true, composed: true }))}>
                     <svg viewBox="0 0 24 24">

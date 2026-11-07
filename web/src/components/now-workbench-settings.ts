@@ -56,8 +56,7 @@ const DEFAULT_PREFS: WorkbenchPreferences = {
 };
 
 import { isAdmin } from '../profile/avatars.js';
-import type { ProfileData } from '../profile/avatars.js';
-import { workbenchStore } from '../context/workbench-context.js';
+import { StoreController } from '../controllers/store-controller.js';
 
 type SettingsSection =
   | 'profile'
@@ -507,8 +506,7 @@ export class NowWorkbenchSettings extends LitElement {
   `;
 
   @state() private activeSection: SettingsSection = 'profile';
-  @state() private profile: ProfileData | null = workbenchStore.state.profile;
-  private unsubscribeProfile?: () => void;
+  private readonly store = new StoreController(this);
   @state() private prefs: WorkbenchPreferences = { ...DEFAULT_PREFS };
   @state() private newApiKeyInput = '';
   @state() private isSaving = false;
@@ -518,16 +516,9 @@ export class NowWorkbenchSettings extends LitElement {
 
   connectedCallback(): void {
     super.connectedCallback();
-    this.unsubscribeProfile = workbenchStore.subscribe((state) => {
-      this.profile = state.profile;
-    });
     void this.loadSettings();
   }
 
-  disconnectedCallback(): void {
-    super.disconnectedCallback();
-    this.unsubscribeProfile?.();
-  }
 
   private async loadSettings(): Promise<void> {
     try {
@@ -723,7 +714,7 @@ export class NowWorkbenchSettings extends LitElement {
 
       <div class="prefs-layout">
         <nav class="pref-nav" aria-label="Settings sections">
-          ${(this.profile ? SECTIONS : []).filter((sec) => !sec.adminOnly || isAdmin(this.profile)).map(
+          ${(this.store.state.profile ? SECTIONS : []).filter((sec) => !sec.adminOnly || isAdmin(this.store.state.profile)).map(
             (sec) => html`
               <button
                 type="button"
@@ -743,7 +734,7 @@ export class NowWorkbenchSettings extends LitElement {
         : this.activeSection === 'team'
         ? html`<div class="scroll-body"><div class="settings-container"><now-team-settings></now-team-settings></div></div>`
         : this.activeSection === 'groups'
-        ? html`<div class="scroll-body"><div class="settings-container"><now-groups-settings .admin=${isAdmin(this.profile)} .email=${this.profile?.email ?? ''}></now-groups-settings></div></div>`
+        ? html`<div class="scroll-body"><div class="settings-container"><now-groups-settings .admin=${isAdmin(this.store.state.profile)} .email=${this.store.state.profile?.email ?? ''}></now-groups-settings></div></div>`
         : this.activeSection === 'approvals'
         ? html`<div class="scroll-body"><div class="settings-container"><now-approvals-settings></now-approvals-settings></div></div>`
         : this.activeSection === 'impersonate'

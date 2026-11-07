@@ -7,7 +7,6 @@ import { LitElement, html } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { ThreadController } from '../controllers/thread-controller.js';
 import { workbenchStore } from '../context/workbench-context.js';
-import type { WorkbenchState } from '../context/workbench-context.js';
 import { attachIcon, openArrowIcon, ottoGlyph, sendIcon, tapIcon } from '../icons.js';
 import { renderAvatar } from '../profile/avatars.js';
 import { bundlePanel, instancePanel } from './panel-items.js';
@@ -18,6 +17,8 @@ import { workspaceStyles } from '../styles/workspace-styles.js';
 import { chatViewStyles } from './chat-view-styles.js';
 import '../tiles/now-tile-renderer.js';
 import type { UITileSpec } from '../tiles/now-tile-renderer.js';
+import { StoreController } from '../controllers/store-controller.js';
+import './now-workspace-bar.js';
 
 /** Time-of-day greeting, like the Otto home screen. */
 const greeting = (): string => {
@@ -57,9 +58,8 @@ export class NowChatView extends LitElement {
       );
     };
   }
-  private unsubscribeStore?: () => void;
 
-  @state() private currentStoreState: WorkbenchState = workbenchStore.state;
+  private readonly store = new StoreController(this);
   @state() private chatInput: string = '';
   @state() private activeMode: 'overview' | 'thread' = 'overview';
   @state() private threadTitle: string = 'Otto Assistant Conversation';
@@ -90,9 +90,6 @@ export class NowChatView extends LitElement {
 
   connectedCallback(): void {
     super.connectedCallback();
-    this.unsubscribeStore = workbenchStore.subscribe((state) => {
-      this.currentStoreState = state;
-    });
     workbenchStore.loadInstances();
     workbenchStore.loadBundles();
     void this.loadKeyState();
@@ -109,10 +106,6 @@ export class NowChatView extends LitElement {
     }
   }
 
-  disconnectedCallback(): void {
-    super.disconnectedCallback();
-    this.unsubscribeStore?.();
-  }
 
   private async submitPrompt(overrideText?: string): Promise<void> {
     const text = (overrideText ?? this.chatInput).trim();
@@ -135,13 +128,9 @@ export class NowChatView extends LitElement {
     }
   }
 
-  private handleInstanceChange(e: Event): void {
-    const val = (e.target as HTMLSelectElement).value;
-    workbenchStore.setState({ selectedInstanceId: val });
-  }
 
   private renderHomeTiles() {
-    const { instances, selectedInstanceId, bundles } = this.currentStoreState;
+    const { instances, selectedInstanceId, bundles } = this.store.state;
     const target = instances.find((i) => i.id === selectedInstanceId);
     const open = (label: string, onClick: () => void) =>
       html`<button type="button" class="open-btn" aria-label=${label} title=${label} @click=${onClick}>${openArrowIcon(14)}</button>`;
@@ -220,7 +209,7 @@ export class NowChatView extends LitElement {
               }}
             />
             ${this.threadCtrl.isUploading ? html`<span>Uploading...</span>` : ''}
-            <span>${this.currentStoreState.instances.find((i) => i.id === this.currentStoreState.selectedInstanceId)?.name ?? 'No instance'}</span>
+            <span>${this.store.state.instances.find((i) => i.id === this.store.state.selectedInstanceId)?.name ?? 'No instance'}</span>
           </span>
           <button class="prompt-send-btn" aria-label="Send" @click=${() => void this.submitPrompt()}>
             ${sendIcon(16)}
@@ -280,7 +269,7 @@ export class NowChatView extends LitElement {
         : '';
     if (msg.sender === 'user') {
       return html`<div class="message-bubble user">
-        <div class="agent-head">${renderAvatar(this.currentStoreState.profile, 24)}<span>${this.currentStoreState.profile?.display_name || 'You'}</span><span class="when">${msg.timestamp}</span></div>
+        <div class="agent-head">${renderAvatar(this.store.state.profile, 24)}<span>${this.store.state.profile?.display_name || 'You'}</span><span class="when">${msg.timestamp}</span></div>
         <div style="white-space: pre-wrap;">${msg.text}</div>
       </div>`;
     }
@@ -320,7 +309,7 @@ export class NowChatView extends LitElement {
         props?.kind === 'bundle'
           ? bundlePanel(props)
           : instancePanel(
-              this.currentStoreState.instances.find((i) => i.id === props?.instance_id) ?? {
+              this.store.state.instances.find((i) => i.id === props?.instance_id) ?? {
                 id: String(props?.instance_id ?? ''),
                 name: String(props?.name ?? 'Instance'),
                 url: String(props?.url ?? ''),
@@ -351,37 +340,17 @@ export class NowChatView extends LitElement {
 
   render() {
     return html`
-      <div class="top-utility-bar">
-        <div class="workspace-breadcrumb">
-          <span class="status-dot"></span>
-          <span>Now Workbench</span>
-          <span style="color: #9ca3af;">/</span>
-          <span>${this.activeMode === 'overview' ? 'Home' : this.threadCtrl.title || this.threadTitle}</span>
-        </div>
-        <div class="utility-actions">
-          <div class="instance-picker-pill">
-            <span class="instance-picker-label">Target:</span>
-            <select
-              class="instance-picker-select"
-              .value=${this.currentStoreState.selectedInstanceId}
-              @change=${this.handleInstanceChange}
-            >
-              ${this.currentStoreState.instances.map(
-                (inst) => html`<option value=${inst.id}>${inst.name} (${inst.release})</option>`
-              )}
-            </select>
-          </div>
-          ${this.activeMode === 'thread'
-            ? html`<button class="pill-btn" @click=${() => (this.activeMode = 'overview')}>&larr; Back to Home</button>`
-            : ''}
-          <button
-            class="learn-more-pill"
-            @click=${() => this.dispatchEvent(new CustomEvent('open-welcome', { bubbles: true, composed: true }))}
-          >
-            ${tapIcon(14)}<span>Learn more</span>
-          </button>
-        </div>
-      </div>
+      <now-workspace-bar .crumb=${this.activeMode === 'overview' ? 'Home' : this.threadCtrl.title || this.threadTitle}>
+        ${this.activeMode === 'thread'
+          ? html`<button class="pill-btn" @click=${() => (this.activeMode = 'overview')}>&larr; Back to Home</button>`
+          : ''}
+        <button
+          class="learn-more-pill"
+          @click=${() => this.dispatchEvent(new CustomEvent('open-welcome', { bubbles: true, composed: true }))}
+        >
+          ${tapIcon(14)}<span>Learn more</span>
+        </button>
+      </now-workspace-bar>
 
       <div class="split">
       <div class="scroll-canvas">
@@ -389,7 +358,7 @@ export class NowChatView extends LitElement {
           ${this.activeMode === 'overview'
             ? html`
                 <div class="hero">
-                  <h1 class="hero-title">${ottoGlyph(30)} ${greeting()}${this.currentStoreState.profile?.display_name ? `, ${this.currentStoreState.profile.display_name.split(' ')[0]}` : ''}!</h1>
+                  <h1 class="hero-title">${ottoGlyph(30)} ${greeting()}${this.store.state.profile?.display_name ? `, ${this.store.state.profile.display_name.split(' ')[0]}` : ''}!</h1>
                   ${this.renderPrompt()}
                   <div class="chips-row">
                     <button class="chip-btn" @click=${() => void this.submitPrompt('How many instances do I have?')}>How many instances do I have?</button>
