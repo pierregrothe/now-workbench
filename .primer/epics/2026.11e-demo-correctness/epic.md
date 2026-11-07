@@ -4,7 +4,7 @@ Phase: 2026.11e
 Date: 2026-11-07
 Source: defects recorded while writing the domain cards (EPIC-020, PR #4 notes)
 Board: EPIC-021
-Progress: 2/5 stories done
+Progress: 3/5 stories done
 
 ## Goal
 
@@ -38,7 +38,7 @@ the instance's real release, and the pipeline never blocks the server.
 | FR1 | 01-fake-mode-safety | done |
 | FR2 | 02-property-snapshot-integrity | backlog |
 | FR3 | 03-capture-detected-release | done |
-| FR4 | 04-pipeline-nonblocking-plugins | backlog |
+| FR4 | 04-pipeline-nonblocking-plugins | done |
 | FR5 | 05-sharing-and-group-rules | backlog |
 
 ## Story List
@@ -48,7 +48,7 @@ the instance's real release, and the pipeline never blocks the server.
 | 01 | One simulated-instance rule; no real deploy from fake mode | none | done |
 | 02 | Property snapshots keep the originals; restore reports failure | none | backlog |
 | 03 | Capture uses the detected release | none | done |
-| 04 | Plugin queries off the event loop | none | backlog |
+| 04 | Plugin queries off the event loop | none | done |
 | 05 | Sharing and group rules hold | none | backlog |
 
 ## Out of Scope

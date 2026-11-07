@@ -535,7 +535,7 @@
         {
           "id": "STORY-075",
           "title": "Plugin queries off the event loop",
-          "status": "backlog"
+          "status": "done"
         },
         {
           "id": "STORY-076",
